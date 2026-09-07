@@ -1,4 +1,6 @@
-# Glyphr Studio v2!
+# Noddy
+
+Noddy is an independent fork of Glyphr Studio 2 (GPL-3.0-or-later) by Matt LaGrandeur and contributors.
 
 Glyphr Studio v2 is a web-based font editor, optimized for typeface design beginners or hobbyists.
 

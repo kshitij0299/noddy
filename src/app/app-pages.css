@@ -90,6 +90,43 @@
 	position: absolute;
 	top: calc(50% - 130px);
 }
+
+/* --------------------------------------------------------
+	Noddy responsive tiers (tier behavior only).
+	Hero artwork and copy are untouched (Phase 3.1).
+-------------------------------------------------------- */
+@media (max-width: 1099px) {
+	#open-project__page {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto 1fr;
+		overflow-y: auto;
+		height: 100vh;
+	}
+
+	#open-project__left-area {
+		width: auto;
+		padding: 20px;
+		justify-content: flex-start;
+	}
+
+	#open-project__right-area {
+		padding: 0px 20px 20px 20px;
+		font-size: 32px;
+	}
+
+	.open-project__version-name,
+	.open-project__version-number,
+	.open-project__blurb {
+		width: auto;
+		max-width: 100%;
+	}
+
+	.open-project__tab-wrapper {
+		position: static;
+		width: auto;
+		max-width: 480px;
+	}
+}
 .open-project__tab-content {
 	margin: 20px 4px 0px 10px;
 	display: inline;
@@ -167,8 +204,8 @@
 	top: 0;
 	height: calc(100vh - 20px);
 	width: calc(100vw - 20px);
-	padding-left: 530px;
-	padding-top: 100px;
+	padding: 100px 20px 0px 20px;
+	text-align: center;
 	font-size: 2em;
 	color: var(--blue-l70);
 	animation: var(--animate-fade-in);
@@ -300,6 +337,12 @@
 	grid-row: 1;
 	display: grid;
 	grid-template-columns: 400px 1fr 50px;
+}
+
+@media (max-width: 759px) {
+	.cross-project-actions__page-header {
+		grid-template-columns: 1fr 50px;
+	}
 }
 
 #cross-project-actions__page-content {

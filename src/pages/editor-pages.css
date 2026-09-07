@@ -4,10 +4,16 @@
 	width: 100%;
 	min-width: 100%;
 	display: grid;
-	grid-template-columns: 450px 40px 1fr;
+	grid-template-columns: clamp(340px, 30vw, 450px) 40px minmax(0, 1fr);
 	grid-template-rows: 100%;
 	column-gap: 10px;
 	padding: 0px 10px 10px 10px;
+}
+
+.editor-page__left-area,
+.editor-page__tools-area,
+.editor-page__edit-canvas-wrapper {
+	min-width: 0;
 }
 
 .editor-page__left-area {
@@ -21,10 +27,14 @@
 
 #editor-page__panel {
 	grid-row: 3;
-	width: 450px;
+	width: 100%;
+	max-width: 450px;
 	height: 100%;
 	overflow-y: auto;
-	overflow-x: hidden;
+	/* Interim: fixed 450px cards (remediated in Phase 3.4) stay reachable
+		while the T1 panel is fluid narrower than 450px. Panel-column
+		scroll is an allowed scroll region. */
+	overflow-x: auto;
 }
 #editor-page__panel span {
 	animation: var(--animate-slide-in);
@@ -130,8 +140,9 @@
 	position: absolute;
 	color: var(--blue-l30);
 	opacity: 0.9;
-	left: 530px;
-	top: 107px;
+	left: auto;
+	right: 12px;
+	top: 52px;
 	height: 32px;
 	padding: 5px 8px;
 	z-index: 10;
@@ -244,4 +255,94 @@ code.warning {
 	border-bottom-left-radius: 0px;
 	/* background-color: var(--lightRed); */
 	/* border-color: var(--darkRed); */
+}
+
+/* --------------------------------------------------------
+	Noddy responsive tiers (tier behavior only).
+	Open/close state comes from body.noddy-panel-open,
+	wired by panels.js. No transform-based drawer patterns.
+-------------------------------------------------------- */
+
+/* T2 compact + T3 narrow: panel column becomes a dismissible
+	overlay drawer; the canvas keeps full width. */
+@media (max-width: 1099px) {
+	.editor__page {
+		grid-template-columns: auto 40px minmax(0, 1fr);
+	}
+
+	.editor-page__left-area {
+		position: fixed;
+		left: 0;
+		top: 40px;
+		bottom: 0;
+		width: min(450px, calc(100vw - 32px));
+		z-index: 500;
+		display: none;
+		grid-template-rows: auto minmax(0, 1fr);
+		overflow: hidden;
+		background-color: var(--blue-l97);
+		border-right: 1px solid var(--blue-l85);
+		box-shadow: var(--l3-shadow);
+		padding: 10px;
+	}
+
+	body.noddy-panel-open .editor-page__left-area {
+		display: grid;
+	}
+
+	#editor-page__panel {
+		max-width: none;
+	}
+}
+
+/* T3 narrow: single column, tools wrap in a row, nav collapses
+	to the L1 menu button, drawer becomes a full-screen sheet. */
+@media (max-width: 759px) {
+	.editor__page {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
+		row-gap: 8px;
+	}
+
+	.editor-page__left-area {
+		left: 0;
+		right: 0;
+		width: auto;
+		border-right: none;
+	}
+
+	.editor-page__nav-area {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto;
+	}
+
+	.editor-page__nav-area #nav-button-l2,
+	.editor-page__nav-area #nav-button-l3 {
+		display: none;
+	}
+
+	.editor-page__tools-area {
+		grid-column: 1;
+		grid-row: 1;
+		padding-left: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+	}
+
+	.editor-page__tools-area .editor-page__tool {
+		margin: 0;
+	}
+
+	.editor-page__edit-canvas-wrapper {
+		grid-column: 1;
+		grid-row: 2;
+	}
+}
+
+/* Short height: panel body scrolls internally with viewport headroom */
+@media (max-height: 619px) {
+	#editor-page__panel {
+		max-height: calc(100vh - 140px);
+	}
 }

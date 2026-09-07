@@ -158,6 +158,7 @@ function makeVersionInfo() {
 				${logoVertical}
 			</div><br><br>
 			<h1>Version information</h1>
+			<p>Noddy is an independent fork of Glyphr Studio 2 (GPL-3.0-or-later) by Matt LaGrandeur and contributors.</p>
 			<div class="page__card">
 				<h3>Glyphr Studio App</h3>
 				<label>Version name:</label> ${app.versionName}<br>

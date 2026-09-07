@@ -857,3 +857,49 @@ nav .item-chooser__wrapper {
 	width: 100%;
 	padding-right: 30px;
 }
+
+/* --------------------------------------------------------
+	Noddy responsive tiers (tier/overlay rules only).
+	Card-content styling is untouched (Phase 3.4).
+-------------------------------------------------------- */
+
+/* Drawer close button (wired by panels.js). Only rendered
+	inside the T2/T3 overlay drawer and sheet. */
+.noddy-panel-close {
+	display: none;
+	width: 32px;
+	height: 32px;
+	min-width: 32px;
+	margin: 0 0 4px auto;
+}
+
+@media (max-width: 1099px) {
+	body.noddy-panel-open .noddy-panel-close {
+		display: block;
+	}
+}
+
+/* T2/T3 compact: notation positions from dialogs.js assume a
+	450px inline panel, so they land off-target once the panel
+	overlays. Fall back to a viewport-relative dock. The
+	!important flags beat the JS-inline coordinates from
+	dialogs.js (out of scope); a proper flip-to-trigger fix
+	belongs to a later milestone that owns that file. */
+@media (max-width: 1099px) {
+	body #notation {
+		left: auto !important;
+		right: 16px !important;
+		top: auto !important;
+		bottom: 64px !important;
+		max-width: min(340px, calc(100vw - 32px));
+	}
+}
+
+/* T3 narrow: dialogs constrained to the viewport */
+@media (max-width: 759px) {
+	body .modal-dialog__content {
+		width: min(500px, calc(100vw - 32px));
+		max-height: calc(100vh - 32px);
+		margin: 16px auto;
+	}
+}

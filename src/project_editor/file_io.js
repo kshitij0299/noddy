@@ -116,7 +116,7 @@ export function makeFileName(suffix, includeDateString = false) {
 	let fileName = project.settings.project.name;
 
 	if (suffix === 'gs2') {
-		fileName += ' - Glyphr Studio Project';
+		fileName += ' - Noddy Project';
 		if (includeDateString) fileName += ` - ${makeFileDateString()}`;
 	} else if (suffix === 'svg') {
 		fileName += ` - SVG Font - ${makeFileDateString()}`;

@@ -86,7 +86,12 @@ nav {
 }
 
 nav:focus {
-	outline: 0;
+	outline: none;
+}
+
+nav:focus-visible {
+	outline: 2px solid var(--ring, var(--blue-l60));
+	outline-offset: 2px;
 }
 
 #nav-dropdown-page {
@@ -136,4 +141,23 @@ nav:focus {
 .nav-dropdown__button span {
 	font-size: 1.2em;
 	margin-top: 4px;
+}
+
+/* --------------------------------------------------------
+	Noddy responsive tiers (nav chrome + tier behavior only)
+-------------------------------------------------------- */
+
+/* T3 narrow: dropdowns are sized inline by JS (max-width: 60%);
+	clamp them to the viewport instead. */
+@media (max-width: 759px) {
+	body nav {
+		max-width: calc(100vw - 16px) !important;
+	}
+}
+
+/* Short height: dropdowns scroll internally, never trap the page */
+@media (max-height: 619px) {
+	nav {
+		max-height: calc(100vh - 60px);
+	}
 }
