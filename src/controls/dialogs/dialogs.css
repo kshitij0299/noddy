@@ -165,6 +165,13 @@ dialog {
 	max-height: 400px;
 }
 
+/* Containment: deployed dropdowns (e.g. transform-origin in a 450px card)
+can open near the viewport edge. Cap the menu to the viewport so options
+stay reachable; the list keeps scrolling internally via overflow-y. */
+#context-menu.context-menu__dropdown {
+	max-width: calc(100vw - 16px);
+}
+
 #context-menu:focus {
 	outline: none;
 }

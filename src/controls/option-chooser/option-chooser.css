@@ -3,11 +3,21 @@
 	transition: var(--global-transition);
 }
 
+/* Containment: choosers sit in 1fr card cells next to paired inputs.
+min-width:0 keeps the host from forcing its cell wider than the card;
+the selection label already ellipsizes in-cell. */
+:host {
+	min-width: 0;
+	max-width: 100%;
+}
+
 .wrapper {
 	margin: 0px;
 	padding: 0px;
 	display: grid;
 	grid-template-columns: 1fr 24px;
+	min-width: 0;
+	max-width: 100%;
 	border-width: 1px;
 	border-style: solid;
 	border-color: var(--border, oklch(0.9055 0.0111 54.4854));

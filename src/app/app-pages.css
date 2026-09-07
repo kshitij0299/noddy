@@ -291,14 +291,30 @@
 
 .modal-dialog__open-new-project .modal-dialog__body {
 	padding: 0px;
+	/* In-region scroll (both axes) so tab content stays reachable instead
+	of spilling past the dialog. No page layout is changed (Phase 3.1). */
+	overflow-x: auto;
+}
+
+/* Phase 2.1 hotfix: the Load dialog reuses open-project tab content whose
+page context is 40px display type. Cap the type and keep the tabs in normal
+flow (dialog scope only) so the modal-body scroll reaches every button.
+Welcome copy/layout itself is untouched. */
+.modal-dialog__open-new-project #open-project__right-area {
+	font-size: 1rem;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .modal-dialog__open-new-project .open-project__tab-wrapper {
-	top: 50px;
+	position: static;
+	width: auto;
+	max-width: 100%;
 }
 
 .modal-dialog__open-new-project #open-project__page {
-	height: 400px;
+	height: auto;
+	min-height: 400px;
 	top: 0;
 }
 

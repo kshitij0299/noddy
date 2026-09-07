@@ -32,6 +32,12 @@
 	background-color: transparent;
 	grid-template-columns: 1fr 24px min-content;
 	height: 32px;
+	/* Containment: hosts sit in 1fr card cells (incl. doubleInput pairs).
+	Without min-width:0 the input's intrinsic minimum forces the cell
+	wider than the card and pairs collide. Long numerics keep scrolling
+	natively inside the text input. */
+	min-width: 0;
+	max-width: 100%;
 }
 
 :host([data-error]) {
@@ -58,7 +64,9 @@
 	border-right-color: transparent;
 	border-radius: var(--radius-sm, 4px) 0px 0px var(--radius-sm, 4px);
 	grid-column: 1;
-	min-width: 50px;
+	/* min-width:0 lets paired inputs shrink to their 1fr cell instead of
+	pushing the card grid wider; the value still scrolls inside the input. */
+	min-width: 0;
 	min-height: var(--space-8, 32px);
 	padding: var(--space-1, 4px) var(--space-2, 8px) var(--space-1, 4px) 2px;
 	text-align: right;
