@@ -21,6 +21,7 @@
 
 - `AGENTS.md` §3b (user-approved): targeted surface-only borrowing from old branches under 6 infection-proof guarantees (reference-only, per-item allowlist, no skeleton, rebuilt-not-pasted, independent infection check, logged). Wholesale copy/layout reuse stays banned.
 - User-reported Phase 2 issues accepted as hotfix scope: attributes-sidebar control overlap, Panel toggle missing on pages without `.top-bar__menus`, Load-dialog giant-text containment. Welcome/Load/Restore redesign + inside-app theming scheduled for Phase 3.1+ (pre-existing breakage, verified untouched by Phase 2 diff).
+- Phase 2.1 hotfix integrated (6 files, +88/−10): input/chooser cell containment (`min-width:0`), chooser-menu viewport clamping, Panel toggle fallback mounts + eager wiring for all shells, Load-dialog type cap + in-flow tabs + in-region scroll. Verified: lint 0 err, 618/618 pass. Independent review: PASS, LOW risk, zero old-branch markers (§3b infection check clean). Deferred (reviewer-optional): drawer-wiring teardown helper for jsdom isolation, `maxHeight>=0` clamp completeness.
 
 ## [Unreleased] — Phase 0: Discovery and baseline — 2026-09-07
 
