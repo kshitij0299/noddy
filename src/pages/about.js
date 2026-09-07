@@ -6,13 +6,13 @@ import donatePaypalSrc from '../common/graphics/donate-paypal.png';
 import fam_fd from '../common/graphics/fam_fd.png';
 import fam_ffjs from '../common/graphics/fam_ffjs.png';
 import fam_un from '../common/graphics/fam_un.png';
-import logoVertical from '../common/graphics/logo-wordmark-vertical.svg?raw';
+import logoVertical from '../common/graphics/noddy-logo-big.svg?raw';
 import { TabControl } from '../controls/tabs/tab_control.js';
 import { makeNavButton, toggleNavDropdown } from '../project_editor/navigator.js';
 
 /**
  * Page > About
- * Information about Glyphr Studio.
+ * Information about Noddy.
  * @returns {Element} - page content
  */
 export function makePage_About() {
@@ -62,16 +62,18 @@ function makeLicenseInfo() {
 	const content = makeElement({
 		innerHTML: `
 		<h1>License</h1>
-		<h2>The Glyphr Studio App</h2>
+		<h2>The Noddy App</h2>
 		<br>
 		<div class="page__card">
-			<h3>Glyphr Studio</h3>
+			<h3>Noddy <span style="font-weight: normal; opacity: 0.7;">(formerly Glyphr Studio)</span></h3>
 			<a href="https://www.glyphrstudio.com/" target="_blank">glyphrstudio.com</a>
 			<br><br>
-			The Glyphr Studio App is licensed under a
+			The Noddy app (formerly Glyphr Studio) is licensed under a
 			<a href='https://www.gnu.org/licenses/gpl.html' target='_blank'>GNU General Public License</a>,
 			which is a free / open source 'copyleft' license. You are free to use, distribute,
-			and modify Glyphr Studio as long as this license and its freeness stays intact.
+			and modify Noddy as long as this license and its freeness stays intact.
+			<br><br>
+			Noddy is a fork of <a href="https://www.glyphrstudio.com" target="_blank">Glyphr Studio (glyphrstudio.com)</a> — original by Matt LaGrandeur, GPL-3.0.
 			<br><br>
 			Copyright © 2010 - 2026 Matthew LaGrandeur
 		</div>
@@ -86,7 +88,7 @@ function makeLicenseInfo() {
 
 		<br>
 		<h2>Libraries</h2>
-		<p>Glyphr Studio includes the following 3rd party libraries:</p>
+		<p>Noddy includes the following 3rd party libraries:</p>
 
 		<div class="page__card">
 			<h3>Font Flux JS</h3>
@@ -159,7 +161,7 @@ function makeVersionInfo() {
 			</div><br><br>
 			<h1>Version information</h1>
 			<div class="page__card">
-				<h3>Glyphr Studio App</h3>
+				<h3>Noddy App</h3>
 				<label>Version name:</label> ${app.versionName}<br>
 				<label>Version number:</label> ${app.version}<br>
 				<label>Last updated on:</label> ${
@@ -168,7 +170,7 @@ function makeVersionInfo() {
 			</div>
 
 			<div class="page__card">
-				<h3>This Glyphr Studio Project</h3>
+				<h3>This Noddy Project</h3>
 				<label>Project name:</label> ${editor.project.settings.project.name}<br>
 				<label>Unique project ID:</label> ${editor.project.settings.project.id}<br>
 				<label>Initially created with:</label> Version ${
@@ -180,7 +182,7 @@ function makeVersionInfo() {
 
 			<h2>More details</h2>
 			<p>
-				More information about this and past versions of the Glyphr Studio app can be found on the <a href="https://www.glyphrstudio.com/blog/" target="_blank">Glyphr Studio Blog</a>, the <a href="https://github.com/glyphr-studio/Glyphr-Studio-2/releases" target="_blank">Glyphr Studio 2 GitHub > Releases</a> page, or the <a href="https://www.glyphrstudio.com/help/about/updates.html" target="_blank">Glyphr Studio 2 Help > Updates</a> page.
+				More information about this and past versions of the app can be found on the <a href="https://www.glyphrstudio.com/blog/" target="_blank">Glyphr Studio Blog</a>, the <a href="https://github.com/glyphr-studio/Glyphr-Studio-2/releases" target="_blank">Noddy / Glyphr Studio 2 GitHub > Releases</a> page, or the <a href="https://www.glyphrstudio.com/help/about/updates.html" target="_blank">Help > Updates</a> page.
 			</p>
 
 
@@ -212,7 +214,7 @@ export function makeContributeContent() {
 		attributes: { style: 'margin: 20px;' },
 		innerHTML: `
 			<h2>Contribute!</h2>
-			If you want to give back to Glyphr Studio, there are two huge ways you can make it better!
+			If you want to give back to Noddy, there are two huge ways you can make it better!
 			<br>
 			<ul>
 				<li>
@@ -227,9 +229,9 @@ export function makeContributeContent() {
 				</li>
 				<li>
 					<strong>Make a Monetary Contribution</strong> -
-					Glyphr Studio will always be free, and we think that is very important.  But, it does take some
-					money to keep it going.	Contributions of even small amounts of money help keep the Glyphr Studio
-					effort going strong!
+					Noddy will always be free, and we think that is very important.  But, it does take some
+					money to keep it going.	Contributions of even small amounts of money help keep Noddy
+					going strong!
 					<br><br>
 				</li>
 			</ul>
@@ -260,7 +262,7 @@ function makeContactInfo() {
 				<span>Email:</span>
 				${emailLink()}
 
-				<span>Help for Glyphr Studio v2:</span>
+				<span>Help for Noddy:</span>
 				<a href="https://www.glyphrstudio.com/help" target="_blank">glyphrstudio.com/help</a>
 
 				<span>Blog:</span>
@@ -297,7 +299,7 @@ function makeFamilyInfo() {
 		attributes: { style: 'margin: 20px;' },
 		innerHTML: `
 			<h1>Family of products</h1>
-			Check out these other tools that are part of the Glyphr Studio family of font-related products:
+			Check out these other tools that are part of the Noddy / Glyphr Studio family of font-related products:
 			<br><br>
 
 			<div class="page__card family-card">

@@ -1,65 +1,94 @@
+/* Noddy Option Toggle — modern switch with peach accent */
+
 * {
 	box-sizing: border-box;
-	transition: var(--global-transition);
 }
 
 .wrapper {
-	margin: 0px;
-	padding: 0px;
+	margin: 0;
+	padding: 0 0 0 2px;
 	display: grid;
-	grid-template-columns: 1fr 24px;
-	border-width: 1px;
-	border-style: solid;
-	border-color: var(--enabled-restingLight-border);
-	background-color: var(--enabled-restingLight-background);
-	border-radius: 4px;
+	grid-template-columns: 1fr 44px;
+	align-items: center;
+	gap: 8px;
+	border: 1px solid var(--input);
+	background-color: var(--card);
+	border-radius: var(--radius);
+	height: 32px;
+	box-shadow: var(--shadow-xs);
+	font-family: var(--font-sans);
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		box-shadow 150ms ease;
+	overflow: hidden;
 }
 
 .wrapper:focus {
-		outline: var(--global-focus-style);
-		outline-offset: -1px;
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style);
 }
 
-.wrapper:hover,
-.wrapper:focus {
-	border-color: var(--enabled-focus-border);
+.wrapper:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
+}
+
+.wrapper:hover {
+	border-color: var(--ring);
+	box-shadow: var(--shadow-sm);
 	cursor: pointer;
 }
 
-.wrapper:hover .toggleIcon svg,
-.wrapper:focus .toggleIcon svg {
-	fill: var(--enabled-focus-fill);
+.wrapper:hover .toggleIcon svg #outline {
+	stroke: var(--ring);
 }
 
 .wrapper[disabled],
 .wrapper:hover[disabled],
 .wrapper:focus[disabled],
 .wrapper:active[disabled] {
-	background-color: var(--disabled-background);
-	border-color: var(--disabled-border);
-		color: var(--disabled-text);
-			text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.2);
+	background-color: var(--muted);
+	border-color: var(--border);
+	color: var(--muted-foreground);
+	cursor: default;
+	box-shadow: none;
+	opacity: 1;
 }
 
 .selection-display {
 	background-color: transparent;
 	border: 0;
-	border-radius: 4px 0px 0px 4px;
 	margin: 0;
-	margin-right: 0px;
-	color: var(--enabled-resting-text);
+	color: var(--foreground);
 	grid-column: 1;
 	min-width: 50px;
-	height: 24px;
-	line-height: 24px;
-	padding: 1px 8px 0px 8px;
+	height: 30px;
+	line-height: 30px;
+	padding: 0 0 0 10px;
 	text-align: left;
-	font-family: monospace;
+	font-family: var(--font-sans);
+	font-size: 0.88em;
+	font-weight: 450;
+	letter-spacing: var(--tracking-normal);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .selection-display .prefix {
-	color: var(--disabled-text);
+	color: var(--muted-foreground);
 	font-size: 0.9em;
+}
+
+.toggleIcon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	grid-column: 2;
+	height: 30px;
+	padding-right: 6px;
 }
 
 .toggleIcon svg {
@@ -69,22 +98,74 @@
 	user-select: none;
 	padding: 0;
 	margin: 0;
-	border-width: 1px;
-	text-align: center;
-	height: 24px;
-	line-height: 24px;
-	border-radius: 4px;
-	grid-column: 2;
-	vertical-align: middle;
+	border: 0;
+	height: 20px;
+	width: 36px;
+	display: block;
+	overflow: visible;
+	transition:
+		fill 150ms ease,
+		stroke 150ms ease;
 }
 
-.toggleIcon svg {
-	height: 20px;
-	width: 20px;
-	margin: 2px;
-	fill: var(--enabled-restingLight-fill);
+/* Track */
+.toggleIcon svg #outline {
+	fill: var(--secondary);
+	stroke: var(--border);
+	stroke-width: 0.6px;
+	transition:
+		fill 150ms ease,
+		stroke 150ms ease;
+}
+
+/* Dots — peach accent */
+.toggleIcon svg #left-dot,
+.toggleIcon svg #right-dot {
+	fill: var(--card);
+	stroke: var(--border);
+	stroke-width: 0.5px;
+	transition:
+		fill 150ms ease,
+		stroke 150ms ease;
+}
+
+/* When right selected (default off?), peach dot on right */
+.toggleIcon svg #right-dot {
+	fill: var(--primary);
+	stroke: var(--primary);
+}
+
+.toggleIcon svg #left-dot {
+	fill: var(--muted-foreground);
+}
+
+/* Hover — brighten track */
+.wrapper:hover .toggleIcon svg #outline {
+	fill: color-mix(in oklch, var(--secondary) 92%, var(--primary) 8%);
+}
+
+/* When left selected, left dot peach */
+.wrapper:has(.toggleIcon svg #left-dot[style*="block"]) .toggleIcon svg #left-dot {
+	fill: var(--primary);
+	stroke: var(--primary);
+}
+
+.wrapper:has(.toggleIcon svg #left-dot[style*="block"]) .toggleIcon svg #outline {
+	fill: color-mix(in oklch, var(--primary) 18%, var(--secondary));
+	stroke: color-mix(in oklch, var(--primary) 30%, var(--border));
+}
+
+.wrapper[disabled] .toggleIcon svg #outline {
+	fill: var(--muted);
+	stroke: var(--border);
+}
+
+.wrapper[disabled] .toggleIcon svg #left-dot,
+.wrapper[disabled] .toggleIcon svg #right-dot {
+	fill: var(--border);
+	stroke: var(--border);
 }
 
 .wrapper:hover .toggleIcon svg {
-	fill: var(--enabled-focus-fill);
+	filter: none;
 }

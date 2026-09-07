@@ -15,7 +15,7 @@ export function makeSettingsTabContentApp() {
 		id: 'tab-content__app',
 		innerHTML: `
 			<h1>App preferences</h1>
-			<p>These settings adjust how the Glyphr Studio App behaves.</p>
+			<p>These settings adjust how the Noddy App behaves.</p>
 		`,
 	});
 
@@ -28,7 +28,7 @@ export function makeSettingsTabContentApp() {
 		textToNode('<label class="settings__label">Delete all auto-saved backups:</label>'),
 		makeElement({
 			tag: 'info-bubble',
-			content: `Glyphr Studio uses your browser's local storage to keep auto-saved backups. If you use Glyphr Studio from a different browser, or on a different computer, you'll have to go there to restore or delete backups.`,
+			content: `Noddy uses your browser's local storage to keep auto-saved backups. If you use Noddy from a different browser, or on a different computer, you'll have to go there to restore or delete backups.`,
 		}),
 		makeElement({
 			tag: 'fancy-button',

@@ -31,15 +31,18 @@
 }
 
 .content {
-	padding: 20px 24px 20px 20px;
-	border-radius: 10px;
+	padding: calc(var(--spacing) * 5) calc(var(--spacing) * 6) calc(var(--spacing) * 5) calc(var(--spacing) * 5);
+	border-radius: var(--radius);
 	width: clamp(300px, 400px, 600px);
 	min-width: 300px;
 	color: var(--textColor);
 	background-color: var(--bgColor);
 	text-align: left;
 	display: block;
-	box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.2);
+	box-shadow: var(--shadow-lg);
+	font-family: var(--font-sans);
+	font-size: 0.875rem;
+	line-height: 1.6;
 }
 
 .content code {

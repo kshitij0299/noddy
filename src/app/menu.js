@@ -1,5 +1,5 @@
 import { addAsChildren, insertAfter, makeElement } from '../common/dom.js';
-import logoHorizontal from '../common/graphics/logo-wordmark-horizontal-small.svg?raw';
+import logoHorizontal from '../common/graphics/noddy-logo-big.svg?raw';
 import {
 	closeEveryTypeOfDialog,
 	makeContextMenu,
@@ -15,7 +15,6 @@ import {
 } from '../formats_io/otf/font_export.js';
 import { ioSVG_exportSVGfont } from '../formats_io/svg_font/svg_font_export.js';
 import { makeFileName } from '../project_editor/file_io.js';
-import { emailLink } from './app.js';
 import { makePage_CrossProjectActions } from './cross_project_actions/cross_project_actions.js';
 import { getCurrentProjectEditor, getGlyphrStudioApp } from './main.js';
 import { makePage_OpenProject } from './open_project.js';
@@ -31,41 +30,24 @@ import { makePage_OpenProject } from './open_project.js';
 export function makeAppTopBar() {
 	let topBar = makeElement({ tag: 'div', id: 'app__top-bar' });
 
-	let logo = makeElement({ innerHTML: logoHorizontal, className: 'top-bar__logo' });
+	let logo = makeElement({
+		tag: 'button',
+		innerHTML: logoHorizontal,
+		className: 'top-bar__logo',
+		attributes: {
+			'aria-label': 'Go to welcome screen',
+			title: 'Go to welcome screen — Open project',
+			type: 'button',
+		},
+		onClick: () => getGlyphrStudioApp().appPageNavigate(makePage_OpenProject),
+	});
 
 	let menus = makeElement({ className: 'top-bar__menus' });
 	menus.appendChild(makeMenu('File'));
 	menus.appendChild(makeMenu('Projects'));
 	menus.appendChild(makeMenu('Help'));
 
-	let mailIcon = `
-<?xml version="1.0" encoding="UTF-8"?><svg id="Mail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 9"><polygon points="8 1 0 1 0 2 8 2 8 1 8 1"/><polygon points="20 0 10 0 10 1 20 1 20 0 20 0"/><polygon points="20 8 10 8 10 9 20 9 20 8 20 8"/><polygon points="8 3 2 3 2 4 8 4 8 3 8 3"/><polygon points="8 7 6 7 6 8 8 8 8 7 8 7"/><polygon points="10 1 9 1 9 8 10 8 10 1 10 1"/><polygon points="21 1 20 1 20 8 21 8 21 1 21 1"/><polygon points="8 5 4 5 4 6 8 6 8 5 8 5"/><polygon points="12 2 10 2 10 3 12 3 12 2 12 2"/><polygon points="14 3 12 3 12 4 14 4 14 3 14 3"/><polygon points="16 4 14 4 14 5 16 5 16 4 16 4"/><polygon points="20 2 18 2 18 3 20 3 20 2 20 2"/><polygon points="18 3 16 3 16 4 18 4 18 3 18 3"/></svg>`;
-	let bugContact = makeElement({
-		className: 'top-bar__bug-contact',
-	});
-
-	bugContact.appendChild(
-		makeElement({
-			className: 'top-bar__bug-blurb',
-			innerHTML: 'Found a bug? Have some feedback?',
-		})
-	);
-
-	bugContact.appendChild(
-		makeElement({
-			className: 'top-bar__bug-icon',
-			innerHTML: emailLink(mailIcon),
-		})
-	);
-
-	bugContact.appendChild(
-		makeElement({
-			className: 'top-bar__bug-link',
-			innerHTML: emailLink(),
-		})
-	);
-
-	addAsChildren(topBar, [logo, menus, bugContact]);
+	addAsChildren(topBar, [logo, menus]);
 
 	return topBar;
 }
@@ -93,7 +75,7 @@ function makeMenu(menuName) {
 		// for new projects) drives the file name preview and the Ctrl+E note.
 		const preferredExportFormat = getPreferredExportFormat();
 		if (typeof editor.loadedFileHandle === 'object') {
-			let projectDisplayName = `${editor.project.settings.project.name} - Glyphr Studio Project.gs2`;
+			let projectDisplayName = `${editor.project.settings.project.name} - Noddy Project.gs2`;
 
 			// @ts-expect-error 'property does exist'
 			if (typeof editor?.loadedFileHandle?.name === 'string') {
@@ -278,7 +260,7 @@ function makeMenu(menuName) {
 							},
 						},
 						{
-							name: 'About Glyphr Studio',
+							name: 'About Noddy',
 							icon: 'command_info',
 							onClick: () => {
 								let editor = getCurrentProjectEditor();

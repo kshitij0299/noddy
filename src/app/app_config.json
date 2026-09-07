@@ -1,5 +1,7 @@
 {
-  "version": "2.10.3",
-  "versionDate": 1783882800000,
-  "devMode": false
+  "version": "0.1.0",
+  "versionDate": 1788244200000,
+  "devMode": false,
+  "upstreamVersion": "2.10.3",
+  "upstreamRef": "glyphr-studio/Glyphr-Studio-2@ecd1614"
 }

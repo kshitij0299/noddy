@@ -31,7 +31,7 @@ export function makeSettingsTabContentProject() {
 		id: 'tab-content__project',
 		innerHTML: `
 			<h1>Project settings</h1>
-			<p>These settings affect how this Glyphr Studio Project behaves.</p>
+			<p>These settings affect how this Noddy Project behaves.</p>
 		`,
 	});
 
@@ -107,7 +107,7 @@ export function makeSettingsTabContentProject() {
 				These are ranges with characters that are saved in your project,
 				but are not part of enabled character ranges.
 				<br>
-				These will be saved to your Glyphr Studio Project File, but
+				These will be saved to your Noddy Project File, but
 				will not be exported to fonts.
 			</p>
 		`),
@@ -508,7 +508,7 @@ function showEditCharacterRangeDialog(range = false) {
 	// log(`\n⮟range⮟`);
 	// log(range);
 	const unicodeHelp = `
-		Start and End inputs are Unicode or number IDs for the characters on each end of the range. Glyphr Studio accepts three flavors of this ID number:<br>
+		Start and End inputs are Unicode or number IDs for the characters on each end of the range. Noddy accepts three flavors of this ID number:<br>
 		<ul>
 			<li><b>Unicode Number</b> - a base-16 number with a U+&nbsp;prefix. For example, <code>U+4E</code> corresponds to Capital&nbsp;N.</li>
 			<li><b>Hexadecimal Number</b> - a base-16 number with a 0x&nbsp;prefix. For example, <code>0x4E</code> corresponds to Capital&nbsp;N.</li>

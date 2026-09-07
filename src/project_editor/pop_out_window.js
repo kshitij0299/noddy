@@ -29,7 +29,7 @@ export function openPopOutWindow() {
 	// @ts-expect-error 'property does exist'
 	let popDoc = editor.popOutWindow.document;
 
-	popDoc.head.appendChild(makeElement({ tag: 'title', content: 'Live Preview - Glyphr Studio' }));
+	popDoc.head.appendChild(makeElement({ tag: 'title', content: 'Live Preview - Noddy' }));
 
 	const resets = makeElement({ tag: 'style', innerHTML: resetStyle });
 	popDoc.head.appendChild(resets);

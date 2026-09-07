@@ -1,5 +1,5 @@
 import { addAsChildren, makeElement } from '../common/dom.js';
-import logoVertical from '../common/graphics/logo-wordmark-vertical.svg?raw';
+import logoVertical from '../common/graphics/noddy-logo-big.svg?raw';
 import { closeEveryTypeOfDialog, showError, showToast } from '../controls/dialogs/dialogs.js';
 import { makeProgressIndicator } from '../controls/progress-indicator/progress_indicator.js';
 import { cancelDefaultEventActions } from '../edit_canvas/events.js';
@@ -21,7 +21,7 @@ import {
 
 /**
  * Page > Open Project
- * The first page you see when you open Glyphr Studio.
+ * The first page you see when you open Noddy.
  */
 let isSecondProject;
 
@@ -51,9 +51,10 @@ export function makePage_OpenProject(secondProjectFlag = false) {
 					<span class="open-project__version-name">${app.versionName}</span>
 					<span class="open-project__version-number">${app.version}${recentMessage}</span>
 					<div class="open-project__blurb">
-						For more information visit <a href="http://www.glyphrstudio.com" target="_blank">www.glyphrstudio.com</a><br>
-						Glyphr Studio is licensed under a <a href="https://www.gnu.org/licenses/gpl.html" target="_blank">GNU General Public License</a>,
-						which is a free / open source "copyleft" license. You are free to use, distribute, and modify Glyphr Studio as long as
+						For more information visit <a href="http://www.glyphrstudio.com" target="_blank">www.glyphrstudio.com</a> (upstream Glyphr Studio)<br>
+						Noddy is a fork of <a href="https://www.glyphrstudio.com" target="_blank">Glyphr Studio (glyphrstudio.com)</a> — original by Matt LaGrandeur, GPL-3.0.<br>
+						Noddy is licensed under a <a href="https://www.gnu.org/licenses/gpl.html" target="_blank">GNU General Public License</a>,
+						which is a free / open source "copyleft" license. You are free to use, distribute, and modify Noddy as long as
 						this license and its freeness stays intact.
 					</div>
 				</div>
@@ -129,7 +130,7 @@ export function makeOpenProjectTabs() {
 	const tabContentNew = makeElement({
 		id: 'tab-content__new',
 		className: 'open-project__tab-content',
-		innerHTML: '<h2>Start a new Glyphr Studio project</h2>\nProject name: &nbsp;',
+		innerHTML: '<h2>Start a new Noddy project</h2>\nProject name: &nbsp;',
 		style: 'display: none;',
 	});
 
@@ -160,7 +161,7 @@ export function makeOpenProjectTabs() {
 	const dropTarget = makeElement({
 		id: 'open-project__drop-target',
 		innerHTML: `
-			Glyphr Studio Project &ensp;(.gs2, .txt)<br>
+			Noddy Project &ensp;(.gs2, .txt)<br>
 			Open Type, True Type, or WOFF&ensp;(.otf, .ttf, .woff)<br>
 			SVG Font &ensp;(.svg)
 		`,
@@ -203,8 +204,14 @@ export function makeOpenProjectTabs() {
 			makeElement({ className: 'name', content: saves[id].name }),
 			makeElement({ className: 'project-id', content: `(${id})` }),
 			makeElement({
-				tag: 'fancy-button',
-				innerHTML: '⇨',
+				tag: 'button',
+				className: 'auto-saves__restore-btn',
+				innerHTML: '<span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>',
+				attributes: {
+					'aria-label': `Restore ${saves[id].name}`,
+					title: `Restore ${saves[id].name}`,
+					type: 'button',
+				},
 				onClick: () => loadProjectFromAutoSave(id),
 			}),
 			makeElement({ className: 'time-stamp', content: new Date(saves[id].time).toLocaleString() }),
@@ -240,7 +247,7 @@ export function makeOpenProjectTabs() {
 
 	const contentOblegg = makeElement({
 		tag: 'div',
-		innerHTML: `Oblegg is the GSv2 project we use to test all the various Glyphr Studio features:<br><br>`,
+		innerHTML: `Oblegg is the project we use to test all the various Noddy features:<br><br>`,
 	});
 
 	const buttonOblegg = makeElement({
@@ -454,7 +461,7 @@ export function importProjectDataAndNavigate(glyphrStudioProjectFile) {
 
 /**
  * Finds and loads a project by ID from local storage
- * @param {String} projectID - internal Glyphr Studio Project ID
+ * @param {String} projectID - internal Noddy Project ID
  * @returns nothing
  */
 function loadProjectFromAutoSave(projectID) {

@@ -35,7 +35,7 @@ export function ioSVG_exportSVGfont() {
 	<metadata>
 		Project: ${project.settings.project.name}
 		Font exported on ${timeOutputString}
-		Created with Glyphr Studio - the free, web-based font editor
+		Created with Noddy - the free, web-based font editor (fork of Glyphr Studio)
 		Version: ${app.version}
 		Find out more at www.glyphrstudio.com
 	</metadata>

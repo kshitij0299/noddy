@@ -369,8 +369,8 @@ export function clipboardPaste() {
 
 			let toastMessage =
 				len === 1
-					? 'Pasted from the Glyphr Studio clipboard'
-					: `Pasted ${len} shapes<br>from the Glyphr Studio clipboard`;
+					? 'Pasted from the Noddy clipboard'
+					: `Pasted ${len} shapes<br>from the Noddy clipboard`;
 
 			if (circularReferenceNote.length) {
 				circularReferenceNote = circularReferenceNote.replaceAll(' ', ', ');
@@ -383,7 +383,7 @@ export function clipboardPaste() {
 			editor.publish('currentItem', editor.selectedItem);
 		} else {
 			showError(
-				`No shapes from the Glyphr Studio clipboard could be pasted to this item. Pasting component instances that would cause circular references is not allowed.`
+				`No shapes from the Noddy clipboard could be pasted to this item. Pasting component instances that would cause circular references is not allowed.`
 			);
 		}
 		return true;
@@ -429,8 +429,8 @@ export function makeActionButtonPasteTooltip(clipBoardPathCount) {
 }
 
 export function makeActionButtonClearClipboardTooltip(clipBoardPathCount) {
-	let re = `Clear Glyphr Studio Clipboard\n`;
-	re += `In order to use your Operating System clipboard for copy / paste, the Glyphr Studio clipboard must be empty.\n\n`;
+	let re = `Clear Noddy Clipboard\n`;
+	re += `In order to use your Operating System clipboard for copy / paste, the Noddy clipboard must be empty.\n\n`;
 	re += `Currently ${clipBoardPathCount} Path${
 		clipBoardPathCount === 1 ? '' : 's'
 	} on the clipboard.`;

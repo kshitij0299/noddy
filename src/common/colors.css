@@ -1,167 +1,445 @@
+/**
+ * Noddy Design Tokens — Glyphr Studio 2 UI Overhaul
+ * ==================================================
+ * Source: tweakcn theme cmthxgh3o000004jy9o0m04qi
+ *   https://tweakcn.com/r/themes/cmthxgh3o000004jy9o0m04qi
+ *
+ * This file is the single source of truth for CSS variables.
+ * It implements the tweakcn “Noddy” palette using OKLCH and keeps
+ * legacy Glyphr variables (--blue-*, --gray-*, --royal-*, etc.)
+ * as backward-compatible aliases so existing components continue to work.
+ *
+ * Token mapping
+ * -------------
+ * | Noddy / shadcn token        | Light value                          | Dark value                           | Legacy alias / notes                          |
+ * |-----------------------------|--------------------------------------|--------------------------------------|-----------------------------------------------|
+ * | --background                | oklch(1 0 0)                         | oklch(0.1979 0.0107 39.2759)          | --app-background, body bg                   |
+ * | --foreground                | oklch(0.2707 0.054 44.1725)           | oklch(0.9799 0.0076 48.6561)          | --enabled-resting-text                      |
+ * | --card / --card-foreground  | 1 0 0 / 0.2707 0.054 44.1725          | 0.1979 0.0107 39.2759 / 0.9799…        | --enabled-resting-background                |
+ * | --popover                   | same as card                         | same as card                         | dialogs, popovers                           |
+ * | --primary                   | oklch(0.8141 0.1261 58.1544) peach    | same                               | --accent-color, --blue-l70/l75              |
+ * | --primary-foreground        | oklch(0.2707 0.054 44.1725) dark brown| same                               | text on primary                             |
+ * | --secondary                 | oklch(0.9584 0.006 43.3348) warm gray| oklch(0.2404 0.0153 39.2562)          | --gray-l95 / --gray-l20                    |
+ * | --muted                     | oklch(0.9702 0 0)                    | oklch(0.2572 0.015 39.2662)           | --gray-l97 / --gray-l15                    |
+ * | --muted-foreground          | oklch(0.5931 0.0295 44.5478)          | oklch(0.6848 0.0223 48.3765)          | --enabled-resting-lightText                 |
+ * | --accent                    | = --primary                          | = --primary                          | --accent-color-dark                         |
+ * | --accent-foreground         | oklch(1 0 0)                         | oklch(0.2707 0.054 44.1725)          | text on accent                              |
+ * | --destructive               | oklch(0.6137 0.2039 25.5645)          | oklch(0.6884 0.2009 24.0561)          | --red / --darkRed                           |
+ * | --border / --input          | oklch(0.9055 0.0111 54.4854) / 0.9584…| oklch(0.2404 0.0153 39.2562)          | --enabled-resting-border / input border     |
+ * | --ring                      | oklch(0.8141 0.1261 58.1544)          | same                               | --global-focus-style                        |
+ * | --sidebar*                  | light set (white bg)                 | dark set (0.1979…)                  | project nav, panels                         |
+ * | --radius                    | 0.45rem                              | 0.45rem                              | replaces 4px hardcoded                      |
+ * | --font-sans / serif / mono  | Google Sans Flex / Flex ROND 60 / Code | same                             | Arvo → Flex ROND 60 (700 ≈ Arvo Bold) |
+ * | --shadow-*                  | 0px 4px 10px hsl(0 0% 0% / 0.06) …   | 0px 6px 14px hsl(0 0% 0% / 0.30)…    | --l1-shadow etc remapped                    |
+ *
+ * Backward-compat strategy
+ * - All legacy --gray-l* now use warm neutral OKLCH ramp (0.99 → 0.06)
+ *   anchored to --muted / --secondary / --border / --foreground.
+ * - All legacy --blue-l* now use peach ramp (hue 58.15) anchored to --primary.
+ * - --royal-*, --purple-*, --orange-*, --green-* are retained verbatim
+ *   for canvas/display purposes but are marked deprecated.
+ * - Semantic enabled/disabled tokens alias to new core tokens.
+ */
 
+/* ──────────────────────────────────────────────────────────────
+   Light theme — :root
+   ────────────────────────────────────────────────────────────── */
 :root {
-  --gray-l99: hsl(198, 40%, 98%);
-  --gray-l97: hsl(198, 40%, 96%);
-  --gray-l95: hsl(198, 40%, 94%);
-  --gray-l90: hsl(198, 40%, 88%);
-  --gray-l85: hsl(198, 40%, 82%);
-  --gray-l80: hsl(198, 40%, 77%);
-  --gray-l75: hsl(198, 40%, 71%);
-  --gray-l70: hsl(198, 40%, 65%);
-  --gray-l65: hsl(198, 40%, 59%);
-  --gray-l60: hsl(198, 40%, 53%);
-  --gray-l55: hsl(198, 40%, 48%);
-  --gray-l50: hsl(198, 40%, 43%);
-  --gray-l45: hsl(198, 40%, 38%);
-  --gray-l40: hsl(198, 40%, 34%);
-  --gray-l35: hsl(198, 40%, 30%);
-  --gray-l30: hsl(198, 40%, 26%);
-  --gray-l25: hsl(198, 40%, 21%);
-  --gray-l20: hsl(198, 40%, 17%);
-  --gray-l15: hsl(198, 40%, 14%);
-  --gray-l10: hsl(198, 40%, 10%);
-  --gray-l05: hsl(198, 40%, 6%);
+	color-scheme: light;
 
-  --blue-l99: hsl(198, 100%, 98%);
-  --blue-l97: hsl(198, 100%, 96%);
-  --blue-l95: hsl(198, 100%, 96%);
-  --blue-l95: hsl(198, 100%, 93%);
-  --blue-l90: hsl(198, 100%, 86%);
-  --blue-l85: hsl(198, 100%, 78%);
-  --blue-l80: hsl(198, 100%, 70%);
-  --blue-l75: hsl(198, 100%, 60%);
-  --blue-l70: hsl(198, 100%, 50%);
-  --blue-l65: hsl(198, 100%, 46%);
-  --blue-l60: hsl(198, 100%, 42%);
-  --blue-l55: hsl(198, 100%, 38%);
-  --blue-l50: hsl(198, 100%, 35%);
-  --blue-l45: hsl(198, 100%, 31%);
-  --blue-l40: hsl(198, 100%, 28%);
-  --blue-l35: hsl(198, 100%, 24%);
-  --blue-l30: hsl(198, 100%, 21%);
-  --blue-l25: hsl(198, 100%, 18%);
-  --blue-l20: hsl(198, 100%, 14%);
-  --blue-l15: hsl(198, 100%, 11%);
-  --blue-l10: hsl(198, 100%, 8%);
-  --blue-l05: hsl(198, 100%, 5%);
+	/* geometry & typography (also mirrored in resets.css) */
+	--radius: 0.45rem;
+	--spacing: 0.25rem;
+	--tracking-normal: 0em;
+	--tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+	--tracking-tight: calc(var(--tracking-normal) - 0.025em);
+	--tracking-wide: calc(var(--tracking-normal) + 0.025em);
+	--tracking-wider: calc(var(--tracking-normal) + 0.05em);
+	--tracking-widest: calc(var(--tracking-normal) + 0.1em);
+	--letter-spacing: 0em;
 
-  --royal-l95: hsl(220, 100%, 96%);
-  --royal-l90: hsl(220, 100%, 92%);
-  --royal-l85: hsl(220, 100%, 88%);
-  --royal-l80: hsl(220, 100%, 84%);
-  --royal-l75: hsl(220, 100%, 79%);
-  --royal-l70: hsl(220, 100%, 75%);
-  --royal-l65: hsl(220, 100%, 71%);
-  --royal-l60: hsl(220, 100%, 67%);
-  --royal-l55: hsl(220, 100%, 62%);
-  --royal-l50: hsl(220, 100%, 57%);
-  --royal-l45: hsl(220, 100%, 52%);
-  --royal-l40: hsl(220, 100%, 46%);
-  --royal-l35: hsl(220, 100%, 40%);
-  --royal-l30: hsl(220, 100%, 35%);
-  --royal-l25: hsl(220, 100%, 29%);
-  --royal-l20: hsl(220, 100%, 24%);
-  --royal-l15: hsl(220, 100%, 19%);
-  --royal-l10: hsl(220, 100%, 14%);
-  --royal-l05: hsl(220, 100%, 9%);
+	--font-sans: 'Google Sans Flex', sans-serif;
+	/* --font-serif previously 'Arvo' — now rounded Google Sans Flex (ROND 60) to mimic Arvo Bold at 700.
+	   Use with font-variation-settings: "ROND" 60 for display headings; falls back to sans if variation unsupported. */
+	--font-serif: 'Google Sans Flex', sans-serif;
+	--font-serif-variation: 'ROND' 60;
+	--font-mono: 'Google Sans Code', ui-monospace, monospace;
 
-  --purple-l95: hsl(285, 100%, 97%);
-  --purple-l90: hsl(285, 100%, 92%);
-  --purple-l85: hsl(285, 100%, 89%);
-  --purple-l80: hsl(285, 100%, 85%);
-  --purple-l75: hsl(285, 100%, 81%);
-  --purple-l70: hsl(285, 100%, 77%);
-  --purple-l65: hsl(285, 100%, 72%);
-  --purple-l60: hsl(285, 100%, 67%);
-  --purple-l55: hsl(285, 100%, 61%);
-  --purple-l50: hsl(285, 100%, 50%);
-  --purple-l45: hsl(285, 100%, 45%);
-  --purple-l40: hsl(285, 100%, 40%);
-  --purple-l35: hsl(285, 100%, 36%);
-  --purple-l30: hsl(285, 100%, 31%);
-  --purple-l25: hsl(285, 100%, 26%);
-  --purple-l20: hsl(285, 100%, 22%);
-  --purple-l15: hsl(285, 100%, 18%);
-  --purple-l10: hsl(285, 100%, 14%);
-  --purple-l05: hsl(285, 100%, 9%);
+	/* motion — composited only, never "all" (prevents layout thrash) */
+	--global-transition:
+		background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease,
+		opacity 150ms ease;
+	--global-focus-style: 0 0 0 2px var(--card), 0 0 0 4px var(--ring);
 
-  --orange-l97: hsl(20, 100%, 97%);
-  --orange-l95: hsl(20, 100%, 95%);
-  --orange-l90: hsl(20, 100%, 90%);
-  --orange-l85: hsl(20, 100%, 84%);
-  --orange-l80: hsl(20, 100%, 79%);
-  --orange-l75: hsl(20, 100%, 73%);
-  --orange-l70: hsl(20, 100%, 67%);
-  --orange-l65: hsl(20, 100%, 59%);
-  --orange-l60: hsl(20, 100%, 51%);
-  --orange-l55: hsl(20, 100%, 46%);
-  --orange-l50: hsl(20, 100%, 42%);
-  --orange-l45: hsl(20, 100%, 37%);
-  --orange-l40: hsl(20, 100%, 33%);
-  --orange-l35: hsl(20, 100%, 29%);
-  --orange-l30: hsl(20, 100%, 25%);
-  --orange-l25: hsl(20, 100%, 21%);
-  --orange-l20: hsl(20, 100%, 17%);
-  --orange-l15: hsl(20, 100%, 14%);
-  --orange-l10: hsl(20, 100%, 10%);
-  --orange-l05: hsl(20, 100%, 7%);
+	/* core shadcn / tweakcn tokens — LIGHT */
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.2707 0.054 44.1725);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.2707 0.054 44.1725);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.2707 0.054 44.1725);
+	--primary: oklch(0.8141 0.1261 58.1544);
+	--primary-foreground: oklch(0.2707 0.054 44.1725);
+	--secondary: oklch(0.9584 0.006 43.3348);
+	--secondary-foreground: oklch(0.2707 0.054 44.1725);
+	--muted: oklch(0.9702 0 0);
+	--muted-foreground: oklch(0.5931 0.0295 44.5478);
+	--accent: oklch(0.8141 0.1261 58.1544);
+	--accent-foreground: oklch(1 0 0);
+	--destructive: oklch(0.6137 0.2039 25.5645);
+	--destructive-foreground: oklch(1 0 0);
+	--border: oklch(0.9055 0.0111 54.4854);
+	--input: oklch(0.9584 0.006 43.3348);
+	--ring: oklch(0.8141 0.1261 58.1544);
+	--chart-1: oklch(0.8141 0.1261 58.1544);
+	--chart-2: oklch(0.2707 0.054 44.1725);
+	--chart-3: oklch(0.9055 0.0111 54.4854);
+	--chart-4: oklch(0.9081 0.0654 66.8448);
+	--chart-5: oklch(0.618 0.0778 65.5444);
+	--sidebar: oklch(1 0 0);
+	--sidebar-foreground: oklch(0.2707 0.054 44.1725);
+	--sidebar-primary: oklch(0.8141 0.1261 58.1544);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.9584 0.006 43.3348);
+	--sidebar-accent-foreground: oklch(0.2707 0.054 44.1725);
+	--sidebar-border: oklch(0.9055 0.0111 54.4854);
+	--sidebar-ring: oklch(0.8141 0.1261 58.1544);
 
-  --green-l95: hsl(125, 81%, 90%);
-  --green-l90: hsl(125, 94%, 75%);
-  --green-l85: hsl(125, 87%, 61%);
-  --green-l80: hsl(125, 90%, 48%);
-  --green-l75: hsl(125, 97%, 43%);
-  --green-l70: hsl(125, 100%, 39%);
-  --green-l65: hsl(125, 100%, 36%);
-  --green-l60: hsl(125, 100%, 33%);
-  --green-l55: hsl(125, 100%, 30%);
-  --green-l50: hsl(125, 100%, 28%);
-  --green-l45: hsl(125, 100%, 24%);
-  --green-l40: hsl(125, 100%, 21%);
-  --green-l35: hsl(125, 100%, 19%);
-  --green-l30: hsl(125, 100%, 16%);
-  --green-l25: hsl(125, 100%, 14%);
-  --green-l20: hsl(125, 100%, 11%);
-  --green-l15: hsl(125, 100%, 9%);
-  --green-l10: hsl(125, 100%, 7%);
-  --green-l05: hsl(125, 100%, 4%);
+	/* shadow tokens — LIGHT (tweakcn) */
+	--shadow-color: #000000;
+	--shadow-opacity: 0.06;
+	--shadow-blur: 10px;
+	--shadow-spread: 0px;
+	--shadow-offset-x: 0px;
+	--shadow-offset-y: 4px;
+	--shadow-2xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.03);
+	--shadow-xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.03);
+	--shadow-sm: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 1px 2px -1px hsl(0 0% 0% / 0.06);
+	--shadow: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 1px 2px -1px hsl(0 0% 0% / 0.06);
+	--shadow-md: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.06);
+	--shadow-lg: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 4px 6px -1px hsl(0 0% 0% / 0.06);
+	--shadow-xl: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 8px 10px -1px hsl(0 0% 0% / 0.06);
+	--shadow-2xl: 0px 4px 10px 0px hsl(0 0% 0% / 0.15);
 
-	--accent-color: var(--blue-l70);
-	--accent-color-dark: var(--blue-l50);
+	/* legacy elevation aliases map to tweakcn shadows */
+	--l1-shadow: var(--shadow-xs);
+	--l1-shadow-down: var(--shadow-sm);
+	--l2-shadow: var(--shadow);
+	--l2-shadow-upper-left: var(--shadow-sm);
+	--l2-shadow-down: var(--shadow-md);
+	--l3-shadow: var(--shadow-lg);
+	--l3-shadow-down: var(--shadow-xl);
 
-	--offWhite: hsl(200, 81%, 97%);
-	--darkRed: hsl(0, 100%, 23%);
-	--red: hsl(0, 100%, 48%);
-	--lightRed: hsl(0, 100%, 90%);
+	/* ── Legacy grayscale ramp — warm neutral, OKLCH ──
+	   Keeps every --gray-l* name so old selectors keep working,
+	   but hues now match Noddy’s warm paper. */
+	--gray-l99: oklch(0.99 0.002 48.66);
+	--gray-l97: oklch(0.97 0.001 48.66);
+	--gray-l95: oklch(0.9584 0.006 43.3348);
+	--gray-l90: oklch(0.9055 0.0111 54.4854);
+	--gray-l85: oklch(0.86 0.014 48.66);
+	--gray-l80: oklch(0.81 0.017 48.66);
+	--gray-l75: oklch(0.76 0.019 44.55);
+	--gray-l70: oklch(0.71 0.022 44.55);
+	--gray-l65: oklch(0.66 0.024 44.55);
+	--gray-l60: oklch(0.5931 0.0295 44.5478);
+	--gray-l55: oklch(0.54 0.03 44.17);
+	--gray-l50: oklch(0.49 0.031 44.17);
+	--gray-l45: oklch(0.44 0.031 44.17);
+	--gray-l40: oklch(0.39 0.028 39.28);
+	--gray-l35: oklch(0.34 0.025 39.28);
+	--gray-l30: oklch(0.3 0.022 39.28);
+	--gray-l25: oklch(0.2707 0.054 44.1725);
+	--gray-l20: oklch(0.24 0.0153 39.2562);
+	--gray-l15: oklch(0.1979 0.0107 39.2759);
+	--gray-l10: oklch(0.14 0.01 39.28);
+	--gray-l05: oklch(0.09 0.008 39.28);
 
-	--enabled-resting-text: hsl(0, 0%, 5%);
-	--enabled-resting-lightText: hsl(0, 0%, 10%);
-	--enabled-resting-border: hsl(0, 0%, 75%);
-	--enabled-resting-fill: hsl(0, 0%, 40%);
-	--enabled-resting-background: hsl(0, 0%, 98%);
+	/* ── Legacy blue ramp — peach (hue 58.15) ──
+	   --blue-l70 / --blue-l75 == --primary */
+	--blue-l99: oklch(0.985 0.015 58.15);
+	--blue-l97: oklch(0.97 0.03 58.15);
+	--blue-l95: oklch(0.95 0.05 66.84);
+	--blue-l90: oklch(0.9081 0.0654 66.8448);
+	--blue-l85: oklch(0.88 0.085 58.15);
+	--blue-l80: oklch(0.85 0.1 58.15);
+	--blue-l75: oklch(0.8141 0.1261 58.1544);
+	--blue-l70: oklch(0.8141 0.1261 58.1544);
+	--blue-l65: oklch(0.76 0.12 58.15);
+	--blue-l60: oklch(0.71 0.12 58.15);
+	--blue-l55: oklch(0.65 0.11 58.15);
+	--blue-l50: oklch(0.618 0.0778 65.5444);
+	--blue-l45: oklch(0.56 0.09 58.15);
+	--blue-l40: oklch(0.5 0.085 50);
+	--blue-l35: oklch(0.44 0.07 45);
+	--blue-l30: oklch(0.38 0.06 44.17);
+	--blue-l25: oklch(0.32 0.05 44.17);
+	--blue-l20: oklch(0.2707 0.054 44.1725);
+	--blue-l15: oklch(0.22 0.03 39.28);
+	--blue-l10: oklch(0.17 0.02 39.28);
+	--blue-l05: oklch(0.12 0.012 39.28);
 
-	--enabled-restingLight-text: hsl(0, 0%, 20%);
-	--enabled-restingLight-lightText: hsl(0, 0%, 30%);
-	--enabled-restingLight-border: hsl(0, 0%, 80%);
-	--enabled-restingLight-fill: hsl(0, 0%, 60%);
-	--enabled-restingLight-background: hsl(0, 0%, 98%);
+	/* deprecated chromatic scales — retained for canvas compat, unchanged */
+	--royal-l95: hsl(220, 100%, 96%);
+	--royal-l90: hsl(220, 100%, 92%);
+	--royal-l85: hsl(220, 100%, 88%);
+	--royal-l80: hsl(220, 100%, 84%);
+	--royal-l75: hsl(220, 100%, 79%);
+	--royal-l70: hsl(220, 100%, 75%);
+	--royal-l65: hsl(220, 100%, 71%);
+	--royal-l60: hsl(220, 100%, 67%);
+	--royal-l55: hsl(220, 100%, 62%);
+	--royal-l50: hsl(220, 100%, 57%);
+	--royal-l45: hsl(220, 100%, 52%);
+	--royal-l40: hsl(220, 100%, 46%);
+	--royal-l35: hsl(220, 100%, 40%);
+	--royal-l30: hsl(220, 100%, 35%);
+	--royal-l25: hsl(220, 100%, 29%);
+	--royal-l20: hsl(220, 100%, 24%);
+	--royal-l15: hsl(220, 100%, 19%);
+	--royal-l10: hsl(220, 100%, 14%);
+	--royal-l05: hsl(220, 100%, 9%);
 
-	--enabled-focus-text: hsl(0, 0%, 0%);
-	--enabled-focus-lightText: hsl(0, 0%, 10%);
-	--enabled-focus-border: hsl(200, 25%, 63%);
-	--enabled-focus-fill: hsl(200, 25%, 25%);
-	--enabled-focus-background: white;
+	--purple-l95: hsl(285, 100%, 97%);
+	--purple-l90: hsl(285, 100%, 92%);
+	--purple-l85: hsl(285, 100%, 89%);
+	--purple-l80: hsl(285, 100%, 85%);
+	--purple-l75: hsl(285, 100%, 81%);
+	--purple-l70: hsl(285, 100%, 77%);
+	--purple-l65: hsl(285, 100%, 72%);
+	--purple-l60: hsl(285, 100%, 67%);
+	--purple-l55: hsl(285, 100%, 61%);
+	--purple-l50: hsl(285, 100%, 50%);
+	--purple-l45: hsl(285, 100%, 45%);
+	--purple-l40: hsl(285, 100%, 40%);
+	--purple-l35: hsl(285, 100%, 36%);
+	--purple-l30: hsl(285, 100%, 31%);
+	--purple-l25: hsl(285, 100%, 26%);
+	--purple-l20: hsl(285, 100%, 22%);
+	--purple-l15: hsl(285, 100%, 18%);
+	--purple-l10: hsl(285, 100%, 14%);
+	--purple-l05: hsl(285, 100%, 9%);
 
-	--enabled-active-text: hsl(0, 0%, 0%);
-	--enabled-active-lightText: hsl(0, 0%, 10%);
-	--enabled-active-border: hsl(0, 0%, 63%);
-	--enabled-active-fill: var(--accent-color);
-	--enabled-active-background: white;
+	--orange-l97: hsl(20, 100%, 97%);
+	--orange-l95: hsl(20, 100%, 95%);
+	--orange-l90: hsl(20, 100%, 90%);
+	--orange-l85: hsl(20, 100%, 84%);
+	--orange-l80: hsl(20, 100%, 79%);
+	--orange-l75: hsl(20, 100%, 73%);
+	--orange-l70: hsl(20, 100%, 67%);
+	--orange-l65: hsl(20, 100%, 59%);
+	--orange-l60: hsl(20, 100%, 51%);
+	--orange-l55: hsl(20, 100%, 46%);
+	--orange-l50: hsl(20, 100%, 42%);
+	--orange-l45: hsl(20, 100%, 37%);
+	--orange-l40: hsl(20, 100%, 33%);
+	--orange-l35: hsl(20, 100%, 29%);
+	--orange-l30: hsl(20, 100%, 25%);
+	--orange-l25: hsl(20, 100%, 21%);
+	--orange-l20: hsl(20, 100%, 17%);
+	--orange-l15: hsl(20, 100%, 14%);
+	--orange-l10: hsl(20, 100%, 10%);
+	--orange-l05: hsl(20, 100%, 7%);
 
-	--disabled-text: hsl(0, 0%, 40%);
-	--disabled-text-light: hsl(0, 0%, 60%);
-	--disabled-text-dark: hsl(0, 0%, 20%);
-	--disabled-border: hsl(0, 0%, 82%);
-	--disabled-fill: hsl(0, 0%, 82%);
-	--disabled-background: hsl(0, 0%, 94%);
+	--green-l95: hsl(125, 81%, 90%);
+	--green-l90: hsl(125, 94%, 75%);
+	--green-l85: hsl(125, 87%, 61%);
+	--green-l80: hsl(125, 90%, 48%);
+	--green-l75: hsl(125, 97%, 43%);
+	--green-l70: hsl(125, 100%, 39%);
+	--green-l65: hsl(125, 100%, 36%);
+	--green-l60: hsl(125, 100%, 33%);
+	--green-l55: hsl(125, 100%, 30%);
+	--green-l50: hsl(125, 100%, 28%);
+	--green-l45: hsl(125, 100%, 24%);
+	--green-l40: hsl(125, 100%, 21%);
+	--green-l35: hsl(125, 100%, 19%);
+	--green-l30: hsl(125, 100%, 16%);
+	--green-l25: hsl(125, 100%, 14%);
+	--green-l20: hsl(125, 100%, 11%);
+	--green-l15: hsl(125, 100%, 9%);
+	--green-l10: hsl(125, 100%, 7%);
+	--green-l05: hsl(125, 100%, 4%);
+
+	/* semantic aliases — now backed by Noddy tokens */
+	--accent-color: var(--primary);
+	--accent-color-dark: var(--primary);
+
+	--offWhite: var(--card);
+	--darkRed: var(--destructive);
+	--red: var(--destructive);
+	--lightRed: oklch(0.95 0.04 25.56);
+
+	--enabled-resting-text: var(--foreground);
+	--enabled-resting-lightText: var(--muted-foreground);
+	--enabled-resting-border: var(--border);
+	--enabled-resting-fill: var(--muted-foreground);
+	--enabled-resting-background: var(--card);
+
+	--enabled-restingLight-text: var(--muted-foreground);
+	--enabled-restingLight-lightText: oklch(0.65 0.02 48.66);
+	--enabled-restingLight-border: var(--border);
+	--enabled-restingLight-fill: var(--muted-foreground);
+	--enabled-restingLight-background: var(--card);
+
+	--enabled-focus-text: var(--foreground);
+	--enabled-focus-lightText: var(--foreground);
+	--enabled-focus-border: var(--ring);
+	--enabled-focus-fill: var(--foreground);
+	--enabled-focus-background: var(--card);
+
+	--enabled-active-text: var(--foreground);
+	--enabled-active-lightText: var(--foreground);
+	--enabled-active-border: var(--ring);
+	--enabled-active-fill: var(--primary);
+	--enabled-active-background: var(--card);
+
+	--disabled-text: var(--muted-foreground);
+	--disabled-text-light: oklch(0.72 0.018 48.66);
+	--disabled-text-dark: var(--foreground);
+	--disabled-border: var(--border);
+	--disabled-fill: var(--border);
+	--disabled-background: var(--muted);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Dark theme
+   Supports: .dark, [data-theme="dark"], :root.dark,
+   and prefers-color-scheme fallback via @media.
+   ────────────────────────────────────────────────────────────── */
+.dark,
+[data-theme='dark'],
+:root[data-theme='dark'] {
+	color-scheme: dark;
+
+	--background: oklch(0.1979 0.0107 39.2759);
+	--foreground: oklch(0.9799 0.0076 48.6561);
+	--card: oklch(0.1979 0.0107 39.2759);
+	--card-foreground: oklch(0.9799 0.0076 48.6561);
+	--popover: oklch(0.1979 0.0107 39.2759);
+	--popover-foreground: oklch(0.9799 0.0076 48.6561);
+	--primary: oklch(0.8141 0.1261 58.1544);
+	--primary-foreground: oklch(0.2707 0.054 44.1725);
+	--secondary: oklch(0.2404 0.0153 39.2562);
+	--secondary-foreground: oklch(0.9799 0.0076 48.6561);
+	--muted: oklch(0.2572 0.015 39.2662);
+	--muted-foreground: oklch(0.6848 0.0223 48.3765);
+	--accent: oklch(0.8141 0.1261 58.1544);
+	--accent-foreground: oklch(0.2707 0.054 44.1725);
+	--destructive: oklch(0.6884 0.2009 24.0561);
+	--destructive-foreground: oklch(1 0 0);
+	--border: oklch(0.2404 0.0153 39.2562);
+	--input: oklch(0.2404 0.0153 39.2562);
+	--ring: oklch(0.8141 0.1261 58.1544);
+	--chart-1: oklch(0.8141 0.1261 58.1544);
+	--chart-2: oklch(0.9799 0.0076 48.6561);
+	--chart-3: oklch(0.618 0.0778 65.5444);
+	--chart-4: oklch(0.3993 0.0447 45.8758);
+	--chart-5: oklch(0.2707 0.054 44.1725);
+	--sidebar: oklch(0.1979 0.0107 39.2759);
+	--sidebar-foreground: oklch(0.9799 0.0076 48.6561);
+	--sidebar-primary: oklch(0.8141 0.1261 58.1544);
+	--sidebar-primary-foreground: oklch(0.2707 0.054 44.1725);
+	--sidebar-accent: oklch(0.2404 0.0153 39.2562);
+	--sidebar-accent-foreground: oklch(0.9799 0.0076 48.6561);
+	--sidebar-border: oklch(0.2404 0.0153 39.2562);
+	--sidebar-ring: oklch(0.8141 0.1261 58.1544);
+
+	/* shadow tokens — DARK (tweakcn: larger spread, higher opacity) */
+	--shadow-color: #000000;
+	--shadow-opacity: 0.3;
+	--shadow-blur: 14px;
+	--shadow-spread: 0px;
+	--shadow-offset-x: 0px;
+	--shadow-offset-y: 6px;
+	--shadow-2xs: 0px 6px 14px 0px hsl(0 0% 0% / 0.15);
+	--shadow-xs: 0px 6px 14px 0px hsl(0 0% 0% / 0.15);
+	--shadow-sm: 0px 6px 14px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
+	--shadow: 0px 6px 14px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
+	--shadow-md: 0px 6px 14px 0px hsl(0 0% 0% / 0.3), 0px 2px 4px -1px hsl(0 0% 0% / 0.3);
+	--shadow-lg: 0px 6px 14px 0px hsl(0 0% 0% / 0.3), 0px 4px 6px -1px hsl(0 0% 0% / 0.3);
+	--shadow-xl: 0px 6px 14px 0px hsl(0 0% 0% / 0.3), 0px 8px 10px -1px hsl(0 0% 0% / 0.3);
+	--shadow-2xl: 0px 6px 14px 0px hsl(0 0% 0% / 0.75);
+
+	/* legacy grays in dark — shifted darker, still warm */
+	--gray-l99: oklch(0.9799 0.0076 48.6561);
+	--gray-l97: oklch(0.95 0.008 48.66);
+	--gray-l95: oklch(0.9 0.01 48.66);
+	--gray-l90: oklch(0.8 0.015 48.66);
+	--gray-l85: oklch(0.72 0.018 48.66);
+	--gray-l80: oklch(0.6848 0.0223 48.3765);
+	--gray-l75: oklch(0.6 0.02 48.66);
+	--gray-l70: oklch(0.54 0.02 48.66);
+	--gray-l65: oklch(0.48 0.02 44.17);
+	--gray-l60: oklch(0.4 0.02 44.17);
+	--gray-l55: oklch(0.35 0.02 39.28);
+	--gray-l50: oklch(0.3 0.02 39.28);
+	--gray-l45: oklch(0.27 0.018 39.28);
+	--gray-l40: oklch(0.2572 0.015 39.2662);
+	--gray-l35: oklch(0.24 0.0153 39.2562);
+	--gray-l30: oklch(0.22 0.014 39.28);
+	--gray-l25: oklch(0.2 0.012 39.28);
+	--gray-l20: oklch(0.1979 0.0107 39.2759);
+	--gray-l15: oklch(0.17 0.01 39.28);
+	--gray-l10: oklch(0.12 0.008 39.28);
+	--gray-l05: oklch(0.08 0.006 39.28);
+
+	/* legacy blues in dark — peach stays same but darker tints */
+	--blue-l99: oklch(0.97 0.04 58.15);
+	--blue-l97: oklch(0.93 0.06 58.15);
+	--blue-l95: oklch(0.9081 0.0654 66.8448);
+	--blue-l90: oklch(0.88 0.08 58.15);
+	--blue-l85: oklch(0.8141 0.1261 58.1544);
+	--blue-l80: oklch(0.76 0.12 58.15);
+	--blue-l75: oklch(0.71 0.11 58.15);
+	--blue-l70: oklch(0.65 0.1 58.15);
+	--blue-l65: oklch(0.6 0.09 58.15);
+	--blue-l60: oklch(0.55 0.08 58.15);
+	--blue-l55: oklch(0.48 0.07 44.17);
+	--blue-l50: oklch(0.44 0.06 44.17);
+	--blue-l45: oklch(0.4 0.05 44.17);
+	--blue-l40: oklch(0.36 0.045 39.28);
+	--blue-l35: oklch(0.32 0.04 39.28);
+	--blue-l30: oklch(0.28 0.035 39.28);
+	--blue-l25: oklch(0.24 0.03 39.28);
+	--blue-l20: oklch(0.2 0.02 39.28);
+	--blue-l15: oklch(0.16 0.015 39.28);
+	--blue-l10: oklch(0.12 0.01 39.28);
+	--blue-l05: oklch(0.08 0.006 39.28);
+
+	--offWhite: var(--card);
+	--darkRed: var(--destructive);
+	--red: var(--destructive);
+	--lightRed: oklch(0.75 0.08 24.06);
+
+	--enabled-resting-text: var(--foreground);
+	--enabled-resting-lightText: var(--muted-foreground);
+	--enabled-resting-border: var(--border);
+	--enabled-resting-fill: var(--muted-foreground);
+	--enabled-resting-background: var(--card);
+
+	--enabled-restingLight-text: var(--muted-foreground);
+	--enabled-restingLight-lightText: var(--muted-foreground);
+	--enabled-restingLight-border: var(--border);
+	--enabled-restingLight-fill: var(--muted-foreground);
+	--enabled-restingLight-background: var(--card);
+
+	--enabled-focus-text: var(--foreground);
+	--enabled-focus-lightText: var(--foreground);
+	--enabled-focus-border: var(--ring);
+	--enabled-focus-fill: var(--foreground);
+	--enabled-focus-background: var(--input);
+
+	--enabled-active-text: var(--foreground);
+	--enabled-active-lightText: var(--foreground);
+	--enabled-active-border: var(--ring);
+	--enabled-active-fill: var(--primary);
+	--enabled-active-background: var(--card);
+
+	--disabled-text: var(--muted-foreground);
+	--disabled-text-light: var(--muted-foreground);
+	--disabled-text-dark: var(--foreground);
+	--disabled-border: var(--border);
+	--disabled-fill: var(--border);
+	--disabled-background: var(--muted);
 }

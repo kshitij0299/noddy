@@ -1,0 +1,28 @@
+{
+  "name": "Noddy",
+  "short_name": "Noddy",
+  "icons": [
+    {
+      "src": "common/graphics/noddy-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "common/graphics/noddy-icon-bg.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "common/graphics/logo-icon-color.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "https://www.glyphrstudio.com/app/",
+  "display": "standalone",
+  "theme_color": "#f4a261",
+  "background_color": "#ffffff"
+}

@@ -1,66 +1,96 @@
+/* Noddy Option Chooser — modern dropdown / segmented control */
+
 * {
 	box-sizing: border-box;
-	transition: var(--global-transition);
 }
 
 .wrapper {
-	margin: 0px;
-	padding: 0px;
+	margin: 0;
+	padding: 0;
 	display: grid;
-	grid-template-columns: 1fr 24px;
-	border-width: 1px;
-	border-style: solid;
-	border-color: var(--enabled-restingLight-border);
-	background-color: var(--enabled-restingLight-background);
-	border-radius: 4px;
+	grid-template-columns: 1fr 28px;
+	align-items: center;
+	border: 1px solid var(--input);
+	background-color: var(--card);
+	border-radius: var(--radius);
+	height: 32px;
+	box-shadow: var(--shadow-xs);
+	font-family: var(--font-sans);
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		box-shadow 150ms ease;
+	overflow: hidden;
 }
 
-.wrapper:hover,
-.wrapper:focus {
-	border-color: var(--enabled-focus-border);
+.wrapper:hover {
+	border-color: var(--ring);
+	box-shadow: var(--shadow-sm);
 	cursor: pointer;
 }
 
+.wrapper:focus {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style);
+}
+
+.wrapper:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
+}
+
 .wrapper[deployed] {
-	border-color: var(--enabled-focus-border);
-	border-radius: 4px 4px 0px 0px;
+	border-color: var(--ring);
+	border-radius: var(--radius) var(--radius) 0 0;
+	box-shadow: var(--shadow-md);
+	background-color: var(--card);
 }
 
 .wrapper[deployed] .selection-display {
-	color: var(--enabled-resting-text);
+	color: var(--foreground);
 }
 
 .wrapper[disabled],
 .wrapper:hover[disabled],
 .wrapper:focus[disabled],
 .wrapper:active[disabled] {
-	background-color: var(--disabled-background);
-	border-color: var(--disabled-border);
-	color: var(--disabled-text);
-	text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.2);
+	background-color: var(--muted);
+	border-color: var(--border);
+	color: var(--muted-foreground);
 	cursor: default;
+	box-shadow: none;
+	opacity: 1;
 }
 
 .selection-display {
 	background-color: transparent;
 	border: 0;
-	border-radius: 4px 0px 0px 4px;
+	border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px);
 	margin: 0;
-	margin-right: 0px;
-	color: var(--enabled-resting-text);
+	color: var(--foreground);
 	grid-column: 1;
 	min-width: 50px;
-	height: 24px;
-	line-height: 24px;
-	padding: 1px 8px 0px 8px;
+	height: 30px;
+	line-height: 30px;
+	padding: 0 8px 0 10px;
 	text-align: left;
-	font-family: monospace;
+	font-family: var(--font-sans);
+	font-size: 0.88em;
+	font-weight: 450;
+	letter-spacing: var(--tracking-normal);
 	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease;
 }
 
 .selection-display .prefix {
-	color: var(--disabled-text);
+	color: var(--muted-foreground);
 	font-size: 0.9em;
+	font-weight: 500;
 }
 
 .downArrow {
@@ -70,26 +100,63 @@
 	user-select: none;
 	padding: 0;
 	margin: 0;
-	border-width: 1px;
+	border: 0;
+	border-left: 1px solid var(--border);
 	text-align: center;
-	height: 24px;
-	border-radius: 4px;
+	height: 30px;
+	width: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0;
 	grid-column: 2;
-	vertical-align: middle;
+	background: var(--secondary);
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease;
 }
 
 .downArrow svg {
-	fill: var(--enabled-restingLight-fill);
+	fill: var(--muted-foreground);
+	width: 16px;
+	height: 16px;
+	transition:
+		fill 150ms ease,
+		color 150ms ease;
+}
+
+.wrapper:hover .downArrow {
+	background: var(--secondary);
+	border-left-color: var(--border);
 }
 
 .wrapper:hover .downArrow svg,
 .wrapper[deployed] .downArrow svg {
-	fill: var(--enabled-focus-fill);
+	fill: var(--foreground);
+}
+
+.wrapper[deployed] .downArrow {
+	background: var(--primary);
+	border-left-color: var(--primary);
+}
+
+.wrapper[deployed] .downArrow svg {
+	fill: var(--primary-foreground);
+	transform: rotate(180deg);
+}
+
+.wrapper[disabled] .downArrow,
+.wrapper:hover[disabled] .downArrow,
+.wrapper:focus[disabled] .downArrow,
+.wrapper:active[disabled] .downArrow {
+	background: var(--muted);
+	border-left-color: var(--border);
 }
 
 .wrapper[disabled] .downArrow svg,
 .wrapper:hover[disabled] .downArrow svg,
 .wrapper:focus[disabled] .downArrow svg,
 .wrapper:active[disabled] .downArrow svg {
-	fill: var(--disabled-fill);
+	fill: var(--muted-foreground);
+	transform: none;
 }

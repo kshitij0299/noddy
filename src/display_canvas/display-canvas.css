@@ -1,0 +1,109 @@
+/* ─────────────────────────────────────────────────────────────
+   Noddy — Display Canvas (display-canvas.css)
+   Shadow-DOM styles for <display-canvas> (#mainDisplayCanvas).
+   Warm peach + paper, no harsh blue. Wrappers outside this
+   file (editor-pages.css / app.css) provide themed chrome:
+   var(--card) bg, var(--border) border, var(--radius) 0.45rem,
+   var(--shadow-md). This file softens the *inner* canvas so
+   grid/page/character extras read subtle and selection uses
+   peach. Canvas accuracy: background stays white in both
+   light and dark themes; wrapper is themed, canvas is paper.
+   Preserves JS hooks: :host, #mainDisplayCanvas.
+   ───────────────────────────────────────────────────────────── */
+
+/* host — block canvas, fills themed wrapper */
+:host {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	background: transparent;
+	border: none;
+	padding: 0;
+	margin: 0;
+}
+
+/* inner canvas — paper white for glyph accuracy, soft border */
+#mainDisplayCanvas {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	height: auto;
+	box-sizing: border-box;
+	background-color: white;
+	/* subtle warm border, not blue */
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) - 2px);
+	box-shadow: var(--shadow-xs);
+}
+
+/* focus — peach ring, no blue glow */
+#mainDisplayCanvas:focus,
+#mainDisplayCanvas:focus-visible,
+:host(:focus) #mainDisplayCanvas,
+:host(:focus-visible) #mainDisplayCanvas {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style), var(--shadow-sm);
+}
+
+/* page extras drawn in JS (strokeRect) use legacy gray/blue
+   aliases which now map to warm tokens:
+   --gray-l90 → var(--border) subtle,
+   --gray-l85 → var(--border) subtle,
+   --blue-l85 → peach via --blue-l85 alias.
+   Kept white canvas so horizontals/verticals stay crisp in
+   both themes. */
+
+/* glyph-tile preview variant — when a display-canvas is used
+   as a glyph thumbnail (e.g. in .project-preview__row-wrapper
+   or .item-chooser__tile-grid) it is constrained by the outer
+   tile's muted border; keep inner canvas borderless there so
+   double-border doesn't thicken. The tile's own CSS already
+   uses var(--card)/var(--border)/var(--radius)/var(--shadow-sm)
+   and peach hover (see glyph-tile.css).
+   NOTE: :host-context() is non-standard and triggers lightningcss
+   warnings ("Unknown pseudo-class :host-context"); removed for
+   compat. Border handling now falls back to default #mainDisplayCanvas
+   border which is subtle enough for tiles. */
+ /* :host-context rules removed — see above */
+
+/* text block options — live preview page uses the same
+    #mainDisplayCanvas. The controls around it (text, font-size,
+    line-gap, page-padding, flavor toggles, extras checkboxes)
+    are styled as panel cards in panels.css:
+    var(--card) / var(--border) / var(--radius) / var(--shadow-sm)
+    with peach selected states (see .renderFlavorButton[selected],
+    .panel__card). No extra work here; this ensures the preview
+    canvas doesn't fight the panel chrome. */
+ /* :host-context(.live-preview-page__canvas-wrapper) removed for compat */
+
+/* dark mode — wrapper may be dark (var(--card) is dark in
+   .dark / [data-theme='dark']), but the drawing surface stays
+   white for accurate glyph colour. :host-context removed; canvas
+   stays white via default rule + inherited --border handles
+   subtle border in both themes. */
+
+
+/* prefers-color-scheme fallback — still white canvas */
+@media (prefers-color-scheme: dark) {
+	#mainDisplayCanvas {
+		background-color: white;
+		border-color: var(--border);
+	}
+}
+
+/* selection affordances — JS-drawn bounding boxes/handles
+   use accentColors.blue in draw_edit_affordances.js, but the
+   legacy --blue-* aliases now resolve to peach (hue 58.15) via
+   colors.css, so handles read var(--primary) peach without
+   changing JS. Grid/center guides: guide.js colours are now
+   warm peach (227,190,171 / 212,154,125 / 191,106,64) at low
+   alpha → reads as var(--border) subtle. */
+
+/* reduce motion */
+@media (prefers-reduced-motion: reduce) {
+	#mainDisplayCanvas {
+		transition: none;
+	}
+}

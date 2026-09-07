@@ -10,7 +10,7 @@ export function build() {
 
 	console.log(`
 ============================================================
-Glyphr Studio: ${config.version}`);
+Noddy (fork of Glyphr Studio): ${config.version}`);
 	config.versionDate = getShipDate();
 	console.log(`============================================================\n\n`);
 	writeFile(path, JSON.stringify(config, null, 2), (error) => {
@@ -30,7 +30,7 @@ export function stage() {
 
 	console.log(`
 ============================================================
-Glyphr Studio: ${config.version}`);
+Noddy (fork of Glyphr Studio): ${config.version}`);
 	config.versionDate = 'STAGED BUILD';
 	console.log(`============================================================\n\n`);
 	writeFile(path, JSON.stringify(config, null, 2), (error) => {

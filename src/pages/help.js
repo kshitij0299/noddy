@@ -7,7 +7,7 @@ import { makeNavButton, toggleNavDropdown } from '../project_editor/navigator.js
 
 /**
  * Page > Help
- * Help content for Glyphr Studio.
+ * Help content for Noddy.
  * @returns {Element} - page content
  */
 export function makePage_Help() {
@@ -65,17 +65,17 @@ function makeHelpOverview() {
 		If you have some character outlines already created in another app
 		like Adobe Illustrator or Inkscape, or if you are just more comfortable
 		using tools like those, be sure to read through our tutorial which gives
-		you lots of tips about how to get the most out of Glyphr Studio.
+		you lots of tips about how to get the most out of Noddy.
 		<br>
 		<a href="https://www.glyphrstudio.com/help/tutorial" target="_blank">
-		Making your first font with Glyphr Studio
+		Making your first font with Noddy
 		</a>
 		</p>
 
 		<br>
 		<h2>Learn more at the help site</h2>
 		<p>
-			Help articles for Glyphr Studio v2 can be found at
+			Help articles for Noddy can be found at
 			<a href="https://www.glyphrstudio.com/help" target="_blank">glyphrstudio.com/help</a>,
 			please email us if you find anything missing.
 		</p>
@@ -230,7 +230,7 @@ export function makeKeyboardShortcutReference() {
 
 	// Project actions
 	makeOneHeader('Project actions');
-	makeOneRow(['Ctrl', 'S'], 'Save a Glyphr Studio Project File (.gs2)');
+	makeOneRow(['Ctrl', 'S'], 'Save a Noddy Project File (.gs2)');
 	makeOneRow(['Ctrl', 'E'], 'Export an OTF Font (.otf)');
 	makeOneRow(['Ctrl', 'G'], 'Export an SVG Font (.svg)');
 	makeOneRow(['Ctrl', 'O'], 'Open a project in a new tab');
@@ -289,7 +289,7 @@ export function makeKeyboardShortcutReference() {
 	makeOneRow(['Ctrl', 'C'], `Copy the selected shapes`);
 	makeOneRow(
 		['Ctrl', 'V'],
-		`Paste the selected shapes (Glyphr Studio Clipboard)<br>Paste to import copied SVG Code (Operating System Clipboard)`
+		`Paste the selected shapes (Noddy Clipboard)<br>Paste to import copied SVG Code (Operating System Clipboard)`
 	);
 	makeOneRow(['Ctrl', 'Z'], `Undo the last action. If the previous action was on a different item, undo navigates to the previously changed item without undoing the change.`);
 	makeOneRow(['Ctrl', 'Y'], `Redo (Undo the last Undo action)`);

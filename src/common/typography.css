@@ -1,0 +1,40 @@
+/**
+ * Noddy Typography — src/common/typography.css
+ * =============================================
+ * Google Fonts (display=swap, subset latin):
+ *   --font-sans:  'Google Sans Flex' opsz 6..144, wght 1..1000, ROND 0 — UI, body, buttons, panels
+ *   --font-serif: 'Google Sans Flex' opsz 6..144, wght 700, ROND 60 — rounded display headings h1-h3 (≈ Arvo Bold)
+ *   --font-mono:  'Google Sans Code' 400..700 — code, numbers, metrics
+ * Arvo has been replaced: --font-serif now maps to Google Sans Flex with ROND 60 for rounded, softer display.
+ * Thickness/height parity: Flex @700 ROND 60 ≈ Arvo Bold 700 (similar cap-height, slightly softer terminals, wght 700, opsz auto).
+ * Loaded via @import in resets.css with display=swap; preconnect in index.html.
+ *
+ * Scale (rem at 16px root — fluid where noted):
+ * | role         | family                      | size              | weight | line-height | tracking          | case / notes                     |
+ * |--------------|-----------------------------|-------------------|--------|-------------|-------------------|-------------------------------|
+ * | h1           | Flex ROND 60 (display)      | clamp(2rem,1.75rem+0.8vw,2.25rem) 32→36px | 700    | 1.15        | --tracking-tight (-0.025em) | balance, max 70ch, ROND 60 |
+ * | h2           | Flex ROND 60                | 1.5rem 24px     | 700    | 1.25        | --tracking-tight  | balance, ROND 60  |
+ * | h3           | Flex ROND 60                | 1.25rem 20px    | 700    | 1.30        | --tracking-tight  | ROND 60           |
+ * | h4           | Google Sans Flex| 1rem 16px       | 600    | 1.40        | --tracking-tight  | chat section header |
+ * | h5           | sans            | 0.875rem 14px   | 600    | 1.40        | --tracking-wide (+0.025em) | sentence case |
+ * | h6 / meta    | sans            | 0.75rem 12px    | 600    | 1.40        | 0.06em            | uppercase — only for meta/kbd |
+ * | body / p     | sans            | 0.875–0.9375rem 14–15px | 400 | 1.60 | --tracking-normal (0) | max-width 70ch, common-ligatures |
+ * | small / caption | sans         | 0.8125rem 13px  | 400-500| 1.50        | 0.01em            | muted-foreground |
+ * | label        | sans            | 0.8125rem 13px  | 500    | 1.50        | 0.01em            | sentence case (conversational) |
+ * | label--meta  | sans            | 0.6875rem 11px  | 600    | 1.20        | 0.06em            | uppercase — super-titles only |
+ * | code / pre / .number | Google Sans Code | 0.8125–0.875em | 500 | 1.60 | none | tabular-nums, no ligatures |
+ * | button       | sans            | 0.875rem        | 500    | 1.20        | --tracking-normal | sentence case |
+ *
+ * Spacing: --spacing 0.25rem (4px). Always use calc(var(--spacing)*n):
+ *   1→4px 2→8px 3→12px 4→16px 6→24px 8→32px
+ * Radius: --radius 0.45rem single token; inner calc(var(--radius)*0.7)
+ * Shadows: --shadow-xs, --shadow-sm, --shadow, --shadow-md, --shadow-lg, --shadow-xl, --shadow-2xl
+ * Focus: --global-focus-style (2px card + 2px ring) on :focus-visible only
+ * Selection: color-mix(in oklch, var(--primary) 20%, transparent)
+ * Reduced motion: @media (prefers-reduced-motion:reduce) disables all anim/transition
+ * Chat: .chat-bubble etc use 0.9375rem/1.6, no uppercase — friendly, not shouty
+ */
+
+/* This file is documentation-only; actual rules live in resets.css.
+   Import order: colors.css → resets.css (loads fonts, sets html/body/h* ) → app.css etc.
+   No extra stylesheet link needed — resets.css already implements the scale. */

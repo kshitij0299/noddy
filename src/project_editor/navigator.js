@@ -96,26 +96,69 @@ export class Navigator {
 	 */
 	navigate(test = false) {
 		// log(`Navigator.navigate`, 'start');
-		// log(`this.page: ${this.page}`);
-		// log(`this.panel: ${this.panel}`);
-		// log(`editor.selectedItemID: ${getCurrentProjectEditor().selectedItemID}`);
-
 		closeEveryTypeOfDialog();
 		const wrapper = document.querySelector('#app__wrapper');
 
-		// log(`wrapper before:`);
-		// log(wrapper);
-
 		if (wrapper) {
 			try {
-				const pageContent = this.makePageContent();
-				wrapper.innerHTML = '';
-				wrapper.appendChild(makeAppTopBar());
-				wrapper.appendChild(pageContent);
+				const pageContentWrapper = this.makePageContent();
+				// pageContentWrapper is #app__main-content containing #app__page
+				const isWrapper = pageContentWrapper.id === 'app__main-content';
+				const innerPage = isWrapper ? pageContentWrapper.firstElementChild || pageContentWrapper : pageContentWrapper;
+				let body = wrapper.querySelector('#app__body');
+				let mainContent;
+				let rail;
+				if (!body) {
+					// Fresh shell — create top-bar + body (rail + main)
+					wrapper.innerHTML = '';
+					const topBar = makeAppTopBar();
+					wrapper.appendChild(topBar);
+					body = makeElement({ tag: 'div', id: 'app__body' });
+					rail = makeDiscordRail();
+					// Use the wrapper returned by makePageContent as mainContent directly
+					mainContent = isWrapper ? pageContentWrapper : makeElement({ tag: 'div', id: 'app__main-content' });
+					if (!isWrapper) mainContent.appendChild(innerPage);
+					body.appendChild(rail);
+					body.appendChild(mainContent);
+					wrapper.appendChild(body);
+				} else {
+					// Shell exists — refresh top-bar, ensure rail visible & active, swap main content
+					const existingTopBar = wrapper.querySelector('#app__top-bar');
+					const newTopBar = makeAppTopBar();
+					if (existingTopBar) existingTopBar.replaceWith(newTopBar);
+					else wrapper.prepend(newTopBar);
+					// Ensure body is directly after top-bar
+					if (body.parentElement !== wrapper) wrapper.appendChild(body);
+					else if (body.previousElementSibling !== newTopBar) {
+						wrapper.insertBefore(body, newTopBar.nextSibling);
+					}
+					rail = body.querySelector('.discord-rail');
+					if (!rail) {
+						rail = makeDiscordRail();
+						body.prepend(rail);
+					} else {
+						syncDiscordRailActiveState(rail, this.page);
+						rail.hidden = false;
+						rail.classList.remove('is-hidden');
+						rail.style.display = '';
+						rail.removeAttribute('hidden');
+					}
+					mainContent = body.querySelector('#app__main-content');
+					if (!mainContent) {
+						mainContent = makeElement({ tag: 'div', id: 'app__main-content' });
+						body.appendChild(mainContent);
+					}
+					mainContent.innerHTML = '';
+					// Insert the inner page (avoid nested #app__main-content)
+					if (isWrapper && innerPage) {
+						mainContent.appendChild(innerPage);
+					} else {
+						mainContent.appendChild(pageContentWrapper);
+					}
+				}
 			} catch (e) {
 				console.warn(`Navigation failed:`, e);
 				showAppErrorPage(`Oops, navigation failed!`, e);
-				// log(getCurrentProject());
 			}
 		} else {
 			if (!test) console.warn(`Navigation failed: app__wrapper could not be found.`);
@@ -125,10 +168,9 @@ export class Navigator {
 
 	/**
 	 * Sets the current view to the appropriate Page
-	 * @returns {Object} Page Loader object - {string} content and {function} callback
+	 * @returns {HTMLElement} #app__main-content wrapper containing page
 	 */
 	makePageContent() {
-		// log(`Navigator.makePageContent`, 'start');
 		const editorContent = makeElement({
 			tag: 'div',
 			id: 'app__main-content',
@@ -137,29 +179,16 @@ export class Navigator {
 		// Default page loader fallback
 		let pageContent = makeElement({ tag: 'h1', innerHTML: 'Uninitialized page content' });
 		let currentPageMaker = this.tableOfContents[this.page].pageMaker;
-		// log(`page detected as ${this.page}`);
 
 		if (!currentPageMaker) {
 			console.warn(`No page maker for ${this.page}`);
 			pageContent.innerHTML += `<br>${this.page}`;
 		} else {
-			// if (!this.pageContents[this.page]) {
-			// 	this.pageContents[this.page] = this.tableOfContents[this.page].pageMaker();
-			// }
-			// If there is page content, set it
-			// pageContent = this.pageContents[this.page];
-
 			window.removeEventListener('resize', livePreviewPageWindowResize);
-
 			pageContent = this.tableOfContents[this.page].pageMaker();
+			// Rail is now shell-level (#app__body > .discord-rail), not injected per page.
 		}
-		// Append results
 		editorContent.appendChild(pageContent);
-
-		// log(`this.pageContents`);
-		// log(this.pageContents);
-
-		// log(`Navigator.makePageContent`, 'end');
 
 		return editorContent;
 	}
@@ -422,6 +451,205 @@ function makeNavButton_Panel(panelName, iconName) {
 		// log(`navButton.click`, 'end');
 	});
 	return button;
+}
+
+// --------------------------------------------------------------
+// Discord-style page rail — icons-only vertical sidebar
+// --------------------------------------------------------------
+
+/**
+ * Creates the Discord-like page rail element.
+ * Icons only; groups separated by dividers mirroring
+ * tableOfContents subtitles. Active page gets pill + peach fill.
+ * @returns {HTMLElement}
+ */
+export function makeDiscordRail() {
+	const editor = getCurrentProjectEditor();
+	const toc = editor.nav.tableOfContents;
+	const currentPage = editor.nav.page;
+
+	const rail = makeElement({
+		tag: 'nav',
+		className: 'discord-rail',
+		attributes: {
+			'aria-label': 'Pages',
+			role: 'navigation',
+		},
+	});
+
+	let isFirstGroup = true;
+
+	Object.keys(toc).forEach((pageName) => {
+		const entry = toc[pageName];
+
+		if (entry?.type === 'subtitle') {
+			// Divider between groups — not before the very first group
+			if (!isFirstGroup) {
+				rail.appendChild(
+					makeElement({
+						tag: 'div',
+						className: 'discord-rail__separator',
+						attributes: { 'aria-hidden': 'true' },
+					})
+				);
+			} else {
+				isFirstGroup = false;
+			}
+			// Still mark that we passed a subtitle group so the next
+			// divider logic works even if subtitle is first.
+			return;
+		}
+
+		// Mirror chooser filter: skip non-page entries
+		if (pageName === 'Open project' || !entry.pageMaker) return;
+
+		isFirstGroup = false;
+
+		const isActive = pageName === currentPage;
+		const btn = makeElement({
+			tag: 'button',
+			className: `discord-rail__item${isActive ? ' discord-rail__item--active' : ''}`,
+			attributes: {
+				'aria-label': pageName,
+				title: pageName,
+				'aria-current': isActive ? 'page' : null,
+				'data-page': pageName,
+				type: 'button',
+				tabindex: '0',
+			},
+		});
+
+				// Pill indicator (left accent for active / hover)
+		const pill = makeElement({
+			tag: 'span',
+			className: 'discord-rail__pill',
+			attributes: { 'aria-hidden': 'true' },
+		});
+
+		// Icon — use currentColor so CSS color controls fill
+		const iconWrap = makeElement({
+			tag: 'span',
+			className: 'discord-rail__icon',
+			attributes: { 'aria-hidden': 'true' },
+		});
+		iconWrap.innerHTML = makeIcon({ name: entry.iconName, color: 'currentColor' });
+
+		// Keep lightweight inline tooltip for a11y fallback (hidden when fixed tooltip is active)
+		// Real hover label uses fixed portal to escape overflow clipping — see show/hide handlers below.
+		const tooltip = makeElement({
+			tag: 'span',
+			className: 'discord-rail__tooltip',
+			attributes: { 'aria-hidden': 'true' },
+			content: pageName,
+		});
+
+		addAsChildren(btn, [pill, iconWrap, tooltip]);
+
+		// Fixed tooltip portal — escapes all overflow clipping, always on right
+		btn.addEventListener('mouseenter', () => {
+			showDiscordRailTooltip(pageName, btn);
+		});
+		btn.addEventListener('mouseleave', hideDiscordRailTooltip);
+		btn.addEventListener('focus', () => {
+			showDiscordRailTooltip(pageName, btn);
+		});
+		btn.addEventListener('blur', hideDiscordRailTooltip);
+		// Keep tooltip aligned on scroll/resize while hovered
+		btn.addEventListener('mousemove', () => {
+			// Re-position if already visible
+			const tip = document.getElementById('discord-rail-tooltip-fixed');
+			if (tip && tip.style.opacity === '1') showDiscordRailTooltip(pageName, btn);
+		});
+
+		btn.addEventListener('click', () => {
+			if (editor.nav.page !== pageName) {
+				editor.multiSelect.shapes.clear();
+				editor.multiSelect.points.clear();
+			}
+			editor.nav.page = pageName;
+			if (panelsPerPage?.[pageName]) {
+				if (!panelsPerPage[pageName].includes(editor.nav.panel))
+					editor.nav.panel = 'Attributes';
+			}
+			editor.navigate();
+			if (editor.selectedItemID) {
+				const lastChange = editor.history.queue[0] || false;
+				if (
+					lastChange &&
+					!(lastChange.wholeProjectSave || lastChange.itemID === editor.selectedItemID)
+				) {
+					editor.history.addState(
+						`Navigated to ${editor.project.getItemName(editor.selectedItemID, true)}`
+					);
+				}
+			}
+		});
+
+		rail.appendChild(btn);
+	});
+
+	return rail;
+}
+
+/**
+ * Update active state of an existing persistent rail without recreating DOM.
+ * @param {HTMLElement} rail
+ * @param {String} currentPage
+ */
+export function syncDiscordRailActiveState(rail, currentPage) {
+	if (!rail) return;
+	const page = currentPage || getCurrentProjectEditor()?.nav?.page;
+	rail.querySelectorAll('.discord-rail__item').forEach((btn) => {
+		const isActive = btn.getAttribute('data-page') === page;
+		btn.classList.toggle('discord-rail__item--active', isActive);
+		if (isActive) btn.setAttribute('aria-current', 'page');
+		else btn.removeAttribute('aria-current');
+	});
+}
+
+// -- Fixed tooltip portal (escapes overflow clipping) --
+let _discordRailFixedTip = null;
+function ensureDiscordRailFixedTip() {
+	if (_discordRailFixedTip && document.body.contains(_discordRailFixedTip)) return _discordRailFixedTip;
+	_discordRailFixedTip = makeElement({
+		tag: 'div',
+		id: 'discord-rail-tooltip-fixed',
+		className: 'discord-rail__tooltip discord-rail__tooltip--fixed',
+		attributes: { 'aria-hidden': 'true', role: 'tooltip' },
+	});
+	_discordRailFixedTip.style.opacity = '0';
+	_discordRailFixedTip.style.pointerEvents = 'none';
+	document.body.appendChild(_discordRailFixedTip);
+	return _discordRailFixedTip;
+}
+
+function showDiscordRailTooltip(text, anchorEl) {
+	const tip = ensureDiscordRailFixedTip();
+	tip.textContent = text;
+	tip.style.opacity = '1';
+	tip.style.transform = 'translateY(-50%) translateX(0) scale(1)';
+	// Position fixed to the right of the anchor
+	const rect = anchorEl.getBoundingClientRect();
+	// Ensure tip is measured after display
+	tip.style.left = `${rect.right + 14}px`;
+	// Use anchor center; fixed tooltip uses transform translateY(-50%)
+	tip.style.top = `${rect.top + rect.height / 2}px`;
+	// Keep within viewport vertically
+	requestAnimationFrame(() => {
+		const tipRect = tip.getBoundingClientRect();
+		const pad = 8;
+		let top = rect.top + rect.height / 2;
+		if (tipRect.top < pad) top = pad + tipRect.height / 2;
+		if (tipRect.bottom > window.innerHeight - pad) top = window.innerHeight - pad - tipRect.height / 2;
+		tip.style.top = `${top}px`;
+	});
+}
+
+function hideDiscordRailTooltip() {
+	if (_discordRailFixedTip) {
+		_discordRailFixedTip.style.opacity = '0';
+		_discordRailFixedTip.style.transform = 'translateY(-50%) translateX(-4px) scale(0.98)';
+	}
 }
 
 /**

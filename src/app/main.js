@@ -49,7 +49,7 @@ export function glyphrStudioOnLoad() {
 		}
 		// log(`glyphrStudioOnLoad`, 'end');
 	} catch (e) {
-		showAppErrorPage('Glyphr Studio failed to load!', e);
+		showAppErrorPage('Noddy failed to load!', e);
 		console.error(e);
 	}
 }

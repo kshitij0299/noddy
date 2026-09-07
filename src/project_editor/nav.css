@@ -1,3 +1,14 @@
+/* ─────────────────────────────────────────────────────────────
+   Noddy — Navigation (nav.css)
+   Warm peach + paper, chat channel-list morphology.
+   Preserves JS IDs: #nav-button-l1 / -l2 / -l3, nav, .nav-button,
+   .nav-dropdown__* — behaviour unchanged, presentation overhauled.
+   Tokens: var(--sidebar), --sidebar-foreground/accent/primary,
+           --popover, --border, --radius 0.45rem, --shadow-*, --ring,
+           --global-focus-style, --animate-*
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Base channel row — all levels share ── */
 .nav-button,
 .nav-button:hover,
 .nav-button:active,
@@ -5,135 +16,730 @@
 	display: grid;
 	grid-template-rows: min-content 1fr;
 	gap: 2px;
-	height: 48px;
+	height: auto;
+	min-height: 46px;
 	margin: 0;
-	padding: 10px;
+	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3) calc(var(--spacing) * 1.75);
 	text-align: left;
-	border-radius: 0;
-	box-shadow: var(--l2-shadow);
+	border-radius: var(--radius);
+	border: 1px solid transparent;
+	background: var(--sidebar);
+	color: var(--sidebar-foreground);
+	box-shadow: none;
+	font-family: var(--font-sans);
+	cursor: pointer;
+	white-space: nowrap;
+	position: relative;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	overflow: hidden;
+	overflow-x: clip;
+	transition:
+		background-color 140ms ease,
+		color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease;
 }
 
+.nav-button {
+	/* muted channel until hover/active — like inactive chat entry */
+	color: var(--muted-foreground);
+}
+
+/* remove legacy nudge — no layout shift on press */
 .nav-button:active {
-	position: relative;
-	left: 1px;
-	top: 1px;
+	left: auto;
+	top: auto;
+	transform: none;
 }
 
 .nav-button:focus {
-	outline-offset: -1px;
+	outline: none;
+	outline-offset: 0;
 }
 
+.nav-button:focus-visible {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style);
+}
+
+/* ── Hierarchy — warm peach system (soft, no blue gradients) ── */
 #nav-button-l1,
 #nav-button-l1:active,
 #nav-button-l1:hover,
 #nav-button-l1:focus {
 	width: max-content;
-	border-top-left-radius: 4px;
-	background-color: var(--blue-l20);
-	padding-right: 20px;
+	max-width: 100%;
+	padding-right: 18px;
+	border-top-left-radius: var(--radius);
+	border-top-right-radius: var(--radius);
+	background: var(--card);
+	color: var(--foreground);
+	border-color: var(--border);
+	box-shadow: var(--shadow-xs);
+}
+
+#nav-button-l1:hover {
+	background: var(--sidebar-accent);
+	color: var(--sidebar-accent-foreground);
+	border-color: var(--border);
+	box-shadow: var(--shadow-sm);
 }
 
 #nav-button-l2,
 #nav-button-l2:active,
 #nav-button-l2:hover,
 #nav-button-l2:focus {
-	border-top-right-radius: 4px;
-	background-color: var(--blue-l30);
-	max-width: 360px;
+	border-top-right-radius: var(--radius);
+	border-bottom-right-radius: var(--radius);
+	background: var(--sidebar);
+	color: var(--sidebar-foreground);
+	border-color: var(--sidebar-border);
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	overflow: hidden;
+	overflow-x: clip;
+	box-sizing: border-box;
+	box-shadow: none;
+}
+
+#nav-button-l2:hover {
+	background: var(--sidebar-accent);
+	color: var(--sidebar-accent-foreground);
+	border-color: var(--border);
+	box-shadow: var(--shadow-xs);
 }
 
 #nav-button-l3,
 #nav-button-l3:active,
 #nav-button-l3:hover,
 #nav-button-l3:focus {
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
-	background-color: var(--blue-l40);
+	border-bottom-left-radius: var(--radius);
+	border-bottom-right-radius: var(--radius);
+	background: var(--secondary);
+	color: var(--secondary-foreground);
+	border-color: var(--border);
+	box-shadow: none;
 }
 
+#nav-button-l3:hover {
+	background: var(--sidebar-accent);
+	color: var(--sidebar-accent-foreground);
+	border-color: var(--border);
+	box-shadow: var(--shadow-xs);
+}
+
+/* active / open channel — peach highlight (primary) */
+.nav-button[aria-expanded='true'],
+.nav-button:has(+ nav),
+#nav-button-l1[aria-expanded='true'],
+#nav-button-l2[aria-expanded='true'],
+#nav-button-l3[aria-expanded='true'] {
+	background: var(--primary) !important;
+	color: var(--primary-foreground) !important;
+	border-color: var(--primary) !important;
+	box-shadow: var(--shadow-sm), 0 0 0 1px color-mix(in oklch, var(--primary) 18%, transparent) !important;
+}
+
+/* when that active channel is hovered keep peach */
+.nav-button[aria-expanded='true']:hover {
+	filter: brightness(0.98);
+}
+
+/* ensure super/title inherit the active colour */
+.nav-button[aria-expanded='true'] .nav-button__super-title,
+.nav-button[aria-expanded='true'] .nav-button__title,
+.nav-button:has(+ nav) .nav-button__super-title,
+.nav-button:has(+ nav) .nav-button__title {
+	color: var(--primary-foreground) !important;
+	opacity: 1;
+}
+
+/* ── Labels — channel-like ── */
 .nav-button__super-title {
-	color: var(--blue-l85);
-	font-size: 0.64em;
-	letter-spacing: 0.2ch;
-	opacity: 80%;
+	color: var(--muted-foreground);
+	font-family: var(--font-sans);
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	line-height: 1;
+	opacity: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .nav-button__title {
-	color: var(--blue-l90);
-	font-size: 1.1em;
-	height: 22px;
-	letter-spacing: 0.05ch;
+	color: inherit;
+	font-family: var(--font-sans);
+	font-size: 13.5px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	line-height: 1.2;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	max-width: 340px;
+	max-width: 100%;
+	min-width: 0;
 	overflow: hidden;
+	overflow-x: clip;
+	height: auto;
+	min-height: 18px;
+	box-sizing: border-box;
 }
 
+/* l2 title — must fit 272px sidebar, so 100% not 320px */
+#nav-button-l2 .nav-button__title {
+	max-width: 100%;
+	min-width: 0;
+}
+
+/* ── Dropdown popover — var(--popover) ── */
 nav {
-	/* display: grid; */
 	display: block;
-	background-color: var(--offWhite);
-	box-shadow: var(--l3-shadow-down);
+	background-color: var(--popover) !important;
+	color: var(--popover-foreground);
+	border: 1px solid var(--border) !important;
+	border-radius: var(--radius) !important;
+	box-shadow: var(--shadow-md), 0 8px 24px hsl(0 0% 0% / 0.08) !important;
 	position: absolute;
-	border-radius: 0px 0px 4px 4px;
-	border-width: 4px 0px 0px 0px;
-	max-height: calc(100% - 95px);
-	z-index: 100;
+	max-height: min(62vh, calc(100% - 95px));
+	z-index: 1000;
 	overflow-x: hidden;
 	overflow-y: auto;
+	padding: 6px;
 	animation: var(--animate-fade-in-slide-down);
+	backdrop-filter: blur(8px) saturate(1.08);
+	-webkit-backdrop-filter: blur(8px) saturate(1.08);
+	will-change: opacity, transform;
+	/* override inline left/top/min-width from JS where needed but keep geometry */
 }
 
 nav:focus {
 	outline: 0;
 }
 
+nav:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style), var(--shadow-md) !important;
+	border-color: var(--ring) !important;
+}
+
+/* scrim behind popover on narrow viewports — soft */
+@media (max-width: 900px) {
+	nav {
+		max-width: 92vw !important;
+	}
+}
+
+/* dropdown sections */
 #nav-dropdown-page {
-	padding: 10px 0px 0px 5px;
+	padding: 4px 0 4px 2px;
 }
 
+#nav-dropdown-chooser,
+#nav-dropdown-panel {
+	padding: 4px;
+}
+
+/* subtitle — section label like chat sidebar group */
 .nav-dropdown__subtitle {
-	margin: 15px 0px 5px 10px;
-	color: var(--blue-l90);
-	opacity: 50%;
-	font-size: 0.9em;
+	margin: 14px 0 6px 8px;
+	color: var(--muted-foreground);
+	font-family: var(--font-sans);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	opacity: 1;
+	line-height: 1;
 }
 
+.nav-dropdown__subtitle:first-child {
+	margin-top: 6px;
+}
+
+/* ── Dropdown rows — chat list items inside popover ── */
 .nav-dropdown__button {
 	display: grid;
 	align-items: center;
-	column-gap: 15px;
-	grid-template-columns: min-content max-content;
-	margin: 4px 10px 10px 2px;
-	border-radius: 0;
-	border-color: transparent;
-	border-right: 4px solid transparent;
-	color: var(--blue-l80);
+	column-gap: 10px;
+	grid-template-columns: 20px 1fr;
+	margin: 2px 2px;
+	padding: 7px 10px 7px 8px;
+	border-radius: calc(var(--radius) - 2px);
+	border: 1px solid transparent;
+	color: var(--popover-foreground);
 	text-align: left;
-	background-color: transparent;
-	font-size: 1.1em;
-	width: calc(100% - 10px);
+	background: transparent;
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.2;
+	width: calc(100% - 4px);
 	box-shadow: none;
+	cursor: pointer;
+	transition:
+		background-color 140ms ease,
+		color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease;
 }
 
-.nav-dropdown__button:hover,
-.nav-dropdown__button:focus {
-	border-color: transparent;
-	border-right: 4px solid var(--blue-l90);
-	border-radius: 0;
-	margin: 4px 10px 10px 2px;
-	color: var(--blue-l90);
-	background-color: hsla(0, 0%, 100%, 0.1);
+.nav-dropdown__button:hover {
+	border-color: var(--border);
+	color: var(--foreground);
+	background: var(--sidebar-accent);
 	box-shadow: none;
+	margin: 2px 2px;
+	border-radius: calc(var(--radius) - 2px);
+}
+
+.nav-dropdown__button:active {
+	background: var(--muted);
+}
+
+.nav-dropdown__button:focus {
+	outline: none;
+	border-color: transparent;
+}
+
+.nav-dropdown__button:focus-visible {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style);
+	background: var(--sidebar-accent);
+}
+
+/* selected row inside popover (if JS adds selected attr) */
+.nav-dropdown__button[aria-current='true'],
+.nav-dropdown__button[aria-selected='true'],
+.nav-dropdown__button[selected] {
+	background: var(--primary);
+	color: var(--primary-foreground);
+	border-color: var(--primary);
+	box-shadow: var(--shadow-xs);
+}
+
+.nav-dropdown__button[aria-current='true'] svg,
+.nav-dropdown__button[aria-selected='true'] svg,
+.nav-dropdown__button[selected] svg {
+	fill: var(--primary-foreground);
+	color: var(--primary-foreground);
 }
 
 .nav-dropdown__button svg {
-	height: 24px;
-	width: 24px;
+	height: 18px;
+	width: 18px;
+	flex: 0 0 18px;
+	fill: var(--muted-foreground);
+	color: var(--muted-foreground);
+	transition: fill 140ms ease, color 140ms ease;
+}
+
+.nav-dropdown__button:hover svg,
+.nav-dropdown__button:focus-visible svg {
+	fill: var(--foreground);
+	color: var(--foreground);
 }
 
 .nav-dropdown__button span {
-	font-size: 1.2em;
-	margin-top: 4px;
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 500;
+	letter-spacing: -0.01em;
+	margin-top: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ── Scrollbar for popover ── */
+nav::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+nav::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 999px;
+}
+nav::-webkit-scrollbar-thumb:hover {
+	background: var(--muted-foreground);
+}
+
+/* ── Nav areas — give channel-list breathing room ── */
+.editor-page__nav-area,
+.content-page__nav-area {
+	gap: calc(var(--spacing) * 1.5) !important;
+	align-items: stretch;
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.editor-page__nav-area > *,
+.content-page__nav-area > * {
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.content-page__nav-area #nav-button-l1 {
+	width: 100%;
+	border-radius: var(--radius);
+}
+
+.editor-page__nav-area #nav-button-l3 {
+	grid-column: span 2;
+}
+
+/* ── Discord rail — icons-only vertical page nav
+   TRUE FLUSH SIDEBAR: no card, no radius, no outer gap, full height.
+   Distinct muted background like Discord's server rail (darker than channel sidebar).
+   Fixed tooltip portal escapes overflow, so rail can safely use overflow-y:auto. ── */
+.discord-rail {
+	width: 72px;
+	min-width: 72px;
+	max-width: 72px;
+	flex: 0 0 72px;
+	align-self: stretch;
+	height: calc(100dvh - 56px);
+	height: calc(100vh - 56px);
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 12px 8px 14px;
+	background: color-mix(in oklch, var(--muted) 78%, var(--sidebar) 22%);
+	border: none;
+	border-right: 1px solid var(--border);
+	border-radius: 0;
+	box-shadow: none;
+	overflow-y: auto;
+	overflow-x: hidden;
+	scrollbar-width: thin;
+	scrollbar-gutter: stable;
+	box-sizing: border-box;
+	position: relative;
+	z-index: 40;
+}
+/* shell-level rail lives in #app__body — ensure flex row doesn't clip; fixed tooltip is body-level */
+#app__body > .discord-rail {
+	height: auto;
+	min-height: 0;
+	align-self: stretch;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+/* never hide — persistent per user request (overrides any hidden attr) */
+.discord-rail[hidden],
+.discord-rail.is-hidden {
+	display: flex !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+/* hide scrollbars when not needed but keep thin */
+.discord-rail::-webkit-scrollbar {
+	width: 4px;
+}
+.discord-rail::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 999px;
+}
+
+.discord-rail__item {
+	position: relative;
+	width: 48px;
+	height: 48px;
+	min-height: 48px;
+	flex: 0 0 48px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--card);
+	color: var(--muted-foreground);
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	box-shadow: var(--shadow-xs);
+	cursor: pointer;
+	transition:
+		background-color 180ms cubic-bezier(0.32, 0.72, 0, 1),
+		color 180ms ease,
+		border-color 180ms ease,
+		border-radius 180ms cubic-bezier(0.32, 0.72, 0, 1),
+		box-shadow 180ms ease,
+		transform 180ms ease;
+	padding: 0;
+	margin: 0;
+	box-sizing: border-box;
+	overflow: visible;
+}
+
+.discord-rail__item:hover {
+	background: var(--sidebar-accent);
+	color: var(--foreground);
+	border-color: var(--border);
+	border-radius: 12px;
+	box-shadow: var(--shadow-sm);
+	transform: translateY(0);
+}
+
+.discord-rail__item:active {
+	transform: scale(0.97);
+}
+
+.discord-rail__item:focus {
+	outline: none;
+}
+.discord-rail__item:focus-visible {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style), var(--shadow-sm);
+}
+
+.discord-rail__item--active,
+.discord-rail__item--active:hover,
+.discord-rail__item--active:active,
+.discord-rail__item--active:focus {
+	background: var(--primary);
+	color: var(--primary-foreground);
+	border-color: var(--primary);
+	border-radius: 12px;
+	box-shadow: var(--shadow-sm), 0 0 0 1px color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+/* icon wrapper — svg inherits currentColor */
+.discord-rail__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	pointer-events: none;
+}
+.discord-rail__icon svg {
+	width: 24px;
+	height: 24px;
+	display: block;
+}
+.discord-rail__icon svg g {
+	fill: currentColor !important;
+}
+
+/* pill — Discord-style left indicator */
+.discord-rail__pill {
+	position: absolute;
+	left: -10px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 4px;
+	height: 8px;
+	background: var(--foreground);
+	border-radius: 0 4px 4px 0;
+	opacity: 0;
+	transition:
+		height 180ms cubic-bezier(0.32, 0.72, 0, 1),
+		opacity 140ms ease,
+		background-color 180ms ease;
+	pointer-events: none;
+}
+
+.discord-rail__item:hover .discord-rail__pill {
+	height: 20px;
+	opacity: 1;
+	background: var(--foreground);
+}
+
+.discord-rail__item--active .discord-rail__pill {
+	height: 36px;
+	opacity: 1;
+	background: var(--foreground);
+}
+.discord-rail__item--active .discord-rail__pill,
+.discord-rail__item--active:hover .discord-rail__pill {
+	background: var(--primary);
+	/* when active, pill matches primary but ensure contrast on rail */
+}
+.dark .discord-rail__item--active .discord-rail__pill {
+	background: var(--primary);
+}
+
+/* tooltip — legacy absolute (kept for a11y, but hidden when fixed portal is used) */
+.discord-rail__tooltip {
+	position: absolute;
+	left: calc(100% + 14px);
+	top: 50%;
+	transform: translateY(-50%) translateX(-4px) scale(0.98);
+	background: var(--popover);
+	color: var(--popover-foreground);
+	border: 1px solid var(--border);
+	padding: 6px 10px;
+	border-radius: calc(var(--radius) - 2px);
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	line-height: 1;
+	white-space: nowrap;
+	opacity: 0;
+	pointer-events: none;
+	box-shadow: var(--shadow-md), 0 8px 24px hsl(0 0% 0% / 0.08);
+	z-index: 100;
+	transition:
+		opacity 140ms ease,
+		transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
+	/* hidden by default — fixed portal is the visible one to escape overflow clipping */
+	display: none;
+}
+
+.discord-rail__item:hover .discord-rail__tooltip,
+.discord-rail__item:focus-visible .discord-rail__tooltip {
+	opacity: 0;
+	transform: translateY(-50%) translateX(-4px) scale(0.98);
+	display: none;
+}
+
+/* Fixed tooltip portal — escapes all overflow/clip, always on right */
+.discord-rail__tooltip--fixed {
+	position: fixed;
+	left: 0;
+	top: 0;
+	transform: translateY(-50%) translateX(-4px) scale(0.98);
+	background: var(--popover);
+	color: var(--popover-foreground);
+	border: 1px solid var(--border);
+	padding: 6px 10px;
+	border-radius: calc(var(--radius) - 2px);
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	line-height: 1;
+	white-space: nowrap;
+	opacity: 0;
+	pointer-events: none;
+	box-shadow: var(--shadow-md), 0 8px 24px hsl(0 0% 0% / 0.08);
+	z-index: 9999;
+	transition:
+		opacity 140ms ease,
+		transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* separator between groups */
+.discord-rail__separator {
+	width: 32px;
+	height: 2px;
+	min-height: 2px;
+	background: var(--border);
+	border-radius: 999px;
+	margin: 4px auto;
+	flex: 0 0 2px;
+	opacity: 0.9;
+}
+
+/* Rail is now shell-level: hide old top page button unconditionally
+   (kept in DOM for tests/a11y) and adapt nav-area. */
+.editor-page__left-area #nav-button-l1,
+.content-page__left-area #nav-button-l1 {
+	display: none !important;
+}
+
+/* editor nav-area: with l1 gone, l2 should be full-width top, l3 below */
+.editor-page__nav-area {
+	grid-template-columns: 1fr !important;
+}
+.editor-page__nav-area #nav-button-l2 {
+	grid-column: 1;
+}
+.editor-page__nav-area #nav-button-l3 {
+	grid-column: 1;
+}
+
+/* content pages only had PAGE button — hide empty nav area gap */
+.content-page__nav-area {
+	display: none !important;
+}
+.content-page__left-area {
+	gap: 0 !important;
+}
+/* shell rail flush overrides: content left-area gap already 0, keep above for editor/content pages */
+.content__page .content-page__left-area {
+	gap: 0 !important;
+}
+
+/* Mobile: keep rail visible but narrower; at very small hide tooltip reposition */
+@media (max-width: 900px) {
+	.discord-rail,
+	#app__body > .discord-rail {
+		width: 60px;
+		min-width: 60px;
+		max-width: 60px;
+		flex-basis: 60px;
+		padding: 10px 6px;
+		gap: 6px;
+	}
+	.discord-rail__item {
+		width: 44px;
+		height: 44px;
+		min-height: 44px;
+		flex-basis: 44px;
+		border-radius: 14px;
+	}
+	.discord-rail__item:hover {
+		border-radius: 11px;
+	}
+	.discord-rail__item--active,
+	.discord-rail__item--active:hover {
+		border-radius: 11px;
+	}
+	.discord-rail__pill {
+		left: -8px;
+	}
+}
+
+/* Extra narrow: keep vertical; adjust rail height for 52px top-bar and tweak tooltip. */
+@media (max-width: 560px) {
+	.discord-rail {
+		height: calc(100dvh - 52px);
+		height: calc(100vh - 52px);
+	}
+	#app__body > .discord-rail {
+		height: auto;
+	}
+	.discord-rail__tooltip {
+		left: calc(100% + 10px);
+		font-size: 12.5px;
+		padding: 5px 8px;
+	}
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+	.nav-button,
+	.nav-dropdown__button,
+	nav {
+		transition: none;
+		animation: none;
+	}
+	.discord-rail__item,
+	.discord-rail__pill,
+	.discord-rail__tooltip {
+		transition: none;
+		animation: none;
+	}
+}
+
+/* ── High contrast / forced colours fallback ── */
+@media (forced-colors: active) {
+	.nav-button,
+	nav,
+	.nav-dropdown__button {
+		border: 1px solid CanvasText;
+	}
 }

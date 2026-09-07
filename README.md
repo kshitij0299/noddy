@@ -1,6 +1,10 @@
-# Glyphr Studio v2!
+# Noddy
 
-Glyphr Studio v2 is a web-based font editor, optimized for typeface design beginners or hobbyists.
+> Formerly **Glyphr Studio v2** — now **Noddy**.
+
+Noddy is a web-based font editor, optimized for typeface design beginners or hobbyists. (Originally Glyphr Studio v2.)
+
+> **Noddy is a fork of [Glyphr Studio](https://www.glyphrstudio.com) (glyphrstudio.com) — original by Matt LaGrandeur, GPL-3.0.**
 
 ## Links
 
@@ -17,7 +21,7 @@ Glyphr Studio v2 is a web-based font editor, optimized for typeface design begin
 
 ## Approach
 
-So, here at Glyphr Studio, we've always had a very strong DIY attitude - this means:
+So, here at Noddy (originally Glyphr Studio), we've always had a very strong DIY attitude - this means:
 
 - The only external library we will use _for the UI_ is FontFlux JS, for importing and
   exporting OTF files.

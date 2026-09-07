@@ -1,11 +1,15 @@
+/* Noddy Fancy Button — Peach Primary System
+   Primary: var(--primary) with color-mix darken on hover
+   Secondary/muted: var(--secondary)/--muted, disabled muted
+   Radius: var(--radius) 0.45rem, font: var(--font-sans), 150ms, ring: var(--ring)
+*/
+
 * {
 	box-sizing: border-box;
 	user-select: none;
 	-webkit-user-select: none;
 	-moz-user-select: none;
 	-ms-user-select: none;
-	user-select: none;
-	transition: var(--global-transition);
 }
 
 :host {
@@ -13,57 +17,41 @@
 	display: inline-block;
 	width: max-content;
 	min-width: 40px;
-	--fancy-gradient: linear-gradient(
-		135deg,
-		var(--blue-l55),
-		var(--purple-l45),
-		var(--orange-l50),
-		var(--purple-l45),
-		var(--blue-l55),
-		var(--purple-l45)
-	);
-	--fancy-animation: gradFade 120s linear infinite;
-	--fancy-background-size: 500% 500%;
 }
 
-@keyframes gradFade {
-	0% {
-		background-position: 0% 0%;
-	}
-
-	100% {
-		background-position: 100% 100%;
-	}
-}
-
-:host(:active) .wrapper {
-	top: 1px;
-	left: 1px;
+:host(:active) .wrapper:not([disabled]) {
+	transform: translate(1px, 1px);
 	box-shadow: none;
 }
 
 :host([disabled]:active) .wrapper {
-	top: 0px;
-	left: 0px;
+	transform: none;
 }
 
-/* Primary */
+/* ── Base: Primary (peach) ─────────────────────────────────────── */
 .wrapper {
 	display: inline-block;
 	position: relative;
-	top: 0px;
-	left: 0px;
-	margin: 0px;
-	padding: 2px;
+	top: 0;
+	left: 0;
+	margin: 0;
+	padding: 0;
 	height: 100%;
 	width: 100%;
-	border-style: solid;
-	border-width: 0px;
-	border-radius: 5px;
-	animation: var(--fancy-animation);
-	box-shadow: var(--l2-shadow);
-	background: var(--fancy-gradient);
-	background-size: var(--fancy-background-size);
+	border: 1px solid var(--primary);
+	border-radius: var(--radius);
+	background: var(--primary);
+	color: var(--primary-foreground);
+	box-shadow: var(--shadow-xs);
+	font-family: var(--font-sans);
+	font-weight: 500;
+	letter-spacing: var(--tracking-normal);
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		color 150ms ease,
+		box-shadow 150ms ease;
+	overflow: hidden;
 }
 
 .wrapper:hover,
@@ -73,143 +61,187 @@
 	cursor: pointer;
 }
 
+.wrapper:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
+}
+
 .wrapper:focus {
-	outline: var(--global-focus-style);
+	outline: none;
 }
 
 .buttonContent {
 	display: flex;
 	align-items: center;
-	padding: 0px;
-	border-radius: 3px;
+	justify-content: center;
+	padding: 6px 2px;
+	border-radius: calc(var(--radius) - 1px);
 	background-color: transparent;
 	width: 100%;
 	height: 100%;
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		color 150ms ease;
 }
 
 .buttonText {
 	display: inline-block;
 	width: max-content;
 	height: max-content;
-	margin: 5px 10px;
-	color: white;
-	animation: var(--fancy-animation);
+	margin: 2px 12px;
+	color: var(--primary-foreground);
+	background-color: transparent;
+	font-family: var(--font-sans);
+	font-weight: 500;
+	font-size: 0.92em;
+	letter-spacing: var(--tracking-normal);
+	line-height: 1.2;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease,
+		opacity 150ms ease;
+}
+
+/* Hover — darken via color-mix */
+.wrapper:hover {
+	background: color-mix(in oklch, var(--primary) 88%, black);
+	border-color: color-mix(in oklch, var(--primary) 88%, black);
+	box-shadow: var(--shadow-sm);
+}
+
+.wrapper:active {
+	background: color-mix(in oklch, var(--primary) 82%, black);
+	border-color: color-mix(in oklch, var(--primary) 82%, black);
+	box-shadow: none;
+	transform: translate(1px, 1px);
+}
+
+/* ── Secondary — muted card ────────────────────────────────────── */
+.wrapper[secondary] {
+	background: var(--secondary);
+	border-color: var(--border);
+	color: var(--secondary-foreground);
+	box-shadow: var(--shadow-xs);
+}
+
+.wrapper[secondary] .buttonContent {
 	background-color: transparent;
 }
 
-/* Secondary */
-.wrapper[secondary] .buttonContent {
-	background-color: rgba(255, 255, 255, 0.95);
-}
-
 .wrapper[secondary] .buttonText {
-	background: var(--fancy-gradient);
-	background-size: var(--fancy-background-size);
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
+	color: var(--secondary-foreground);
+	background: none;
+	-webkit-background-clip: initial;
+	background-clip: initial;
+	-webkit-text-fill-color: initial;
 }
 
-.wrapper:hover .buttonContent,
-.wrapper:active .buttonContent {
-	background-color: rgba(255, 255, 255, 0.1);
+.wrapper[secondary]:hover {
+	background: var(--secondary);
+	border-color: var(--ring);
+	color: var(--foreground);
+	box-shadow: var(--shadow-sm);
+	filter: brightness(0.99);
 }
 
-.wrapper[secondary]:hover .buttonContent,
-.wrapper[secondary]:active .buttonContent {
-	background-color: white;
+.wrapper[secondary]:active {
+	background: color-mix(in oklch, var(--secondary) 92%, var(--primary) 8%);
+	border-color: var(--ring);
 }
 
-/* Minimal */
+/* ── Minimal — ghost ───────────────────────────────────────────── */
 .wrapper[minimal] {
-	padding: 1px;
-	box-shadow: var(--l1-shadow);
-	background: linear-gradient(135deg,
-		var(--blue-l85),
-		var(--blue-l90)
-	);
-	animation: var(--fancy-animation);
+	padding: 0;
+	box-shadow: none;
+	background: transparent;
+	border-color: transparent;
+	color: var(--foreground);
 }
 
 .wrapper[minimal] .buttonContent {
-	background-color: rgba(255, 255, 255, 0.95);
+	background-color: transparent;
 }
 
 .wrapper[minimal] .buttonText {
-	background: linear-gradient(135deg,
-		var(--blue-l70),
-		var(--blue-l90)
-	);
-	background-size: var(--fancy-background-size);
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
+	color: var(--foreground);
+	background: none;
+	-webkit-background-clip: initial;
+	background-clip: initial;
+	-webkit-text-fill-color: initial;
 }
 
-.wrapper[minimal]:hover,
+.wrapper[minimal]:hover {
+	background: var(--secondary);
+	border-color: var(--border);
+	box-shadow: var(--shadow-xs);
+}
+
 .wrapper[minimal]:active {
-	box-shadow: var(--l2-shadow);
-	background: linear-gradient(135deg,
-		var(--blue-l65),
-		var(--blue-l70)
-	);
+	background: var(--muted);
 }
 
-.wrapper[minimal]:hover .buttonContent,
-.wrapper[minimal]:active .buttonContent {
-	background-color: white;
-}
-
-.wrapper[minimal]:hover .buttonText,
-.wrapper[minimal]:active .buttonText {
-	background: linear-gradient(135deg,
-		var(--blue-l40),
-		var(--blue-l70)
-	);
-	background-size: var(--fancy-background-size);
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
-}
-
-/* Danger */
+/* ── Danger ────────────────────────────────────────────────────── */
 .wrapper[danger] {
-	background: linear-gradient(135deg,
-			var(--orange-l50),
-			var(--red));
-	animation: var(--fancy-animation);
+	background: var(--destructive);
+	border-color: var(--destructive);
+	color: var(--destructive-foreground);
 }
 
 .wrapper[danger] .buttonText {
-	background: white;
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
+	color: var(--destructive-foreground);
+	background: none;
+	-webkit-background-clip: initial;
+	background-clip: initial;
+	-webkit-text-fill-color: initial;
+}
+
+.wrapper[danger]:hover {
+	background: color-mix(in oklch, var(--destructive) 88%, black);
+	border-color: color-mix(in oklch, var(--destructive) 88%, black);
+}
+
+.wrapper[secondary][danger] {
+	background: var(--card);
+	border-color: var(--border);
+	color: var(--destructive);
 }
 
 .wrapper[secondary][danger] .buttonText {
-	background: var(--red);
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
+	color: var(--destructive);
 }
 
-/* Disabled */
+.wrapper[secondary][danger]:hover {
+	background: color-mix(in oklch, var(--destructive) 10%, var(--card));
+	border-color: var(--destructive);
+	color: var(--destructive);
+}
+
+/* ── Focus ring for keyboard ───────────────────────────────────── */
+.wrapper:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ring);
+}
+
+/* ── Disabled — muted ──────────────────────────────────────────── */
 .wrapper[disabled],
 .wrapper[disabled]:hover,
 .wrapper[disabled]:focus,
 .wrapper[disabled]:active {
-	background-image: none;
-	background-color: var(--disabled-border);
+	background: var(--muted);
+	border-color: var(--border);
+	color: var(--muted-foreground);
 	cursor: default;
 	box-shadow: none;
+	transform: none;
+	opacity: 1;
 }
 
 .wrapper[disabled] .buttonContent,
 .wrapper[disabled]:hover .buttonContent,
 .wrapper[disabled]:focus .buttonContent,
 .wrapper[disabled]:active .buttonContent {
-	background-color: var(--disabled-background);
+	background-color: transparent;
 	cursor: default;
 }
 
@@ -217,9 +249,10 @@
 .wrapper[disabled]:hover .buttonText,
 .wrapper[disabled]:focus .buttonText,
 .wrapper[disabled]:active .buttonText {
-	background-color: var(--disabled-background);
-	background-clip: none;
-	-webkit-text-fill-color: var(--disabled-border);
-	color: var(--disabled-border);
+	background: none;
+	-webkit-background-clip: initial;
+	background-clip: initial;
+	-webkit-text-fill-color: var(--muted-foreground);
+	color: var(--muted-foreground);
 	cursor: default;
 }

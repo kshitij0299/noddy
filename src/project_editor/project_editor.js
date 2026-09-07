@@ -23,13 +23,13 @@ import { Navigator } from './navigator.js';
 import { publish, subscribe, unsubscribe } from './pub_sub.js';
 
 /**
- * Creates a new Glyphr Studio Project Editor.
+ * Creates a new Noddy Project Editor (fork of Glyphr Studio).
  * An Editor is all the UI it takes to edit a project,
  * including Pages, Panels, History, Saved State,
  * Import/Export, etc.
  *
  * Many Project Editors can be run side-by-side,
- * editing many Glyphr Studio Projects. Could be
+ * editing many Noddy Projects. Could be
  * in tabs or separate windows, but the App has
  * access to all the Project Editors, enabling
  * cross-project features like glyph copy/paste.
@@ -1097,7 +1097,7 @@ export class ProjectEditor {
 		// log('saveProjectFile - \n'+saveData);
 
 		await saveTextFile('gs2', saveData, saveAsCopy);
-		showToast('Saved Glyphr Studio Project File');
+		showToast('Saved Noddy Project File');
 		this.setProjectAsSaved();
 		// log(`ProjectEditor.saveProjectFile`, 'end');
 	}

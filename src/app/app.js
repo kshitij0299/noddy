@@ -18,9 +18,10 @@ import {
 	setCurrentProjectEditor,
 } from './main.js';
 import { makePage_OpenProject } from './open_project.js';
+import { makeDiscordRail, syncDiscordRailActiveState } from '../project_editor/navigator.js';
 
 /**
- * Creates a new Glyphr Studio Application
+ * Creates a new Noddy Application (fork of Glyphr Studio)
  */
 export class GlyphrStudioApp {
 	constructor() {
@@ -51,7 +52,7 @@ export class GlyphrStudioApp {
 		this.version = config.version;
 		this.versionDate = config.versionDate;
 		const semVer = parseSemVer(config.version);
-		this.versionName = `Version ${semVer.major}.${semVer.minor}`;
+		this.versionName = `Noddy ${semVer.major}.${semVer.minor}`;
 
 		// Project Editors
 		this.projectEditors = [];
@@ -72,7 +73,7 @@ export class GlyphrStudioApp {
 		// Dev mode stuff
 		const dev = this.settings.dev;
 		if (dev.mode) {
-			if (dev.overwriteTitle) document.title = '⡄⡆⡇🄳🄴🅅 🄼🄾🄳🄴⡇⡆⡄';
+			if (dev.overwriteTitle) document.title = '⡄⡆⡇ Noddy — DEV MODE ⡇⡆⡄';
 			// @ts-expect-error 'property does exist'
 			window._DEV = _DEV;
 
@@ -199,14 +200,78 @@ export class GlyphrStudioApp {
 	 * @param {Function} pageMaker - function that creates app page content
 	 */
 	appPageNavigate(pageMaker) {
-		const mainContent = makeElement({
-			tag: 'div',
-			id: 'app__main-content',
-		});
-		mainContent.appendChild(pageMaker());
 		const wrapper = document.querySelector('#app__wrapper');
-		wrapper.innerHTML = '';
-		wrapper.appendChild(mainContent);
+		if (!wrapper) return;
+		closeEveryTypeOfDialog();
+		const newPage = pageMaker();
+		let body = wrapper.querySelector('#app__body');
+		const isWelcome = !!newPage.querySelector?.('#open-project__page');
+		if (body) {
+			let rail = body.querySelector('.discord-rail');
+			if (!rail) {
+				try {
+					rail = makeDiscordRail();
+					body.prepend(rail);
+				} catch (e) {
+					rail = null;
+				}
+			}
+			if (rail) {
+				if (isWelcome) {
+					rail.hidden = true;
+					rail.classList.add('is-hidden');
+					rail.style.display = 'none';
+					rail.setAttribute('hidden', '');
+				} else {
+					rail.hidden = false;
+					rail.classList.remove('is-hidden');
+					rail.style.display = '';
+					rail.removeAttribute('hidden');
+					try {
+						syncDiscordRailActiveState(rail, null);
+					} catch {}
+				}
+			}
+			let mainContent = body.querySelector('#app__main-content');
+			if (!mainContent) {
+				mainContent = makeElement({ tag: 'div', id: 'app__main-content' });
+				body.appendChild(mainContent);
+			}
+			mainContent.innerHTML = '';
+			mainContent.appendChild(newPage);
+			if (!wrapper.contains(body)) {
+				wrapper.innerHTML = '';
+				wrapper.appendChild(body);
+			}
+			// App pages have no top-bar by design — remove if present
+			const topBar = wrapper.querySelector('#app__top-bar');
+			if (topBar) topBar.remove();
+		} else {
+			const isWelcome2 = !!newPage.querySelector?.('#open-project__page');
+			const mainContent = makeElement({ tag: 'div', id: 'app__main-content' });
+			mainContent.appendChild(newPage);
+			body = makeElement({ tag: 'div', id: 'app__body' });
+			let railEl;
+			try {
+				railEl = makeDiscordRail();
+			} catch {
+				railEl = makeElement({
+					tag: 'nav',
+					className: 'discord-rail',
+					attributes: { 'aria-label': 'Pages', role: 'navigation' },
+				});
+			}
+			if (isWelcome2) {
+				railEl.hidden = true;
+				railEl.classList.add('is-hidden');
+				railEl.style.display = 'none';
+				railEl.setAttribute('hidden', '');
+			}
+			body.appendChild(railEl);
+			body.appendChild(mainContent);
+			wrapper.innerHTML = '';
+			wrapper.appendChild(body);
+		}
 	}
 
 	/**
@@ -383,11 +448,11 @@ export function showAppErrorPage(friendlyMessage = '', errorObject = { message: 
 		<div id="app__landing-page">
 		<div class="error-page__wrapper">
 			<div class="error-page__table-flip">(╯°▢°）╯︵ ┻━┻</div>
-				<h1>${friendlyMessage || 'Glyphr Studio ran into a problem'}</h1>
+				<h1>${friendlyMessage || 'Noddy ran into a problem'}</h1>
 				<br>
 				Please send us an email, hopefully we'll be able to help:
 				<a
-					href="mailto:mail@glyphrstudio.com&subject=[${getGlyphrStudioApp().version}] Feedback"
+					href="mailto:mail@glyphrstudio.com&subject=[${getGlyphrStudioApp().version}] Noddy Feedback"
 					>mail@glyphrstudio.com</a>
 				<br><br><br>
 				<pre>${errorObject.stack.replaceAll('<', '&lt;')}</pre>
@@ -417,7 +482,7 @@ export function emailLink(displayText = 'mail@glyphrstudio.com') {
 export function makeEmailContent() {
 	const con = `Have a feature idea or ran into an issue%3F We'd be happy to help!
 	%0A%0A%0A%0A___________________________________________%0A
-	version %09Glyphr Studio  ${getGlyphrStudioApp().version} %0A
+	version %09Noddy  ${getGlyphrStudioApp().version} %0A
 	user agent %09 ${encodeURIComponent(navigator.userAgent)} %0A`;
 
 	// log(con);

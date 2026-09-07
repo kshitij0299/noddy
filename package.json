@@ -1,10 +1,10 @@
 {
-	"name": "glyphr-studio-2",
+	"name": "noddy",
 	"author": "Matt LaGrandeur",
-	"version": "2.10",
+	"version": "0.1.0",
 	"license": "GPL-3.0-or-later",
-	"homepage": "https://github.com/glyphr-studio/Glyphr-Studio-2#readme",
-	"description": "Glyphr Studio v2 is a web-based font editor, optimized for typeface design beginners or hobbyists.",
+	"homepage": "https://github.com/kshitij0299/Glyphr-Studio-2#readme",
+	"description": "Noddy is a web-based font editor, optimized for typeface design beginners or hobbyists. (Fork of Glyphr Studio v2 — based on upstream v2.10.3)",
 	"type": "module",
 	"scripts": {
 		"dev": "run-func scripts.js dev && vite serve ./src/",
@@ -34,11 +34,11 @@
 		"vitest": "^4.1.10"
 	},
 	"bugs": {
-		"url": "https://github.com/glyphr-studio/Glyphr-Studio-2/issues"
+		"url": "https://github.com/kshitij0299/Glyphr-Studio-2/issues"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/glyphr-studio/Glyphr-Studio-2.git"
+		"url": "git+https://github.com/kshitij0299/Glyphr-Studio-2.git"
 	},
 	"prettier": {
 		"printWidth": 100,

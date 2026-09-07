@@ -77,10 +77,10 @@ export function makePage_Overview() {
 	welcomeCard.appendChild(
 		makeElement({
 			innerHTML: `
-		<h2>Welcome to Glyphr Studio!</h2>
+		<h2>Welcome to Noddy!</h2>
 		<p>
 			You can stay up to date on the latest news over at the
-			<a href="https://www.glyphrstudio.com/blog" target="_blank">Glyphr Studio Blog</a>.
+			<a href="https://www.glyphrstudio.com/blog" target="_blank">Noddy Blog</a> (upstream Glyphr Studio).
 			We also have a
 			<a href="https://www.glyphrstudio.com/help/tutorial" target="_blank">tutorial</a>
 			over on the Help and Docs site that will help you walk through some of the key steps
@@ -125,14 +125,14 @@ export function makePage_Overview() {
 	const contributeCard = makeElement({
 		className: 'panel__card full-width more-padding',
 		innerHTML: `
-			Glyphr Studio is open source and community supported.
+			Noddy is open source and community supported.
 			<br>
 			`,
 	});
 	contributeCard.appendChild(
 		makeElement({
 			tag: 'fancy-button',
-			innerHTML: 'Learn how you can help Glyphr Studio!',
+			innerHTML: 'Learn how you can help Noddy!',
 			attributes: { secondary: '' },
 			onClick: () => {
 				showModalDialog(makeContributeContent(), 500);

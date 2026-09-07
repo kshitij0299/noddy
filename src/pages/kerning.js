@@ -189,7 +189,7 @@ function makeKerningFirstRunContent() {
 			<p>
 				Font files encode kerning values as three pieces of information: a left character, a right
 				character, and a horizontal adjustment value. Fonts with many characters can end up having
-				a huge amount of kern pairs. Glyphr Studio uses a system called Class-based Kerning, where
+				a huge amount of kern pairs. Noddy uses a system called Class-based Kerning, where
 				groups of characters with similar edges (like
 					<code>V</code><code>v</code><code>W</code><code>w</code>
 					)

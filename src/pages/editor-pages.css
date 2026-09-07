@@ -1,52 +1,138 @@
+/* ─────────────────────────────────────────────────────────────
+   Noddy — Editor Pages (editor-pages.css)
+   Chat layout: left = sidebar var(--sidebar), center tools rail,
+   right = canvas var(--card). Spacing 10–16px, shadows, radius 0.45rem.
+   Preserves JS hooks: .editor__page, .editor-page__left-area,
+   #editor-page__panel, .editor-page__tools-area, .editor-page__edit-canvas-wrapper,
+   .live-preview-page__canvas-wrapper, .editor-page__tool etc.
+   Complements app.css triptych while remaining standalone-correct.
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Shell — chat triptych ──
+   Fix: was 300px sidebar vs app.css override 272px → mismatch caused
+   editor-page__left-area (272px in app shell) to have mismatched gutter
+   and overflow. Align to 272px and use spacing tokens; ensure shell is
+   flex-compatible when overridden by #app__main-content > .editor__page. */
 .editor__page {
-	height: calc(100% - 10px);
-	min-height: 100%;
+	height: 100%;
+	min-height: 0;
 	width: 100%;
-	min-width: 100%;
+	min-width: 0;
 	display: grid;
-	grid-template-columns: 450px 40px 1fr;
-	grid-template-rows: 100%;
-	column-gap: 10px;
-	padding: 0px 10px 10px 10px;
+	grid-template-columns: 272px 44px minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr);
+	gap: 12px;
+	padding: 12px;
+	align-items: stretch;
+	align-content: stretch;
+	background: transparent;
+	box-sizing: border-box;
+	position: relative;
 }
 
+/* Rail is now at shell level (#app__body) — page grid stays 272px 44px 1fr */
+
+/* left = channel sidebar — scrollable, constrained height */
 .editor-page__left-area {
 	grid-column: 1;
-	min-width: 1fr;
-	display: grid;
+	grid-row: 1;
+	align-self: stretch;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--spacing) * 2.5);
 	height: 100%;
-	grid-template-rows: min-content max-content;
-	row-gap: 2px;
+	max-height: 100%;
+	min-height: 0;
+	background: var(--sidebar);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: calc(var(--spacing) * 3) calc(var(--spacing) * 2.5);
+	overflow-y: auto;
+	overflow-x: hidden;
+	overflow-x: clip;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+	box-sizing: border-box;
+	scrollbar-width: thin;
+	scrollbar-gutter: stable;
+	box-shadow: var(--shadow-xs);
+	position: relative;
 }
 
 #editor-page__panel {
-	grid-row: 3;
-	width: 450px;
-	height: 100%;
+	grid-row: auto;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	height: auto;
+	flex: 1 1 auto;
+	min-height: 0;
 	overflow-y: auto;
 	overflow-x: hidden;
+	overflow-x: clip;
+	padding-right: calc(var(--spacing) * 0.5);
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--spacing) * 2.5);
+	box-sizing: border-box;
+	scrollbar-width: thin;
 }
+
+/* JS injects <span> wrappers around panel cards for entry animation.
+   Inline span + slide-in transform caused horizontal overflow on narrow
+   272px sidebar: make span block-level, contain layout, clip overflow,
+   and ensure it never exceeds sidebar width. */
+#editor-page__panel > span,
 #editor-page__panel span {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 	animation: var(--animate-slide-in);
+	contain: layout inline-size;
 }
 
 .editor-page__nav-area {
 	display: grid;
 	grid-template-columns: min-content 1fr;
-	grid-template-rows: 1fr 1fr;
-	gap: 2px;
+	grid-template-rows: auto auto;
+	gap: 8px;
 }
 
 .editor-page__nav-area #nav-button-l3 {
 	grid-column: span 2;
 }
 
+/* center = tools rail — vertical icon strip */
 .editor-page__tools-area {
-	padding-left: 10px;
-	height: min-content;
+	padding: 10px 6px;
+	height: auto;
+	min-height: 0;
+	align-self: stretch;
 	grid-column: 2;
+	grid-row: 1;
+	background: color-mix(in oklch, var(--sidebar) 92%, var(--card));
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	box-shadow: var(--shadow-xs);
+	box-sizing: border-box;
+	min-width: 0;
 }
 
+/* zoom bar — floating pill over canvas */
 .editor-page__zoom-area {
 	display: none;
 }
@@ -55,11 +141,19 @@
 	.editor-page__zoom-area {
 		grid-template-columns: min-content 1fr min-content min-content;
 		display: grid;
-		column-gap: 5px;
+		column-gap: 6px;
+		align-items: center;
 		position: absolute;
-		right: 15px;
-		bottom: 14px;
-		margin-bottom: -4px;
+		right: 24px;
+		bottom: 24px;
+		margin-bottom: 0;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		padding: 4px 6px;
+		box-shadow: var(--shadow-md);
+		z-index: 5;
+		box-sizing: border-box;
 	}
 }
 
@@ -71,37 +165,69 @@
 	.editor-page__responsive-group {
 		display: grid;
 		grid-template-columns: repeat(7, min-content);
-		column-gap: 5px;
+		column-gap: 6px;
 	}
 }
 
 .editor-page__zoom-readout {
-	width: 4.5em;
+	width: 4.8em;
 	height: 30px;
 	text-align: right;
-	padding-right: 4px;
+	padding-right: 6px;
+	font-family: var(--font-mono);
+	font-size: 13px;
+	color: var(--muted-foreground);
+	background: var(--muted);
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) - 4px);
 }
 
+/* ── Right = canvas / chat thread — card surface ── */
 .editor-page__edit-canvas-wrapper,
 .live-preview-page__canvas-wrapper {
-	border: 1px solid var(--blue-l85);
-	background-color: white;
+	border: 1px solid var(--border);
+	background-color: var(--card);
 	grid-column: 3;
-	border-radius: 4px;
+	grid-row: 1;
+	align-self: stretch;
+	border-radius: var(--radius);
 	width: 100%;
-	min-width: 80px;
-	height: 100%;
+	min-width: 0;
+	height: auto;
+	min-height: 0;
 	overflow: hidden;
-	box-shadow: var(--l3-shadow);
+	box-shadow: var(--shadow-md), 0 0 0 1px color-mix(in oklch, var(--primary) 06%, transparent);
+	position: relative;
+	box-sizing: border-box;
+	margin: 0;
 }
 
 .live-preview-page__canvas-wrapper {
-	background-color: white;
-	grid-column: 2;
+	background-color: var(--card);
+	grid-column: 3;
 	display: grid;
 	grid-template-columns: 1fr;
 	grid-template-rows: 1fr;
 	overflow-y: auto;
+}
+
+/* peach glow behind canvas */
+.editor-page__edit-canvas-wrapper::before,
+.live-preview-page__canvas-wrapper::before {
+	content: '';
+	position: absolute;
+	inset: -40px;
+	background:
+		radial-gradient(560px 380px at 38% 0%, color-mix(in oklch, var(--primary) 08%, transparent), transparent 62%),
+		radial-gradient(480px 340px at 98% 88%, color-mix(in oklch, var(--primary) 05%, transparent), transparent 66%);
+	pointer-events: none;
+	z-index: 0;
+}
+
+.editor-page__edit-canvas-wrapper > *,
+.live-preview-page__canvas-wrapper > * {
+	position: relative;
+	z-index: 1;
 }
 
 .live-preview-page__native-wrapper {
@@ -119,106 +245,179 @@
 	border: none;
 	outline: none;
 	resize: none;
-	padding: 10px;
+	padding: 14px;
 	box-sizing: border-box;
-	background-color: white;
-	color: black;
+	background-color: var(--card);
+	color: var(--foreground);
+	font-family: var(--font-mono);
+	font-size: 14px;
+	line-height: 1.6;
 	overflow-y: auto;
 }
 
+.live-preview-page__native-textarea::placeholder {
+	color: var(--muted-foreground);
+}
+
+/* done-creating path — floating peach pill */
 #done-creating-path-button {
 	position: absolute;
-	color: var(--blue-l30);
-	opacity: 0.9;
-	left: 530px;
-	top: 107px;
+	color: var(--primary-foreground);
+	background: var(--primary);
+	border: 1px solid var(--primary);
+	box-shadow: var(--shadow-md);
+	opacity: 0.96;
+	left: 340px;
+	top: 108px;
 	height: 32px;
-	padding: 5px 8px;
+	padding: 5px 12px;
+	border-radius: 999px;
+	font-size: 13px;
+	font-weight: 600;
 	z-index: 10;
+	transition:
+		filter 140ms ease,
+		box-shadow 140ms ease,
+		opacity 140ms ease;
 }
 
 #done-creating-path-button:hover,
 #done-creating-path-button:focus {
 	opacity: 1;
+	filter: brightness(0.97);
+	box-shadow: var(--shadow-lg);
 }
 
-/* tools */
+/* ── Tools — chat-action icons ── */
 .editor-page__tool,
 .editor-page__tool:active,
 .editor-page__tool:focus,
 .editor-page__tool:hover {
-	height: 30px;
-	width: 30px;
-	padding: 5px;
-	margin: 0 0 5px 0;
-	background-color: var(--blue-l95);
+	height: 32px;
+	width: 32px;
+	padding: 6px;
+	margin: 0;
+	background-color: var(--card);
+	color: var(--muted-foreground);
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) - 2px);
+	box-shadow: var(--shadow-xs);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease,
+		color 140ms ease,
+		box-shadow 140ms ease;
+}
+
+.editor-page__tool:hover {
+	background-color: var(--secondary);
+	color: var(--foreground);
+	border-color: var(--ring);
+	box-shadow: var(--shadow-sm);
+}
+
+.editor-page__tool:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
+	border-color: var(--ring);
 }
 
 .editor-page__tool-selected,
 .editor-page__tool-selected:active,
 .editor-page__tool-selected:focus,
 .editor-page__tool-selected:hover {
-	background-color: var(--accent-color);
+	background-color: var(--primary);
+	color: var(--primary-foreground);
+	border-color: var(--primary);
+	box-shadow: var(--shadow-sm);
 }
 
 .editor-page__tool svg {
-	height: 20px;
-	width: 20px;
+	height: 18px;
+	width: 18px;
 	position: relative;
-	left: -1px;
-	top: -1px;
+	left: 0;
+	top: 0;
+	fill: currentColor;
 }
 
-/* First run pages */
+/* ── First run pages — chat onboarding cards ── */
 .editor-page__first-run {
 	display: block;
-	margin: 20px;
-	width: calc(100% - 40px);
+	margin: 16px;
+	width: calc(100% - 32px);
 	max-width: 700px;
+	background: var(--card);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 18px;
+	box-shadow: var(--shadow-sm);
 }
 
 .editor-page__first-run p {
-	margin-bottom: 20px;
+	margin-bottom: 14px;
+	line-height: 1.6;
+	color: var(--muted-foreground);
 }
 
 .editor-page__first-run fancy-button {
-	margin-right: 10px;
-	margin-bottom: 10px;
+	margin-right: 8px;
+	margin-bottom: 8px;
 }
 
 .first-run__examples-table {
-	margin-bottom: 10px;
+	margin-bottom: 12px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
 }
 
 .first-run__example-wrapper {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
 	width: max-content;
-	padding: 8px 10px 0px 10px;
-	margin: 10px 10px 0px 0px;
-	background-color: var(--gray-l95);
-	border: 1px solid var(--gray-l90);
-	border-radius: 4px;
+	padding: 8px 12px;
+	margin: 0;
+	background-color: var(--muted);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-xs);
+	transition:
+		box-shadow 140ms ease,
+		border-color 140ms ease,
+		background-color 140ms ease;
+}
+
+.first-run__example-wrapper:hover {
+	border-color: var(--ring);
+	box-shadow: var(--shadow-sm);
 }
 
 .first-run__example-wrapper span {
 	display: inline-block;
 	text-align: center;
-	margin: 0px 5px 0px 5px;
-	color: var(--gray-l50);
-	line-height: 2em;
-	position: relative;
-	top: -4px;
+	margin: 0;
+	color: var(--muted-foreground);
+	line-height: 1.4;
+	position: static;
+	font-size: 13px;
 }
 
 .first-run__example-wrapper pre {
 	display: inline-block;
-	font-size: 2em;
-	line-height: 1em;
-	letter-spacing: 0.05em;
+	font-size: 1.7em;
+	line-height: 1;
+	letter-spacing: 0.04em;
 	text-align: center;
+	color: var(--foreground);
+	font-family: var(--font-mono);
 }
 
-/* Kern Groups */
+/* ── Kern Groups editor additions ── */
 #kerning__add-new-kern-group__left-group,
 #kerning__add-new-kern-group__right-group {
 	width: 100%;
@@ -226,10 +425,11 @@
 
 #kerning__letter-pair__left-group,
 #kerning__letter-pair__right-group {
-	width: 30px;
-	margin: 0px 10px 0px 4px;
+	width: 32px;
+	margin: 0 8px 0 4px;
 	text-align: center;
-	padding: 0px;
+	padding: 0;
+	font-family: var(--font-mono);
 }
 
 #kerning__letter-pair__results {
@@ -239,9 +439,114 @@
 }
 
 code.warning {
-	color: var(--red);
-	border-top-right-radius: 0px;
-	border-bottom-left-radius: 0px;
-	/* background-color: var(--lightRed); */
-	/* border-color: var(--darkRed); */
+	color: var(--destructive);
+	border: 1px solid color-mix(in oklch, var(--destructive) 22%, var(--border));
+	background: color-mix(in oklch, var(--destructive) 07%, var(--card));
+	border-radius: calc(var(--radius) - 2px);
+	padding: 2px 6px;
+}
+
+/* ── Responsive: panels stack correctly ── */
+@media (max-width: 900px) {
+	.editor__page {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto auto minmax(0, 1fr);
+		height: auto;
+		min-height: 100%;
+		gap: 12px;
+		padding: 12px;
+		align-items: stretch;
+	}
+
+	/* Rail is shell-level; mobile page grid stays 1fr (rail outside page) */
+
+	.editor-page__left-area {
+		grid-column: 1;
+		grid-row: 1;
+		height: auto;
+		max-height: none;
+		min-height: 0;
+		align-self: stretch;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px;
+		box-sizing: border-box;
+	}
+
+	#editor-page__panel {
+		width: 100%;
+	}
+
+	.editor-page__tools-area {
+		grid-column: 1;
+		grid-row: 2;
+		flex-direction: row;
+		height: 44px;
+		min-height: 44px;
+		align-self: stretch;
+		padding: 6px 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--card);
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		overflow-x: auto;
+		overflow-y: hidden;
+		justify-content: flex-start;
+		box-sizing: border-box;
+	}
+
+	.editor-page__edit-canvas-wrapper,
+	.live-preview-page__canvas-wrapper {
+		grid-column: 1;
+		grid-row: 3;
+		min-height: 52vh;
+		height: auto;
+		min-width: 0;
+		align-self: stretch;
+		box-sizing: border-box;
+		margin: 0;
+	}
+
+	.editor-page__zoom-area {
+		position: static;
+		margin-top: 8px;
+		justify-self: end;
+	}
+
+	#done-creating-path-button {
+		left: auto;
+		right: 16px;
+		top: 12px;
+	}
+}
+
+@media (max-width: 560px) {
+	.editor__page {
+		padding: 12px 8px 10px 8px;
+		gap: 10px;
+	}
+
+	.editor-page__edit-canvas-wrapper,
+	.live-preview-page__canvas-wrapper {
+		border-radius: var(--radius);
+	}
+
+	.editor-page__first-run {
+		margin: 10px;
+		width: calc(100% - 20px);
+		padding: 14px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.editor-page__tool,
+	.first-run__example-wrapper,
+	#done-creating-path-button,
+	.editor-page__left-area,
+	.editor-page__edit-canvas-wrapper {
+		transition: none;
+		animation: none;
+	}
 }

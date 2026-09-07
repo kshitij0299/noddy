@@ -1,219 +1,677 @@
+/* Noddy Chat Shell — app.css
+   Warm peach + paper, chat-app morphology.
+   IDs preserved: #app__wrapper, #app__top-bar, #app__main-content, #app__page
+   Tokens: var(--background), --card, --sidebar, --border, --radius 0.45rem,
+           --shadow-sm, --font-sans, --font-serif, --primary
+*/
+
+/* ── Shell ── */
 #app__wrapper {
-	background-color: var(--blue-l97);
-	height: 100%;
+	background-color: var(--background);
+	color: var(--foreground);
+	height: 100dvh;
+	height: 100vh;
 	width: 100%;
-	min-height: 100%;
+	min-height: 100dvh;
 	min-width: 100%;
 	position: absolute;
-	top: 0px;
-	left: 0px;
+	inset: 0;
 	overflow: hidden;
-	display: grid;
-	grid-template-rows: 40px calc(100vh - 40px);
+	display: flex;
+	flex-direction: column;
+	font-family: var(--font-sans);
+	letter-spacing: var(--tracking-normal);
+	-webkit-font-smoothing: antialiased;
 }
 
+/* ── Top bar — chat header 56px, frosted ── */
 #app__top-bar {
-	grid-row: 1;
-	padding: 6px 0px 6px 11px;
+	flex: 0 0 56px;
+	height: 56px;
+	min-height: 56px;
 	z-index: 2000 !important;
-	display: grid;
-	grid-template-columns: 150px 150px 1fr;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 0 14px 0 16px;
+	background: color-mix(in oklch, var(--card) 92%, transparent);
+	backdrop-filter: blur(12px) saturate(1.15);
+	-webkit-backdrop-filter: blur(12px) saturate(1.15);
+	border-bottom: 1px solid var(--border);
+	box-shadow: var(--shadow-sm);
+	position: relative;
 }
 
-#app__main-content {
-	grid-row: 2;
-	width: 100%;
-	min-width: 1000px;
+@supports not (backdrop-filter: blur(1px)) {
+	#app__top-bar {
+		background: var(--card);
+	}
 }
 
-#app__page {
-	height: 100%;
-	width: 100%;
-	min-height: 100%;
-	min-width: 100%;
-}
-
-.app__page-animation {
-	animation: var(--animate-fade-in);
-}
-
+/* logo — left cluster — clickable to return to welcome screen */
 .top-bar__logo {
-	display: inline-block;
-	margin-left: 2px;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	flex: 0 0 auto;
+	appearance: none;
+	-webkit-appearance: none;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: calc(var(--radius) - 2px);
+	padding: 4px 8px;
+	margin: -4px -8px;
+	cursor: pointer;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease,
+		transform 140ms ease,
+		opacity 140ms ease;
 }
-
+.top-bar__logo:hover {
+	background: var(--secondary);
+	border-color: var(--border);
+}
+.top-bar__logo:active {
+	background: var(--muted);
+	transform: scale(0.97);
+}
+.top-bar__logo:focus {
+	outline: none;
+}
+.top-bar__logo:focus-visible {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style);
+	background: var(--secondary);
+}
 .top-bar__logo svg {
-	fill: var(--blue-l50);
+	fill: var(--primary);
+	height: 26px;
+	width: auto;
+	display: block;
+	pointer-events: none;
 }
 
+/* menus — center cluster, pill segmented */
 .top-bar__menus {
-	margin-left: 20px;
-	margin-top: 8px;
-	display: inline-block;
-	height: 28px;
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	height: 34px;
+	margin: 0;
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+.top-bar__menus::-webkit-scrollbar {
+	display: none;
 }
 
 .menu-entry-point,
 .menu-entry-point:hover,
 .menu-entry-point:active,
 .menu-entry-point:focus {
-	font-size: 0.8em;
-	padding: 2px 5px;
-	margin: 0px;
+	font-size: 13px;
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	padding: 6px 12px;
+	margin: 0;
 	position: relative;
-	top: -2px;
+	top: 0;
 	background-color: transparent;
 	border: 1px solid transparent;
-	border-radius: 2px;
+	border-radius: 999px;
 	box-shadow: none;
-	color: var(--enabled-resting-lightText);
+	color: var(--muted-foreground);
+	font-family: var(--font-sans);
+	line-height: 1;
+	white-space: nowrap;
+	transition: background 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
-
 .menu-entry-point:hover {
-	color: var(--enabled-active-lightText);
-	background-color: var(--enabled-active-background);
+	color: var(--foreground);
+	background-color: var(--secondary);
+	border-color: var(--border);
+}
+.menu-entry-point:active {
+	background-color: var(--muted);
+}
+.menu-entry-point:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
+	border-color: var(--ring);
+}
+/* active menu (when [selected] or aria) */
+.menu-entry-point[selected],
+.menu-entry-point[aria-expanded='true'] {
+	background: var(--primary);
+	color: var(--primary-foreground);
+	border-color: var(--primary);
+	box-shadow: var(--shadow-xs);
 }
 
-.top-bar__bug-contact {
+
+
+/* subtle peach hairline accent under header */
+#app__top-bar::after {
+	content: '';
 	position: absolute;
-	opacity: 80%;
-	right: 10px;
-	top: 10px;
-	padding: 2px 4px;
-	background-color: var(--gray-l97);
-	border: 1px solid var(--gray-l90);
-	color: var(--gray-l10);
-	border-radius: 3px;
-	/* box-shadow: var(--l2-shadow); */
+	left: 0;
+	right: 0;
+	bottom: -1px;
+	height: 1px;
+	background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--primary) 22%, transparent), transparent);
+	pointer-events: none;
+	opacity: 0.6;
 }
 
-@media (min-width: 810px) {
-	.top-bar__bug-blurb {
-		display: inline-block !important;
-	}
-	.top-bar__bug-icon {
-		position: relative;
-		top: 1px;
-	}
-	.top-bar__bug-link {
-		display: inline-block !important;
-	}
-}
-.top-bar__bug-blurb {
-	display: none;
-}
-
-.top-bar__bug-link {
-	display: none;
-}
-
-.top-bar__bug-icon {
+/* ── Body — flex row holding flush rail + main content ── */
+#app__body {
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	min-width: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: stretch;
+	overflow: hidden;
+	overflow-x: visible;
+	background: var(--background);
 	position: relative;
-	left: -2px;
 }
 
-.top-bar__bug-contact span {
-	font-size: 0.8em;
+/* ── Main content — flex host for chat triptych ── */
+#app__main-content {
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	min-width: 0;
+	background-color: var(--background);
+	display: flex;
+	align-items: stretch;
+	overflow: hidden;
+	position: relative;
+	/* warm dot grid like paper */
+	background-image: radial-gradient(circle at 1px 1px, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 0);
+	background-size: 22px 22px;
+	background-position: -1px -1px;
+}
+
+/* Generic page wrapper inside main-content */
+#app__page {
+	height: 100%;
+	width: 100%;
+	min-height: 0;
+	min-width: 0;
+	display: flex;
+	flex: 1;
+	overflow: hidden;
+}
+/* Open Project and Cross-Project need outer scroll — they are taller than viewport */
+#app__page:has(#open-project__page),
+#app__page:has(#cross-project-actions__page) {
+	overflow-y: auto;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+}
+.app__page-animation {
+	animation: var(--animate-fade-in);
+}
+
+/* When editor/content pages are direct children of #app__main-content,
+   make them flex-fill and let app.css provide the chat shell geometry.
+   The existing .editor__page grid is overridden below for a cleaner
+   sidebar + canvas + details triptych while staying backwards compatible.
+   Fix: 272px sidebar + 44px rail + 1fr canvas; 0 gap uses left-area
+   border + margin on canvas for spacing. Ensure minmax for canvas so it
+   never forces overflow; use box-sizing everywhere.
+   Rail is now at shell level (#app__body), not inside page grid — pages
+   revert to 272px 44px 1fr and 272px 1fr. */
+#app__main-content > .editor__page {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	display: grid;
+	grid-template-columns: 272px 44px minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr);
+	gap: 12px;
+	padding: 12px;
+	align-items: stretch;
+	align-content: stretch;
+	background: transparent;
+	box-sizing: border-box;
+	position: relative;
+}
+
+#app__main-content > .content__page {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	display: grid;
+	grid-template-columns: 272px minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr);
+	gap: 12px;
+	padding: 12px;
+	align-items: stretch;
+	align-content: stretch;
+	background: transparent;
+	box-sizing: border-box;
+	position: relative;
+}
+
+/* Sidebar panels — left nav + page panel behave as unified chat sidebar
+   Fix: ensure scrollable with constrained height (min-height:0 + height:100%)
+   so long content like welcome cards can scroll instead of overflowing hidden. */
+.editor-page__left-area,
+.content-page__left-area {
+	grid-column: 1;
+	grid-row: 1;
+	align-self: stretch;
+	min-height: 0;
+	height: 100%;
+	max-height: 100%;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	background: var(--sidebar);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: calc(var(--spacing) * 3) calc(var(--spacing) * 2.5);
+	overflow-y: auto;
+	overflow-x: hidden;
+	overflow-x: clip;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--spacing) * 2.5);
+	position: relative;
+	box-sizing: border-box;
+	scrollbar-width: thin;
+	scrollbar-gutter: stable;
+	box-shadow: var(--shadow-xs);
+}
+/* subtle inset highlight */
+.editor-page__left-area::after,
+.content-page__left-area::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 1px;
+	height: 100%;
+	background: linear-gradient(180deg, color-mix(in oklch, var(--primary) 10%, transparent), transparent 55%);
+	pointer-events: none;
+}
+
+#editor-page__panel,
+#content-page__panel {
+	grid-row: auto;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	height: auto;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	overflow-x: clip;
+	padding-right: calc(var(--spacing) * 0.5);
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--spacing) * 2.5);
+	box-sizing: border-box;
+	scrollbar-width: thin;
+}
+
+/* JS injects <span> around cards for animation — inline span + transform
+   caused horizontal scroll at 272px; force block containment. */
+#editor-page__panel > span,
+#editor-page__panel span,
+#content-page__panel > span,
+#content-page__panel span {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	contain: layout inline-size;
+}
+
+/* Tools rail — vertical icon strip between sidebar and canvas, chat-action style */
+.editor-page__tools-area {
+	grid-column: 2;
+	grid-row: 1;
+	align-self: stretch;
+	min-height: 0;
+	height: auto;
+	min-width: 0;
+	padding: 10px 6px;
+	background: color-mix(in oklch, var(--sidebar) 92%, var(--card));
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	box-sizing: border-box;
+	box-shadow: var(--shadow-xs);
+}
+
+/* Canvas — center stage, card surface with soft peach glow */
+.editor-page__edit-canvas-wrapper,
+.live-preview-page__canvas-wrapper,
+.content-page__right-area {
+	background-color: var(--card);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-md), 0 0 0 1px color-mix(in oklch, var(--primary) 06%, transparent);
+	overflow: hidden;
 	margin: 0;
-	padding: 0;
+	position: relative;
+	box-sizing: border-box;
+	min-height: 0;
+	align-self: stretch;
+}
+/* peach glow behind canvas, like chat thread aura */
+.editor-page__edit-canvas-wrapper::before,
+.live-preview-page__canvas-wrapper::before,
+.content-page__right-area::before {
+	content: '';
+	position: absolute;
+	inset: -40px;
+	background: radial-gradient(600px 400px at 40% 0%, color-mix(in oklch, var(--primary) 09%, transparent), transparent 60%),
+		radial-gradient(520px 360px at 98% 88%, color-mix(in oklch, var(--primary) 06%, transparent), transparent 65%);
+	pointer-events: none;
+	z-index: 0;
+}
+.editor-page__edit-canvas-wrapper > *,
+.live-preview-page__canvas-wrapper > *,
+.content-page__right-area > * {
+	position: relative;
+	z-index: 1;
 }
 
-.top-bar__bug-contact svg {
-	height: 9px;
-	fill: var(--gray-l40);
-	margin-left: 4px;
+/* Override legacy grid placement for canvas — unified rhythm
+   272 + 44 + 1fr mapping; rail is now shell-level, no shift needed. */
+.editor-page__edit-canvas-wrapper {
+	grid-column: 3;
+	grid-row: 1;
+	width: 100%;
+	min-width: 0;
+	height: auto;
+	min-height: 0;
+	align-self: stretch;
+	box-sizing: border-box;
+}
+.live-preview-page__canvas-wrapper {
+	grid-column: 2;
+	grid-row: 1;
+	width: 100%;
+	min-width: 0;
+	min-height: 0;
+	align-self: stretch;
+	box-sizing: border-box;
+}
+.content-page__right-area {
+	grid-column: 2;
+	grid-row: 1;
+	width: 100%;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	max-height: 100%;
+	align-self: stretch;
+	overflow-y: auto;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+	padding: 22px;
+	box-sizing: border-box;
+	scrollbar-width: thin;
 }
 
-.top-bar__bug-icon:hover svg {
-	fill: var(--gray-l10);
-}
-
-.top-bar__bug-link a {
-	font-size: 1em;
-	color: var(--gray-l10);
-}
-
-.top-bar__bug-link a:hover,
-.top-bar__bug-link a:focus,
-.top-bar__bug-link a:visited {
-	font-size: 1em;
-	color: black !important;
-}
-
-.top-bar__bug-link a:active {
-	color: black;
-}
-
-/*
-	Project Preview menu
-*/
+/* ── Chat-like sidebar cards ── */
 .project-preview__row-wrapper {
-	box-shadow: var(--l1-shadow-down);
-	border-radius: 8px;
-	padding: 10px;
-	padding-top: 5px;
-	margin-bottom: 10px;
+	box-shadow: var(--shadow-sm);
+	border-radius: calc(var(--radius) * 1.1);
+	padding: 10px 10px 8px;
+	margin-bottom: 8px;
+	border: 1px solid var(--border);
+	background: var(--card);
+	transition:
+		box-shadow 140ms ease,
+		border-color 140ms ease,
+		background-color 140ms ease;
 }
-
+.project-preview__row-wrapper:hover {
+	box-shadow: var(--shadow-md);
+	border-color: var(--ring);
+}
 .project-preview__super-title {
-	font-size: 0.75em;
-	letter-spacing: 0.2ch;
-	opacity: 80%;
+	font-size: 10.5px;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	font-weight: 600;
+	opacity: 1;
+	font-family: var(--font-sans);
+	color: var(--muted-foreground);
 }
-
 .project-preview__row-wrapper display-canvas {
-	background-color: var(--gray-l97);
-	border-radius: 4px;
+	background-color: var(--muted);
+	border-radius: calc(var(--radius) * 0.8);
 	display: block;
 	height: 42px;
 	overflow: hidden;
+	border: 1px solid var(--border);
 }
-
 .project-preview__primary {
-	background: linear-gradient(135deg, var(--blue-l35), var(--blue-l25));
-	border: 1px solid var(--blue-l60);
+	background: linear-gradient(135deg, var(--primary), oklch(0.78 0.11 58.15));
+	border: 1px solid color-mix(in oklch, var(--primary) 80%, var(--border));
+	box-shadow: var(--shadow-sm), 0 1px 0 color-mix(in oklch, var(--primary) 30%, white);
 }
-
 .project-preview__primary h3,
 .project-preview__primary .project-preview__super-title {
-	color: var(--blue-l90);
+	color: var(--primary-foreground);
 }
-
 .project-preview__secondary {
-	background: linear-gradient(135deg, var(--gray-l95), var(--gray-l90));
-	border: 1px solid var(--gray-l90);
+	background: var(--card);
+	border: 1px solid var(--border);
 }
-
 .project-preview__secondary h3,
 .project-preview__secondary .project-preview__super-title {
-	color: var(--gray-l20);
+	color: var(--foreground);
 }
-
 .project-preview__no-project {
-	background: linear-gradient(135deg, white, var(--blue-l95));
-	border: 1px dashed var(--blue-l60);
+	background: linear-gradient(135deg, var(--card), var(--secondary));
+	border: 1px dashed var(--border);
 	vertical-align: middle;
 	text-align: center;
 }
-
 .project-preview__no-project h3,
 .project-preview__no-project .project-preview__super-title {
-	color: var(--blue-l40);
-	opacity: 0.5;
-	margin: 5px 0px 0px 0px;
+	color: var(--muted-foreground);
+	opacity: 0.8;
+	margin: 5px 0 0;
 }
-
 .project-preview__no-project:hover,
 .project-preview__secondary:hover {
 	cursor: pointer;
-	box-shadow: var(--l2-shadow-down);
-	border-color: var(--blue-l80);
-	position: relative;
-	top: -1px;
-	left: -1px;
+	box-shadow: var(--shadow-md);
+	border-color: var(--ring);
 }
-.project-preview__no-project:hover,
+.project-preview__no-project:hover h3,
 .project-preview__secondary:hover h3 {
 	opacity: 1;
-	border-color: var(--blue-l80);
+}
+
+/* ── Responsive: < 900px collapse sidebar into drawer ── */
+@media (max-width: 900px) {
+	#app__top-bar {
+		padding: 0 10px;
+		gap: 8px;
+	}
+	.top-bar__menus {
+		justify-content: flex-start;
+		gap: 2px;
+	}
+	/* collapse search/menu overflow */
+	.menu-entry-point {
+		padding: 6px 9px;
+		font-size: 12.5px;
+	}
+
+	/* Main becomes overlay-capable */
+	#app__main-content {
+		position: relative;
+	}
+
+	/* Sidebar becomes off-canvas drawer — keep 12px rhythm */
+	#app__main-content > .editor__page {
+		grid-template-columns: 1fr;
+		grid-template-rows: 44px minmax(0, 1fr);
+		gap: 12px;
+		padding: 12px;
+		align-items: stretch;
+	}
+
+	#app__main-content > .content__page {
+		grid-template-columns: 1fr;
+		grid-template-rows: minmax(0, 1fr);
+		gap: 12px;
+		padding: 12px;
+		align-items: stretch;
+	}
+
+	/* Shell rail remains visible on mobile as narrow left strip (60px) — pages stay 1fr */
+	#app__body > .discord-rail {
+		display: flex;
+	}
+
+	/* Editor pages with no tools (first-run) collapse to single canvas row */
+	#app__main-content > .editor__page:has(> .editor-page__edit-canvas-wrapper:only-of-type) {
+		grid-template-rows: minmax(0, 1fr);
+	}
+
+	.editor-page__left-area,
+	.content-page__left-area {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: min(84vw, 296px);
+		max-width: 296px;
+		height: 100%;
+		min-height: 0;
+		align-self: stretch;
+		z-index: 30;
+		transform: translateX(-100%);
+		transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+		will-change: transform;
+		box-shadow: var(--shadow-xl);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--sidebar);
+		box-sizing: border-box;
+	}
+	/* when nav is open, JS adds .is-open on left-area or body — support both */
+	.editor-page__left-area.is-open,
+	.content-page__left-area.is-open,
+	body.drawer-open .editor-page__left-area,
+	body.drawer-open .content-page__left-area {
+		transform: translateX(0);
+	}
+	/* scrim */
+	body.drawer-open #app__main-content::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: oklch(0 0 0 / 0.28);
+		backdrop-filter: blur(2px);
+		z-index: 20;
+		animation: var(--animate-fade-in);
+	}
+
+	.editor-page__tools-area {
+		grid-column: 1;
+		grid-row: 1;
+		flex-direction: row;
+		height: 44px;
+		min-height: 44px;
+		align-self: stretch;
+		padding: 6px 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--card);
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		box-sizing: border-box;
+		overflow-x: auto;
+		overflow-y: hidden;
+		justify-content: flex-start;
+	}
+
+	.editor-page__edit-canvas-wrapper,
+	.live-preview-page__canvas-wrapper,
+	.content-page__right-area {
+		grid-column: 1;
+		grid-row: 2;
+		margin: 0;
+		min-height: 52vh;
+		align-self: stretch;
+		box-sizing: border-box;
+	}
+
+	#app__main-content > .content__page .content-page__right-area,
+	#app__main-content > .content__page .live-preview-page__canvas-wrapper {
+		grid-row: 1;
+	}
+
+	/* first-run canvas spans full width when no rail */
+	#app__main-content > .editor__page .editor-page__edit-canvas-wrapper:only-of-type {
+		grid-column: 1;
+		grid-row: 1;
+	}
+	#editor-page__panel,
+	#content-page__panel {
+		width: 100%;
+	}
+}
+
+/* Extra narrow: top bar stacks slightly */
+@media (max-width: 560px) {
+	#app__top-bar {
+		height: 52px;
+		flex-basis: 52px;
+		min-height: 52px;
+	}
+}
+
+/* ── Scrollbar tuning for chat shell ── */
+.editor-page__left-area::-webkit-scrollbar,
+.content-page__left-area::-webkit-scrollbar,
+.editor-page__tools-area::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+/* Reduce motion respect */
+@media (prefers-reduced-motion: reduce) {
+	.project-preview__row-wrapper,
+	.editor-page__left-area,
+	.content-page__left-area {
+		transition: none;
+	}
 }

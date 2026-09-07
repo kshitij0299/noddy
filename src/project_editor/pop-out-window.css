@@ -1,37 +1,100 @@
+/* ─────────────────────────────────────────────────────────────
+   Noddy — Pop-Out Live Preview (pop-out-window.css)
+   Warm peach + paper. Wrapper is themed (var(--card),
+   var(--border), var(--radius) 0.45rem, var(--shadow-md));
+   Canvas stays white for accuracy in both light + dark.
+   No harsh blue: --blue-l70 replaced by var(--primary) peach.
+   Preserves JS hooks: #pop-out__wrapper, display-canvas,
+   font-preview, .pop-out__footer etc.
+   ───────────────────────────────────────────────────────────── */
+
 body {
 	margin: 0;
-	padding: 20px;
-	background-color: white;
+	padding: 16px;
+	/* themed wrapper, canvas itself stays white */
+	background-color: var(--background);
+	color: var(--foreground);
 	overflow-x: hidden;
 	overflow-y: auto;
 	transition: none;
+	font-family: var(--font-sans);
 }
 
 #pop-out__wrapper {
 	pointer-events: none;
 	width: 100%;
 	height: 100%;
-	padding: 0px;
+	padding: 8px;
+	box-sizing: border-box;
+	background-color: var(--card);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-md);
+	position: relative;
+}
+
+/* subtle peach glow like editor canvas wrapper */
+#pop-out__wrapper::before {
+	content: '';
+	position: absolute;
+	inset: -40px;
+	background:
+		radial-gradient(520px 360px at 38% 0%, color-mix(in oklch, var(--primary) 07%, transparent), transparent 62%),
+		radial-gradient(460px 320px at 96% 92%, color-mix(in oklch, var(--primary) 04%, transparent), transparent 66%);
+	pointer-events: none;
+	z-index: 0;
+}
+
+#pop-out__wrapper > * {
+	position: relative;
+	z-index: 1;
 }
 
 #pop-out__wrapper:hover display-canvas {
-	transition: border 250ms ease-in-out;
-	border: 1px solid var(--blue-l70);
-	box-shadow: var(--l3-shadow);
+	transition:
+		border-color 200ms ease,
+		box-shadow 200ms ease;
+	border-color: var(--primary);
+	box-shadow: var(--shadow-md);
 }
 
 dialog {
 	pointer-events: auto;
 }
 
-display-canvas {
-	box-sizing: content-box;
+/* display-canvas + font-preview — white paper, soft chrome */
+display-canvas,
+font-preview {
+	box-sizing: border-box;
 	display: block;
-	width: fit-content;
+	width: calc(100% - 16px);
 	max-width: 100%;
-	margin: 10px;
-	border: 1px solid white;
+	margin: 8px;
+	border: 1px solid var(--border);
 	background-color: white;
+	color: #111;
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-sm);
+	overflow: hidden;
+}
+
+/* ensure canvas background stays white in dark mode
+   wrapper is dark (var(--card) dark), preview stays paper */
+.dark display-canvas,
+[data-theme='dark'] display-canvas,
+.dark font-preview,
+[data-theme='dark'] font-preview {
+	background-color: white;
+	border-color: var(--border);
+	color: #111;
+}
+
+@media (prefers-color-scheme: dark) {
+	display-canvas,
+	font-preview {
+		background-color: white;
+		border-color: var(--border);
+	}
 }
 
 /*
@@ -45,30 +108,40 @@ display-canvas {
 	inline-block strut would offset the text relative to the block font-preview.)
 */
 font-preview {
-	box-sizing: content-box;
-	display: block;
-	margin: 10px;
-	border: 1px solid white;
-	background-color: white;
+	/* boxed metrics like display-canvas, but editable */
 	pointer-events: auto;
+	padding: 0;
+}
+
+font-preview:focus-within {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style), var(--shadow-sm);
+}
+
+display-canvas:focus-within {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style), var(--shadow-sm);
 }
 
 .pop-out__footer {
-	margin: 20px 10px 10px 10px;
-	padding: 40px 0px;
-	opacity: 0.1;
+	margin: 16px 8px 8px 8px;
+	padding: 32px 0 20px 0;
+	opacity: 0.45;
 	text-align: center;
-	transition: opacity 300ms ease-in-out;
+	transition: opacity 300ms ease-in-out, color 300ms ease-in-out;
 	pointer-events: auto;
+	color: var(--muted-foreground);
+	font-family: var(--font-sans);
+	font-size: 13px;
 }
 
 body:hover .pop-out__footer {
-	transition: opacity 300ms ease-in-out;
-	opacity: 0.5;
+	opacity: 0.7;
 }
 
 body:hover .pop-out__footer:hover {
-	transition: opacity 300ms ease-in-out;
 	opacity: 1;
 }
 
@@ -80,4 +153,27 @@ fancy-button {
 
 option-chooser {
 	width: 100%;
+}
+
+@media (max-width: 560px) {
+	body {
+		padding: 10px;
+	}
+	#pop-out__wrapper {
+		padding: 6px;
+		border-radius: var(--radius);
+	}
+	display-canvas,
+	font-preview {
+		margin: 6px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	#pop-out__wrapper,
+	display-canvas,
+	font-preview,
+	.pop-out__footer {
+		transition: none;
+	}
 }

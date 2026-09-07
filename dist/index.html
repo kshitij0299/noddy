@@ -1,33 +1,39 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 	<!--
-	Copyright © 2010 - 2026 Matthew LaGrandeur
+Copyright © 2010 - 2026 Matthew LaGrandeur
 
-	This program is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
-	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 	<head>
 		<meta charset="utf-8" />
-		<title>Glyphr Studio v2</title>
-		<meta name="viewport" content="width=device-width" />
+		<title>Noddy</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" href="/app/assets/noddy-icon-D-0ixs2K.svg" type="image/svg+xml" />
+		<link rel="icon" href="/app/assets/noddy-icon-bg-CfgR2pZ6.svg" type="image/svg+xml" />
 		<link rel="shortcut icon" href="/app/assets/logo-icon-color-NDd_Ya-9.ico" />
-		<link rel="manifest" href="/app/assets/manifest-lnTJBUnD.json" />
+		<link rel="manifest" href="/app/assets/manifest-rb_a3xrz.json" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<style>
+			/* Inline shell — kept minimal; core tokens live in colors.css + resets.css */
 			:root {
 				--dark-gradient-background: linear-gradient(
 					135deg,
-					hsl(200, 100%, 12%),
-					hsl(285, 100%, 10%)
+					oklch(0.1979 0.0107 39.2759) 0%,
+					oklch(0.175 0.015 48.5) 45%,
+					oklch(0.145 0.018 58.15) 100%
 				);
 			}
 
@@ -39,96 +45,203 @@
 				min-height: 100%;
 				min-width: 100%;
 				position: absolute;
-				top: 0px;
-				left: 0px;
+				inset: 0;
 				overflow: hidden;
 			}
 
 			body {
 				background: var(--dark-gradient-background);
+				color: var(--foreground);
+				font-family: var(--font-sans);
 			}
 
 			#app__wrapper {
-				background-color: #161d20;
+				background-color: var(--background);
 			}
 
+			/* Landing — chat-app splash, warm peach */
 			#app__landing-page {
-				font-family: sans-serif;
+				font-family: var(--font-sans);
 				opacity: 1;
 				visibility: visible;
-				transition: opacity 500ms ease-out;
-				background-color: #0e1214;
-				padding: auto;
-				text-align: left;
+				transition: opacity 420ms ease-out;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 24px;
+				background: var(--dark-gradient-background);
+				background-image:
+					radial-gradient(720px 520px at 22% 18%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 62%),
+					radial-gradient(560px 440px at 88% 86%, color-mix(in oklch, var(--primary) 12%, transparent), transparent 60%),
+					var(--dark-gradient-background);
+				text-align: center;
+			}
+
+			.landing-card {
+				width: 100%;
+				max-width: 560px;
+				background: color-mix(in oklch, var(--card) 96%, transparent);
+				border: 1px solid color-mix(in oklch, var(--border) 65%, transparent);
+				border-radius: calc(var(--radius) * 1.6);
+				box-shadow: 0 24px 48px oklch(0 0 0 / 0.28), 0 8px 16px oklch(0 0 0 / 0.18), 0 0 0 1px color-mix(in oklch, var(--primary) 10%, transparent);
+				padding: 36px 32px 28px;
 				display: flex;
 				flex-direction: column;
-				justify-content: center;
-				padding-bottom: 189px;
-				background: var(--dark-gradient-background);
+				align-items: center;
+				gap: 16px;
+				position: relative;
+				overflow: hidden;
 			}
-
-			#app__landing-page svg,
-			#app__landing-page #errorMessage {
-				margin: 90px 0px 0px 50px;
+			.landing-card::before {
+				content: '';
+				position: absolute;
+				inset: 0 0 auto 0;
+				height: 3px;
+				background: linear-gradient(90deg, var(--primary), oklch(0.78 0.11 58.15), var(--primary));
+				opacity: 0.95;
 			}
+			.landing-card::after {
+				content: '';
+				position: absolute;
+				inset: -60px;
+				background: radial-gradient(420px 280px at 50% 0%, color-mix(in oklch, var(--primary) 08%, transparent), transparent 70%);
+				pointer-events: none;
+			}
+			.landing-card > * { position: relative; z-index: 1; }
 
+			/* Big Noddy logo — uses provided noddy-logo-big.svg, themed via wrapper */
 			.mainLogo {
-				fill: url(#logoGradient);
-				width: 300px;
+				width: min(100%, 420px);
+				height: auto;
+				display: block;
+				filter: drop-shadow(0 1px 0 color-mix(in oklch, var(--primary) 22%, white)) drop-shadow(0 6px 14px oklch(0 0 0 / 0.22));
+				border-radius: calc(var(--radius) * 0.9);
 			}
-
-			.mainLogo .logoWords {
-				fill: transparent;
-				stroke-width: 0.4px;
-				stroke: var(--blue-l50);
+			.mainLogo--img {
+				width: min(100%, 420px);
+				height: auto;
+				display: block;
+				object-fit: contain;
+				filter: drop-shadow(0 1px 0 color-mix(in oklch, var(--primary) 18%, white));
+				border-radius: 8px;
+			}
+			/* Fallback textual wordmark when image fails — rounded display (ROND 60) */
+			.landing-wordmark {
+				font-family: var(--font-serif);
+				font-weight: 700;
+				font-variation-settings: 'ROND' 60;
+				font-optical-sizing: auto;
+				font-size: clamp(36px, 9vw, 52px);
+				letter-spacing: var(--tracking-tighter);
+				line-height: 0.95;
+				color: var(--foreground);
+				margin: 2px 0 0;
+			}
+			.landing-wordmark span {
+				color: var(--primary);
+			}
+			.landing-tagline {
+				font-size: 13px;
+				font-weight: 500;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--muted-foreground);
+				margin-top: -4px;
+			}
+			.landing-sub {
+				font-size: 13.5px;
+				line-height: 1.6;
+				color: var(--muted-foreground);
+				max-width: 38ch;
+				margin: 4px 0 0;
+			}
+			.landing-dots {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				margin-top: 6px;
+			}
+			.landing-dots i {
+				width: 7px;
+				height: 7px;
+				border-radius: 999px;
+				background: var(--border);
+				display: block;
+				animation: landingPulse 1.4s infinite ease-in-out;
+			}
+			.landing-dots i:nth-child(1) { background: var(--primary); animation-delay: 0s; }
+			.landing-dots i:nth-child(2) { animation-delay: 0.18s; }
+			.landing-dots i:nth-child(3) { animation-delay: 0.36s; }
+			@keyframes landingPulse {
+				0%, 80%, 100% { opacity: 0.45; transform: scale(0.92); }
+				40% { opacity: 1; transform: scale(1); }
 			}
 
 			.error-page__wrapper {
 				margin: auto;
-				font-size: 16px;
+				font-size: 15px;
 				text-align: center;
-				color: rgba(255, 255, 255, 0.8);
+				color: var(--foreground);
+				max-width: 520px;
 			}
-
 			.error-page__table-flip {
-				font-size: 36px;
-				opacity: 0.8;
-				font-weight: bold;
-				padding-bottom: 20px;
+				font-size: 34px;
+				opacity: 0.9;
+				font-weight: 700;
+				font-variation-settings: 'ROND' 60;
+				font-optical-sizing: auto;
+				padding-bottom: 16px;
 				text-align: center;
-				color: var(--purple-l60);
-				text-shadow: 0px 0px 2px var(--purple-l20);
-				letter-spacing: -2px;
+				color: var(--primary);
+				text-shadow: var(--shadow-sm);
+				letter-spacing: var(--tracking-tighter);
+				font-family: var(--font-serif);
 			}
-
 			.error-page__wrapper h1 {
 				text-align: center;
-				color: var(--purple-l80);
+				color: var(--foreground);
+				font-family: var(--font-serif);
+				font-variation-settings: 'ROND' 60;
+				font-optical-sizing: auto;
+				font-weight: 700;
+				font-size: 1.45em;
 			}
-
 			.error-page__wrapper a {
-				color: white;
+				color: var(--primary);
 				text-decoration: underline;
+				text-underline-offset: 3px;
 			}
-
 			.error-page__wrapper pre {
-				border: 1px solid hsla(0, 100%, 100%, 0.2);
-				background-color: hsla(0, 0%, 0%, 0.2);
-				border-radius: 4px;
+				border: 1px solid var(--border);
+				background: var(--muted);
+				border-radius: var(--radius);
 				text-align: left;
-				font-family: monospace;
-				padding: 10px;
+				font-family: var(--font-mono);
+				padding: 12px;
 				width: 100%;
 				user-select: text;
+				color: var(--foreground);
+				overflow-x: auto;
+				font-size: 12px;
+				line-height: 1.5;
 			}
-		</style>
-		<script type="module" crossorigin src="/app/assets/index-B5BTyGhs.js"></script>
-		<link rel="stylesheet" crossorigin href="/app/assets/index-aFglcEKn.css">
+
+			@media (max-width: 560px) {
+				.landing-card { padding: 28px 18px 22px; border-radius: calc(var(--radius) * 1.2); }
+				.mainLogo, .mainLogo--img { width: min(100%, 320px); }
+			}
+			@media (prefers-reduced-motion: reduce) {
+				.landing-dots i { animation: none; }
+			}
+		</style>
+		<!-- Token order matters: colors.css defines variables, resets.css consumes them, app.css builds layout -->
+		<script type="module" crossorigin src="/app/assets/index-DPxVw-sf.js"></script>
+		<link rel="stylesheet" crossorigin href="/app/assets/index-CHmEB8ma.css">
 	</head>
 
 	<body
 		style="
-			background-color: var(--dark-gradient-background);
+			background: var(--dark-gradient-background);
 			width: 100%;
 			height: 100%;
 			min-width: 100%;
@@ -138,43 +251,55 @@
 		"
 	>
 		<div id="app__landing-page">
-			<svg
-				version="1.1"
-				xmlns="http://www.w3.org/2000/svg"
-				xmlns:xlink="http://www.w3.org/1999/xlink"
-				xml:space="preserve"
-				viewBox="0 0 200 128"
-				enable-background="new 0 0 200 128"
-				class="mainLogo"
-			></svg>
+			<div class="landing-card" role="status" aria-live="polite" aria-label="Loading Noddy">
+				<!-- Noddy big logo — warm peach themed; falls back to serif wordmark if image missing -->
+				<img
+					class="mainLogo mainLogo--img"
+					src="/app/assets/noddy-logo-big-CBV4D9iY.svg"
+					alt="Noddy — font editor"
+					width="420"
+					height="178"
+					decoding="async"
+					onerror="this.style.display='none'; document.getElementById('landingWordmark').style.display='block';"
+				/>
+				<div id="landingWordmark" class="landing-wordmark" style="display: none">Nodd<span>y</span></div>
+				<div class="landing-tagline">Font editor — warm, precise, yours</div>
+				<p class="landing-sub">Craft type like a conversation. Every glyph, kern, and preview lives in one calm canvas.</p>
+				<div class="landing-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+			</div>
+
 			<script>
 				setTimeout(function () {
 					let errorDiv = document.querySelector('#errorMessage');
-					if (errorDiv) {
-						errorDiv.style.display = 'block';
-						document.querySelector('.mainLogo').style.display = 'none';
+					if (errorDiv && errorDiv.style.display === 'none') {
+						// Only show error if app hasn't replaced landing page
+						if (document.querySelector('#app__landing-page .landing-card')) {
+							errorDiv.style.display = 'block';
+							let card = document.querySelector('.landing-card');
+							if (card) card.style.display = 'none';
+						}
 					}
 				}, 5000);
 			</script>
 
-			<div id="errorMessage" style="display: none; width: 400px">
+			<div id="errorMessage" style="display: none; width: min(100%, 420px); margin: 0 auto">
 				<div
-					style="font-size: 80px; padding-bottom: 20px; text-align: center; color: var(--blue-l60)"
+					style="font-size: 64px; padding-bottom: 16px; text-align: center; color: var(--primary)"
 				>
 					¯\_(ツ)_/¯
 				</div>
 
 				<div
-					style="margin: auto; font-size: 16px; text-align: center; color: rgba(255, 255, 255, 0.8)"
+					style="margin: auto; font-size: 15px; text-align: center; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-md);"
 				>
-					It looks like Glyphr Studio failed to load. Bummer.
+					It looks like Noddy failed to load. Bummer.
 					<br />
 					Try using the latest version of FireFox, Edge, or Chrome.
 					<br /><br />
 					Or, send us an email:
 					<a
-						style="color: white; text-decoration: underline"
-						href="mailto:mail@glyphrstudio.com&subject=Howdy"
+						style="color: var(--primary); text-decoration: underline; text-underline-offset: 3px"
+						href="mailto:mail@glyphrstudio.com?subject=Noddy%20Howdy"
 						>mail@glyphrstudio.com</a
 					>
 				</div>

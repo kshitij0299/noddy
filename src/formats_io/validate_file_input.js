@@ -22,9 +22,9 @@ let postValidationCallback;
  * Font validation is performed using the current font parser.
  * 	- Open Type Font (.otf)
  *  - True Type font (.ttf)
- * Glyphr Studio to validate
- *  - Glyphr Studio v1 project file (.txt)
- *  - Glyphr Studio v2 project file (.gs2)
+ * Noddy to validate
+ *  - Noddy v1 project file (.txt)
+ *  - Noddy v2 project file (.gs2)
  * XML Document Parser to validate
  *  - SVG Font (.svg)
  *  - SVG (.svg)
@@ -84,7 +84,7 @@ export async function validateSingleFileInput(fileInput, callback) {
 	} else {
 		return failWithError(`
 			Unrecognized file type (.${validationResult.fileSuffix}).
-			Try loading a Glyphr Studio Project file, or a font file.
+			Try loading a Noddy Project file, or a font file.
 			[FR1]
 		`);
 	}
@@ -158,7 +158,7 @@ function readerValidateSVG() {
 	if (!font) {
 		return failWithError(`
 			The SVG file you tried to load was not a SVG Font file.
-			See Glyphr Studio help for more information. [SVG1]`);
+			See Noddy help for more information. [SVG1]`);
 	} else {
 		validationResult.content = font;
 	}
@@ -168,7 +168,7 @@ function readerValidateSVG() {
 
 /**
  * Validate file content as TXT File
- * This is (hopefully) a Glyphr Studio Project File
+ * This is (hopefully) a Noddy Project File
  * @returns {Object} - Validated data object
  */
 function readerValidateTXTandGS2() {
@@ -181,7 +181,7 @@ function readerValidateTXTandGS2() {
 		projectData = JSON.parse(file);
 	} catch (e) {
 		return failWithError(`
-			The file could not be read. Expecting a Glyphr Studio Project file
+			The file could not be read. Expecting a Noddy Project file
 			in JSON format. [PF0]
 			<hr>
 			${e.message}
@@ -192,7 +192,7 @@ function readerValidateTXTandGS2() {
 	if (!projectData.settings && !projectData.projectsettings) {
 		return failWithError(`
 		The provided text file is missing project settings.
-		It may not be a Glyphr Studio Project file. [PF1]
+		It may not be a Noddy Project file. [PF1]
 		`);
 	}
 
@@ -200,7 +200,7 @@ function readerValidateTXTandGS2() {
 	if (!projectData?.settings?.project?.latestVersion && !projectData?.projectsettings?.versionnum) {
 		return failWithError(`
 			The provided text file has no version information associated with it.
-			It may not be a Glyphr Studio Project file. [PF2]
+			It may not be a Noddy Project file. [PF2]
 		`);
 	}
 
@@ -215,12 +215,23 @@ function readerValidateTXTandGS2() {
 		`);
 	}
 
-	// Project file created with a future version of Glyphr Studio
+	// Project file created with a future version of Noddy
+	// Fork-aware: Noddy is an independent product forked from Glyphr Studio v2.10.3.
+	// Its versioning resets to 0.1.0 (see AGENT.md). Upstream history (Glyphr 1.x via
+	// projectsettings and Glyphr 2.x <=2.10.3 via settings) must not be treated as
+	// "future" even though numerically 2.10.3 > 0.1.0.
 	let thisGlyphrStudioVersion = parseSemVer(getGlyphrStudioApp().version);
-	if (isSemVerLessThan(thisGlyphrStudioVersion, version)) {
+	const upstreamMax = { major: 2, minor: 10, patch: 3 };
+	const isLegacyGlyphrV1 = !!projectData.projectsettings;
+	const isLegacyGlyphrV2 =
+		!!projectData.settings?.project?.latestVersion &&
+		version.major === 2 &&
+		!isSemVerLessThan(upstreamMax, version);
+	const isUpstreamHistory = isLegacyGlyphrV1 || isLegacyGlyphrV2;
+	if (!isUpstreamHistory && isSemVerLessThan(thisGlyphrStudioVersion, version)) {
 		return failWithError(`
-			This Glyphr Studio project file was created with a future version of
-			Glyphr Studio (0_o) As with most software, Glyphr Studio is not forwards-compatible. [PF4]
+			This Noddy project file was created with a future version of
+			Noddy (0_o) As with most software, Noddy is not forwards-compatible. [PF4]
 		`);
 	}
 
@@ -229,10 +240,12 @@ function readerValidateTXTandGS2() {
 	// versions 1.13.2 and above are supported
 	// log(`version: ${json(version)}`);
 
-	if (isSemVerLessThan(version, [1, 13, 2])) {
+	// Fork-aware: only applies to Glyphr v1 project files (projectsettings).
+	// Noddy 0.x / 1.x files are independent and must not be blocked here.
+	if (isLegacyGlyphrV1 && isSemVerLessThan(version, [1, 13, 2])) {
 		return failWithError(`
-			Only Glyphr Studio Project files with version 1.13.2 and above can be
-			imported into Glyphr Studio v2. For versions 1.13.1 and below, open and re-save
+			Only Noddy Project files with version 1.13.2 and above can be
+			imported into Noddy v2. For versions 1.13.1 and below, open and re-save
 			the project file with Glyphr Studio v1 App (which will update it). [PF5]
 		`);
 	}

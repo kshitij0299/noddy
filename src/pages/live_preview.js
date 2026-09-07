@@ -82,7 +82,7 @@ export function redrawLivePreviewPageDisplayCanvas() {
 
 /**
  * Builds the live preview renderer for the page based on the selected render
- * flavor. 'gs' (Glyphr Studio) uses the canvas-drawn display-canvas control;
+ * flavor. 'gs' (Noddy) uses the canvas-drawn display-canvas control;
  * 'otf' / 'ttf' use the font-preview control, which renders editable native
  * text backed by an on-the-fly generated font binary.
  * @param {Object} livePreviewOptions - TextBlockOptions for the preview

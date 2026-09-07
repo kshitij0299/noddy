@@ -1,20 +1,39 @@
+/* Google Fonts — subsets latin, display=swap
+   Google Sans Flex variable: opsz 6–144, wght 1–1000, ROND 0–100 for display headings (ROND 60 ≈ rounded Arvo Bold),
+   Google Sans Flex opsz/wght for body, Google Sans Code 400–700 for mono.
+   Material Symbols Rounded — for UI icons (restore, actions). 24px opsz, 400 wght, rounded style.
+   Preconnect links also in index.html for perf.
+   Arvo (serif) has been replaced: --font-serif now maps to Google Sans Flex ROND 60 for visual parity at 700 weight.
+   ROND axis is available via font-variation-settings: "ROND" 60 — requires opsz,wght,ROND in the import. */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght,ROND@6..144,1..1000,0..100&family=Google+Sans+Code:wght@400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
+
 :root {
-	--dark-gradient-background: linear-gradient(135deg, var(--blue-l15), var(--purple-l05));
-	--global-focus-style: 1px dashed var(--purple-l50);
-	--global-transition: all 80ms ease;
-	--animate-fade-duration: 140ms;
+	/* Noddy app shell gradient — warm, uses dark OKLCH tokens */
+	--dark-gradient-background: linear-gradient(
+		135deg,
+		oklch(0.1979 0.0107 39.2759),
+		oklch(0.16 0.02 58.15)
+	);
+	--global-focus-style: 0 0 0 2px var(--card), 0 0 0 4px var(--ring);
+	--global-transition:
+		background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease,
+		opacity 150ms ease;
+	--animate-fade-duration: 150ms;
 	--animate-fade-in-slide-down: var(--animate-fade-duration) ease-in fade-slide-in;
 	--animate-fade-in: var(--animate-fade-duration) ease-in fade-in;
 	--animate-fade-out: var(--animate-fade-duration) ease-out fade-out;
 	--animate-fade-update: var(--animate-fade-duration) ease-in fade-in-update;
 
-	--l1-shadow: 0px 0px 2px rgba(0, 0, 0, 0.1);
-	--l1-shadow-down: 0px 2px 2px rgba(0, 0, 0, 0.1);
-	--l2-shadow: 0px 0px 4px rgba(0, 0, 0, 0.2);
-	--l2-shadow-upper-left: -1px -1px 4px rgba(0, 0, 0, 0.2);
-	--l2-shadow-down: 0px 4px 4px rgba(0, 0, 0, 0.3);
-	--l3-shadow: 0px 0px 6px rgba(0, 0, 0, 0.3);
-	--l3-shadow-down: 0px 6px 6px rgba(0, 0, 0, 0.3);
+	/* Elevation is defined in colors.css (--shadow-*, --l1-shadow, etc.).
+	   Kept here only as aliases for any file that imports resets.css alone. */
+	--l1-shadow: var(--shadow-xs);
+	--l1-shadow-down: var(--shadow-sm);
+	--l2-shadow: var(--shadow);
+	--l2-shadow-upper-left: var(--shadow-sm);
+	--l2-shadow-down: var(--shadow-md);
+	--l3-shadow: var(--shadow-lg);
+	--l3-shadow-down: var(--shadow-xl);
 }
 
 @font-face {
@@ -22,22 +41,51 @@
 	font-style: normal;
 	font-weight: 400;
 	src: url('./FiraGO-Regular.woff2');
+	/* retained for backward compat — will be superseded by --font-sans */
+	font-display: swap;
 }
 
+/* ──────────────────────────────────────────────────────────
+   Base typography & reset — Noddy tweakcn
+   html 16px so rem = 16px; body 0.875rem (=14px) with 1.6 lh.
+   Headings use --font-serif → Google Sans Flex ROND 60 (rounded display, 700 ≈ Arvo Bold);
+   body/ui use Google Sans Flex (ROND 0); mono uses Google Sans Code.
+   All tracking via CSS vars.
+   Spacing: --spacing 0.25rem (4px) — use calc(var(--spacing)*n)
+   Radius: --radius 0.45rem — single radius token.
+   Shadows: --shadow-xs … --shadow-2xl from colors.css.
+   ────────────────────────────────────────────────────────── */
 * {
 	margin: 0;
 	padding: 0;
-	font-family: FiraGo, Tahoma, Verdana, sans-serif;
-	font-size: 14px;
-	font-weight: normal;
-	text-align: left;
+	font-family: inherit;
 	box-sizing: border-box;
-	transition: var(--global-transition);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+	letter-spacing: var(--tracking-normal);
+	transition:
+		background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease,
+		opacity 150ms ease;
+}
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	font-family: var(--font-sans);
+	letter-spacing: var(--tracking-normal);
+	font-size: 16px;
+	line-height: 1.5;
+	-webkit-text-size-adjust: 100%;
 }
 
 html,
 body {
-	background-color: var(--dark-gradient-background);
+	background-color: var(--background);
+	color: var(--foreground);
 	height: 100%;
 	width: 100%;
 	min-height: 100%;
@@ -45,17 +93,36 @@ body {
 	overflow: hidden;
 }
 
+body {
+	font-family: var(--font-sans);
+	font-size: 0.875rem; /* 14px at 16px root — spec 0.875–0.9375rem */
+	line-height: 1.6;
+	font-weight: 400;
+	letter-spacing: var(--tracking-normal);
+	color: var(--foreground);
+}
+
 html[lang='en'],
 html[lang='en'] body {
 	overflow: auto;
 }
 
+/* Selection — primary 20% for visible polish */
+::selection {
+	background: color-mix(in oklch, var(--primary) 20%, transparent);
+	color: var(--foreground);
+}
+::-moz-selection {
+	background: color-mix(in oklch, var(--primary) 20%, transparent);
+	color: var(--foreground);
+}
+
 ::-webkit-scrollbar {
 	width: 8px;
 	padding: 1px;
-	border-radius: 4px;
-	border: 1px solid var(--gray-l90);
-	background-color: var(--offWhite);
+	border-radius: calc(var(--radius) * 0.9);
+	border: 1px solid var(--border);
+	background-color: var(--card);
 }
 ::-webkit-scrollbar-button {
 	height: 0px;
@@ -69,15 +136,16 @@ html[lang='en'] body {
 }
 ::-webkit-scrollbar-thumb {
 	margin: 2px;
-	background-color: var(--gray-l80);
-	border-radius: 4px;
+	background-color: var(--muted-foreground);
+	opacity: 0.4;
+	border-radius: 9999px;
 }
 ::-webkit-scrollbar-corner {
 	display: none;
 }
 ::-webkit-resizer {
 	display: block;
-	border: 2px outset var(--enabled-restingLight-background);
+	border: 2px outset var(--border);
 }
 
 div,
@@ -103,47 +171,113 @@ strong {
 a,
 a:visited {
 	background-color: transparent;
-	border-radius: 4px;
-	color: var(--blue-l55);
+	border-radius: calc(var(--radius) * 0.5);
+	color: oklch(0.55 0.1 58.15);
 	text-decoration: none;
 }
 
 a:active {
-	color: var(--blue-l40);
-	background-color: hsla(200, 100%, 45%, 0.1);
+	color: oklch(0.52 0.1 58.15);
+	background-color: color-mix(in oklch, var(--primary) 12%, transparent);
 }
 
 a:focus,
 a:hover {
-	color: var(--blue-l65);
+	color: oklch(0.55 0.1 58.15);
+	filter: brightness(0.97);
 	text-decoration: underline;
 	cursor: pointer;
 }
 
+/* Dark mode: peach primary passes on dark (9.93:1), so restore var(--primary) */
+.dark a,
+.dark a:visited,
+[data-theme='dark'] a,
+[data-theme='dark'] a:visited,
+:root[data-theme='dark'] a,
+:root[data-theme='dark'] a:visited {
+	color: var(--primary);
+}
+.dark a:focus,
+.dark a:hover,
+[data-theme='dark'] a:focus,
+[data-theme='dark'] a:hover {
+	color: var(--primary);
+}
+
 a[danger],
 a[danger]:visited {
-	color: var(--darkRed);
+	color: var(--destructive);
 }
 
 a[danger]:hover,
 a[danger]:focus {
-	color: var(--red);
+	color: var(--destructive);
+	filter: brightness(1.08);
 }
 
 p {
 	display: block;
-	margin-top: 4px;
+	margin-top: calc(var(--spacing) * 1);
+	font-size: 0.9375rem; /* 15px — top of body range, airy chat reading */
+	line-height: 1.6;
+	color: var(--foreground);
+	max-width: 70ch;
 }
 
 p, li {
-	line-height: 1.3em;
+	line-height: 1.6;
+	font-variant-ligatures: common-ligatures;
+	font-variant-numeric: tabular-nums;
 }
 
+li {
+	font-size: 0.875rem;
+	line-height: 1.6;
+}
+
+small {
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	color: var(--muted-foreground);
+}
+
+/* inline code — mono, subtle card */
 p code {
-	height: 1.3em;
-	margin-top: 0;
-	margin-bottom: 0;
-	padding-top: 0;
+	height: auto;
+	margin: 0 calc(var(--spacing) * 0.5);
+	padding: calc(var(--spacing) * 0.25) calc(var(--spacing) * 1);
+	font-family: var(--font-mono);
+	font-size: 0.8125em;
+	font-weight: 500;
+	background: var(--muted);
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) * 0.6);
+	color: var(--foreground);
+}
+
+code,
+pre,
+.number,
+kbd,
+samp {
+	font-family: var(--font-mono);
+	font-variant-ligatures: none;
+}
+
+pre {
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	padding: calc(var(--spacing) * 3);
+	background: var(--muted);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	overflow-x: auto;
+	box-shadow: var(--shadow-xs);
+}
+
+code {
+	font-size: 0.875em;
 }
 
 span:disabled,
@@ -153,32 +287,90 @@ span[disabled='disabled'] {
 
 hr {
 	border-style: solid;
-	border-color: var(--gray-l85);
+	border-color: var(--border);
 }
 
+/* ── Type scale — rounded display replaces Arvo ──
+   h1: 2rem (32px) → 2.25rem (36px) fluid, Google Sans Flex ROND 60 @700 tracking-tight
+   h2: 1.5rem (24px) ROND 60 @700 — visually ≈ Arvo Bold 700 (similar cap-height/weight)
+   h3: 1.25rem (20px) ROND 60 @700
+   h4: 1rem (16px) sans 600 — chat section headers (ROND 0)
+   body 0.875–0.9375rem, label 0.8125rem, mono via Google Sans Code
+*/
 h1 {
-	margin-left: 0px;
-	color: var(--gray-l55);
-	font-size: 2em;
-	margin-bottom: 8px;
+	margin-left: 0;
+	color: var(--foreground);
+	font-family: var(--font-serif);
+	font-size: clamp(2rem, 1.75rem + 0.8vw, 2.25rem);
+	font-weight: 700;
+	font-variation-settings: 'ROND' 60;
+	font-optical-sizing: auto;
+	line-height: 1.15;
+	letter-spacing: var(--tracking-tight);
+	margin-bottom: calc(var(--spacing) * 2);
 	clear: right;
+	opacity: 1;
+	text-wrap: balance;
 }
 
 h2 {
-	color: var(--gray-l45);
-	font-size: 1.6em;
+	color: var(--foreground);
+	font-family: var(--font-serif);
+	font-size: 1.5rem; /* 24px */
+	font-weight: 700;
+	font-variation-settings: 'ROND' 60;
+	font-optical-sizing: auto;
+	line-height: 1.25;
+	letter-spacing: var(--tracking-tight);
+	margin-bottom: calc(var(--spacing) * 1.5);
+	opacity: 1;
+	text-wrap: balance;
 }
 
 h3 {
-	color: var(--gray-l45);
-	font-size: 1.3em;
-	margin-bottom: 4px;
+	color: var(--foreground);
+	font-family: var(--font-serif);
+	font-size: 1.25rem; /* 20px */
+	font-weight: 700;
+	font-variation-settings: 'ROND' 60;
+	font-optical-sizing: auto;
+	line-height: 1.3;
+	letter-spacing: var(--tracking-tight);
+	margin-bottom: calc(var(--spacing) * 1);
+	opacity: 1;
 }
 
 h4 {
-	color: var(--gray-l45);
-	font-size: 1.2em;
-	margin-bottom: 4px;
+	color: var(--foreground);
+	font-family: var(--font-sans);
+	font-size: 1rem; /* 16px */
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: var(--tracking-tight);
+	margin-bottom: calc(var(--spacing) * 1);
+	opacity: 1;
+}
+
+h5 {
+	color: var(--foreground);
+	font-family: var(--font-sans);
+	font-size: 0.875rem;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: var(--tracking-wide);
+	text-transform: none;
+	margin-bottom: calc(var(--spacing) * 1);
+}
+
+h6 {
+	color: var(--muted-foreground);
+	font-family: var(--font-sans);
+	font-size: 0.75rem; /* 12px */
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	margin-bottom: calc(var(--spacing) * 1);
 }
 
 table {
@@ -194,30 +386,71 @@ svg {
 }
 
 .number {
-	font-family: monospace;
+	font-family: var(--font-mono);
 }
 
+/* Labels — sentence case by default (chat-conversational), 0.8125rem
+   Meta labels (super-title, kbd hints) use uppercase 0.06em via utility.
+   Keeps UI friendly, not shouty. */
 label,
 label:focus,
 label:active {
 	display: inline;
+	font-family: var(--font-sans);
+	font-size: 0.8125rem; /* 13px */
+	font-weight: 500;
+	line-height: 1.5;
+	letter-spacing: 0.01em;
+	text-transform: none;
+	color: var(--muted-foreground);
 }
 
 label:hover {
-	color: black;
+	color: var(--foreground);
 }
+
+/* utility for meta / super titles — uppercase + 0.06em tracking */
+.label--meta,
+.text--meta {
+	font-size: 0.6875rem; /* 11px */
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--muted-foreground);
+	line-height: 1.2;
+}
+
+/* Chat bubble typography — when messages appear, use relaxed 1.6, no all-caps */
+.chat-bubble,
+.message-bubble,
+.bubble {
+	font-family: var(--font-sans);
+	font-size: 0.9375rem;
+	line-height: 1.6;
+	letter-spacing: var(--tracking-normal);
+	text-transform: none;
+	color: var(--foreground);
+}
+.chat-bubble p,
+.message-bubble p {
+	margin: 0 0 calc(var(--spacing) * 2) 0;
+	line-height: 1.6;
+}
+.chat-bubble p:last-child { margin-bottom: 0; }
 
 input,
 textarea {
 	border: none;
-	padding: 0px 0px 0px 4px;
-	height: 24px;
+	padding: 0 0 0 calc(var(--spacing) * 2);
+	height: calc(var(--spacing) * 8); /* 32px */
 	text-align: left;
-	font-family: monospace;
-	background-color: var(--enabled-restingLight-background);
-	color: var(--enabled-restingLight-text);
-	border: 1px solid var(--enabled-restingLight-border);
-	border-radius: 4px;
+	font-family: var(--font-sans);
+	font-size: 0.875rem;
+	line-height: 1.5;
+	background-color: var(--card);
+	color: var(--foreground);
+	border: 1px solid var(--input);
+	border-radius: var(--radius);
 	-webkit-user-select: text;
 	-moz-user-select: text;
 	-ms-user-select: text;
@@ -226,22 +459,24 @@ textarea {
 
 input:hover,
 textarea:hover {
-	background-color: var(--enabled-focus-background);
-	color: var(--enabled-focus-text);
-	border-color: var(--enabled-focus-border);
+	background-color: var(--card);
+	color: var(--foreground);
+	border-color: var(--ring);
 }
 
 input:focus,
 textarea:focus {
-	background-color: var(--enabled-focus-background);
-	color: var(--enabled-focus-text);
-	border-color: var(--enabled-focus-border);
+	background-color: var(--card);
+	color: var(--foreground);
+	border-color: var(--ring);
+	box-shadow: var(--global-focus-style);
+	outline: none;
 }
 
 textarea:hover::-webkit-resizer,
 textarea:focus::-webkit-resizer {
 	display: block;
-	border: 2px outset var(--enabled-focus-background);
+	border: 2px outset var(--border);
 }
 
 info-bubble {
@@ -253,8 +488,9 @@ button:focus,
 textarea:focus,
 info-bubble:focus,
 glyph-tile:focus {
-	outline: var(--global-focus-style);
-	outline-offset: -1px;
+	outline: none;
+	box-shadow: var(--global-focus-style);
+	outline-offset: 0;
 }
 
 input[type='image'] {
@@ -267,21 +503,21 @@ input[type='image'] {
 input[type='number'] {
 	text-align: right;
 	width: 70px;
-	border: 1px solid white;
-	border: 1px solid var(--gray-l90);
+	font-family: var(--font-mono);
+	border: 1px solid var(--border);
 	cursor: default;
 }
 
 input[type='text'][disabled='disabled'],
 input[type='number'][disabled='disabled'] {
-	background-color: var(--gray-l90);
-	border: 1px solid var(--gray-l90);
-	color: var(--gray-l65);
+	background-color: var(--muted);
+	border: 1px solid var(--border);
+	color: var(--muted-foreground);
 }
 
 input[type='checkbox'] {
-	accent-color: var(--accent-color-dark);
-	opacity: 0.75;
+	accent-color: var(--primary);
+	opacity: 1;
 }
 
 ul li {
@@ -296,6 +532,69 @@ edit-canvas:focus-visible {
 	border: 0;
 	border-image: none;
 	outline: 0;
+}
+
+/* ── Spacing & radius tokens — use --spacing (0.25rem/4px) multiples
+   e.g. gap: calc(var(--spacing)*3) =12px, padding: calc(var(--spacing)*4)=16px
+   Radius single token --radius 0.45rem everywhere; inner elements use calc(var(--radius)*0.7)
+   Shadows: var(--shadow-xs) … var(--shadow-2xl) per colors.css — no custom box-shadows.
+*/
+
+/* ── Focus & polish ────────────────────────────────────────── */
+/* Visible focus ring — 2px card gap + 2px ring, offset for glass panels */
+:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
+	outline-offset: 0;
+}
+:focus:not(:focus-visible) {
+	box-shadow: none;
+}
+
+/* Material Symbols Rounded — base (used for restore button etc.) */
+.material-symbols-rounded {
+	font-family: 'Material Symbols Rounded';
+	font-weight: normal;
+	font-style: normal;
+	font-size: 20px;
+	line-height: 1;
+	letter-spacing: normal;
+	text-transform: none;
+	display: inline-block;
+	white-space: nowrap;
+	word-wrap: normal;
+	direction: ltr;
+	-webkit-font-feature-settings: 'liga';
+	-webkit-font-smoothing: antialiased;
+	font-variation-settings:
+		'FILL' 0,
+		'wght' 400,
+		'GRAD' 0,
+		'opsz' 24;
+}
+
+/* Sentence case enforcement — keep UI conversational (not ALL CAPS) */
+button,
+.buttonText,
+.menu-entry-point,
+.nav-button,
+.nav-dropdown__button,
+.fancy-button,
+[role='button'] {
+	text-transform: none;
+	letter-spacing: var(--tracking-normal);
+}
+
+/* ── Reduced motion — comprehensive disable ────────────────── */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }
 
 /* --------------------------------------------------------------
@@ -361,20 +660,28 @@ button:active,
 button:hover,
 button:focus {
 	text-align: center;
-	padding: 4px 8px;
+	padding: 6px 12px;
 	margin: 2px 0px;
 	cursor: pointer;
-	border-radius: 4px;
-	border: 1px solid var(--gray-l90);
-	background-color: var(--gray-l90);
-	color: var(--enabled-text);
-	box-shadow: var(--l1-shadow);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+	background-color: var(--secondary);
+	color: var(--secondary-foreground);
+	box-shadow: var(--shadow-xs);
+	font-family: var(--font-sans);
+	font-weight: 500;
+	letter-spacing: var(--tracking-normal);
 }
 
 button:hover {
-	color: var(--enabled-focus-text);
-	border-color: var(--blue-l85);
-	box-shadow: var(--l1-shadow);
+	color: var(--foreground);
+	border-color: var(--ring);
+	box-shadow: var(--shadow-sm);
+}
+
+button:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
 }
 
 button[disabled],
@@ -382,20 +689,22 @@ button[disabled]:active,
 button[disabled]:hover,
 button[disabled]:hover,
 button[disabled]:focus {
-	background-color: var(--gray-l95);
-	border-color: var(--gray-l95);
-	color: var(--disabled-text);
+	background-color: var(--muted);
+	border-color: var(--border);
+	color: var(--muted-foreground);
 	cursor: default;
+	box-shadow: none;
 }
 
 .button__call-to-action,
 .button__call-to-action:hover,
 .button__call-to-action:active,
 .button__call-to-action:focus {
-	background-color: var(--blue-l60);
-	color: var(--gray-l95);
+	background-color: var(--primary);
+	color: var(--primary-foreground);
+	border-color: var(--primary);
 }
 
 .button__call-to-action:hover {
-	color: white;
+	filter: brightness(0.97);
 }

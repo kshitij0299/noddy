@@ -1,37 +1,46 @@
+/* Noddy Input Number — peach accent, card/border tokens, 150ms, focus ring */
+
 * {
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
 	border: 0;
-	transition: var(--global-transition);
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		color 150ms ease,
+		box-shadow 150ms ease,
+		opacity 150ms ease;
 
-	--border-resting: var(--enabled-restingLight-border);
-	--border-focus: var(--enabled-focus-border);
-	--border-disabled: var(--disabled-background);
+	--border-resting: var(--input);
+	--border-focus: var(--ring);
+	--border-disabled: var(--border);
 
-	--background-resting: var(--enabled-restingLight-background);
-	--background-focus: white;
-	--background-disabled: var(--disabled-background);
+	--background-resting: var(--card);
+	--background-focus: var(--card);
+	--background-disabled: var(--muted);
 
-	--text-resting: var(--enabled-resting-text);
-	--text-focus: var(--enabled-focus-text);
-	--text-disabled: var(--enabled-restingLight-text);
+	--text-resting: var(--foreground);
+	--text-focus: var(--foreground);
+	--text-disabled: var(--muted-foreground);
 
-	--fill-resting: var(--enabled-restingLight-fill);
-	--fill-focus: var(--enabled-focus-fill);
-	--fill-disabled: var(--enabled-restingLight-fill);
+	--fill-resting: var(--muted-foreground);
+	--fill-focus: var(--foreground);
+	--fill-disabled: var(--muted-foreground);
 
-	--selected_border-resting: var(--accent-color);
-	--selected_fill-resting: var(--accent-color);
-	--selected_border-focus: var(--blue-l50);
-	--selected_fill-focus: var(--blue-l50);
+	--selected_border-resting: var(--primary);
+	--selected_fill-resting: var(--primary);
+	--selected_border-focus: color-mix(in oklch, var(--primary) 88%, black);
+	--selected_fill-focus: color-mix(in oklch, var(--primary) 88%, black);
 }
 
 :host {
 	display: grid;
 	background-color: transparent;
 	grid-template-columns: 1fr 24px min-content;
-	height: 26px;
+	height: 32px;
+	gap: 0;
+	font-family: var(--font-sans);
 }
 
 .numberInput:focus,
@@ -39,32 +48,44 @@
 .upArrow:focus,
 .downArrow:focus,
 .lock:focus {
-	outline: var(--global-focus-style);
-	outline-offset: -1px;
+	outline: none;
+}
+
+.numberInput:focus-visible,
+.arrow:focus-visible,
+.lock:focus-visible {
+	outline: none;
+	box-shadow: var(--global-focus-style);
 }
 
 /* Number input */
 .numberInput {
 	background-color: var(--background-resting);
 	color: var(--text-resting);
-	border-style: solid;
-	border-width: 1px;
-	border-color: var(--border-resting);
+	border: 1px solid var(--border-resting);
 	border-right-color: transparent;
-	border-radius: 4px 0px 0px 4px;
+	border-radius: var(--radius) 0 0 var(--radius);
 	grid-column: 1;
 	min-width: 50px;
-	padding: 4px 8px 4px 2px;
+	height: 30px;
+	padding: 4px 8px 4px 6px;
 	text-align: right;
-	font-family: monospace;
+	font-family: var(--font-mono);
+	font-size: 0.88em;
+	box-shadow: var(--shadow-xs);
 }
 
-.numberInput:hover,
-.numberInput:active,
+.numberInput:hover {
+	background-color: var(--background-focus);
+	border-color: var(--border-focus);
+	color: var(--text-focus);
+}
+
 .numberInput:focus {
 	background-color: var(--background-focus);
 	border-color: var(--border-focus);
 	color: var(--text-focus);
+	box-shadow: var(--global-focus-style);
 }
 
 .numberInput[disabled],
@@ -74,40 +95,25 @@
 	background-color: var(--background-disabled);
 	border-color: var(--border-disabled);
 	color: var(--text-disabled);
-	text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.2);
-}
-
-.numberInput[disabled] svg,
-.numberInput[disabled]:hover svg,
-.numberInput[disabled]:focus svg,
-.numberInput[disabled]:active svg {
-	fill: var(--fill-disabled);
+	text-shadow: none;
+	box-shadow: none;
 }
 
 /* Arrows */
 .arrowWrapper {
 	grid-column-start: 2;
 	display: grid;
-	/* grid-template-rows: 1fr 1px 1fr; */
-	grid-template-rows: 13px 1px 12px;
+	grid-template-rows: 15px 1px 14px;
 	background-color: transparent;
-	border:0;
+	border: 0;
 	width: 24px;
-	height: 26px;
+	height: 30px;
 }
 
 .arrowWrapper:hover,
 .arrowWrapper:focus,
 .arrowWrapper:active {
 	border-color: transparent;
-	border-left-color: var(--border-resting);
-	border-width: 1px;
-}
-
-.arrowWrapper:hover .arrowSeparator,
-.arrowWrapper:focus .arrowSeparator,
-.arrowWrapper:active .arrowSeparator {
-	background-color: var(--border-focus);
 }
 
 .arrow {
@@ -115,57 +121,55 @@
 	-moz-user-select: none;
 	-ms-user-select: none;
 	user-select: none;
-	background-color: var(--background-resting);
-	border-width: 1px;
-	border-style: solid;
-	border-color: var(--border-resting);
+	background-color: var(--secondary);
+	border: 1px solid var(--input);
 	text-align: center;
 	cursor: pointer;
 	width: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		box-shadow 150ms ease;
 }
 
 .arrow svg {
 	fill: var(--fill-resting);
+	width: 10px;
+	height: 10px;
+	transition: fill 150ms ease;
 }
 
 .arrowSeparator {
-	background-color: var(--border-resting);
+	background-color: var(--border);
+	height: 1px;
 }
 
 .upArrow {
-	border-width: 1px 1px 0px 1px;
-	border-radius: 0px 3px 0px 0px;
+	border-width: 1px 1px 0 1px;
+	border-radius: 0 calc(var(--radius) - 1px) 0 0;
 	grid-row: 1;
 }
 
-.upArrow svg {
-	position: relative;
-	top: -2px;
-}
-
 .downArrow {
-	border-width: 0px 1px 1px 1px;
-	border-radius: 0px 0px 3px 0px;
-	padding-bottom: 1px;
+	border-width: 0 1px 1px 1px;
+	border-radius: 0 0 calc(var(--radius) - 1px) 0;
 	grid-row: 3;
-}
-
-.downArrow svg {
-	position: relative;
-	top: -1px;
 }
 
 .arrow:hover,
 .arrow:focus,
 .arrow:active {
-	background-color: var(--background-focus);
-	border-color: var(--border-focus);
+	background-color: var(--primary);
+	border-color: var(--primary);
 }
 
 .arrow:hover svg,
 .arrow:focus svg,
 .arrow:active svg {
-	fill: var(--fill-focus);
+	fill: var(--primary-foreground);
 }
 
 .arrowWrapper[disabled],
@@ -188,38 +192,48 @@
 	fill: var(--fill-disabled);
 	cursor: default;
 	outline: none;
+	box-shadow: none;
 }
 
-/* Lock */
+/* Lock — peach when selected */
 .lock {
 	grid-column: 3;
 	display: none;
-	max-height: 26px;
-	border-width: 1px;
-	border-style: solid;
-	border-color: var(--border-resting);
+	max-height: 30px;
+	height: 30px;
+	width: 30px;
+	border: 1px solid var(--input);
 	border-left-color: transparent;
-	border-radius: 0px 4px 4px 0px;
-	margin-right: 1px;
+	border-radius: 0 var(--radius) var(--radius) 0;
+	margin-left: 4px;
 	box-sizing: border-box;
-	background-color: var(--background-resting);
+	background-color: var(--secondary);
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	box-shadow: var(--shadow-xs);
+}
+
+.lock[style*="display: block"],
+.lock[style*="display:block"] {
+	display: flex;
 }
 
 .lock svg {
 	fill: var(--fill-resting);
-	width: 20px;
-	height: 20px;
+	width: 16px;
+	height: 16px;
 	margin: 2px;
+	transition: fill 150ms ease;
 }
 
 .lock:hover,
 .lock:active,
 .lock:focus {
 	cursor: pointer;
-	border-color: var(--border-focus);
-	/* border-left-color: transparent; */
-	background-color: var(--background-focus);
-	/* border-radius: 4px; */
+	border-color: var(--ring);
+	background-color: var(--card);
+	box-shadow: var(--shadow-sm);
 }
 
 .lock:hover svg,
@@ -228,25 +242,31 @@
 	fill: var(--fill-focus);
 }
 
+.lock:focus-visible {
+	box-shadow: var(--global-focus-style);
+}
+
 .lock[selected] {
 	border-color: var(--selected_border-resting);
-	border-radius: 4px;
+	background: var(--primary);
+	border-left-color: var(--primary);
 }
 
 .lock[selected] svg {
-	fill: var(--selected_fill-resting);
+	fill: var(--primary-foreground);
 }
 
 .lock[selected]:hover,
 .lock[selected]:active,
 .lock[selected]:focus {
 	border-color: var(--selected_border-focus);
+	background: var(--selected_border-focus);
 }
 
 .lock[selected]:hover svg,
 .lock[selected]:active svg,
 .lock[selected]:focus svg {
-	fill: var(--selected_fill-focus);
+	fill: var(--primary-foreground);
 }
 
 .lock[disabled],
@@ -256,6 +276,7 @@
 	cursor: default;
 	border-color: var(--border-disabled);
 	background-color: var(--background-disabled);
+	box-shadow: none;
 }
 
 .lock[disabled] svg,
