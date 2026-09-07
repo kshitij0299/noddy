@@ -291,9 +291,9 @@
 
 .modal-dialog__open-new-project .modal-dialog__body {
 	padding: 0px;
-	/* In-region scroll (both axes) so tab content stays reachable instead
-	of spilling past the dialog. No page layout is changed (Phase 3.1). */
-	overflow-x: auto;
+	/* Vertical scroll only (as baseline). No horizontal backstop: the
+	dialog-scope single-column grid below removes the cause (475px track),
+	so a permanent scrollbar track never renders. */
 }
 
 /* Phase 2.1 hotfix: the Load dialog reuses open-project tab content whose
@@ -316,6 +316,15 @@ Welcome copy/layout itself is untouched. */
 	height: auto;
 	min-height: 400px;
 	top: 0;
+	/* Dialog scope only: the page's fixed 475px track overflows narrow
+	dialogs and caused the stray horizontal scrollbar. Single column stacks
+	the areas; vertical scroll (above) keeps everything reachable. */
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.modal-dialog__open-new-project #open-project__left-area {
+	width: auto;
+	max-width: 100%;
 }
 
 .modal-dialog__open-new-project #open-project__left-area {
