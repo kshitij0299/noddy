@@ -53,7 +53,9 @@
 	grid-column: 2;
 	border-radius: 4px;
 	width: 100%;
-	overflow-x: hidden;
+	/* Allowed scroll region: auto (not hidden) so wide tables/lists
+		remain reachable instead of clipped. */
+	overflow-x: auto;
 	overflow-y: auto;
 	box-shadow: var(--l3-shadow);
 	padding: 20px;

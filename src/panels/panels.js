@@ -122,8 +122,6 @@ const compactViewportQuery = '(max-width: 1099px)';
 const drawerFocusableSelector =
 	'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 let panelDrawerWired = false;
-let panelDrawerAutoOpened = false;
-let panelDrawerUserChoice = false;
 /** @type {HTMLElement | null} */
 let panelDrawerReturnFocusTo = null;
 
@@ -206,7 +204,6 @@ export function closePanelDrawer(returnFocus = true) {
  * Toggles the panel drawer/sheet open state
  */
 export function togglePanelDrawer() {
-	panelDrawerUserChoice = true;
 	if (isPanelDrawerOpen()) closePanelDrawer();
 	else openPanelDrawer();
 }
@@ -242,7 +239,6 @@ function wirePanelDrawerCloseButton() {
 		attributes: { title: 'Close panel', 'aria-label': 'Close panel' },
 	});
 	closeButton.addEventListener('click', () => {
-		panelDrawerUserChoice = true;
 		closePanelDrawer();
 	});
 	container.insertBefore(closeButton, container.firstChild);
@@ -263,7 +259,6 @@ function wirePanelDrawerChrome() {
 function handlePanelDrawerKeys(event) {
 	if (!isPanelDrawerOpen() || !isCompactViewport()) return;
 	if (event.key === 'Escape') {
-		panelDrawerUserChoice = true;
 		closePanelDrawer();
 		return;
 	}
@@ -306,10 +301,9 @@ function ensurePanelDrawerWiring() {
 		const onCompactChange = () => {
 			if (query.matches) {
 				wirePanelDrawerChrome();
-				if (!panelDrawerUserChoice && !panelDrawerAutoOpened) {
-					panelDrawerAutoOpened = true;
-					openPanelDrawer(false);
-				}
+				// Default-closed: the drawer opens only via the toggle,
+				// close button, or openPanelDrawer() callers — never
+				// automatically (review fix-up: no surprise overlay).
 			} else {
 				closePanelDrawer(false);
 			}

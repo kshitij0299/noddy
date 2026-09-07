@@ -48,7 +48,7 @@ const GLOBAL_STYLESHEETS = [
 const ALLOWLISTED_PATH_PARTS = ['font-preview'];
 
 // Content-surface selectors a global stylesheet must never set font props on.
-const BANNED_ELEMENTS = ['canvas', 'display-canvas', 'font-preview', 'edit-canvas'];
+const BANNED_ELEMENTS = ['canvas', 'display-canvas', 'font-preview', 'edit-canvas', 'glyph-tile'];
 
 // Font-rendering properties covered by Contract 2 §5.
 const BANNED_PROPS = [

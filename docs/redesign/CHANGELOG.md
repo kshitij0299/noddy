@@ -15,6 +15,7 @@
 - 2C (shell/brand/versioning): responsive tiers T1/T2/T3 + short-height rules, `min-width:1000px` lock removed, overlay drawer + focus management, re-anchored overlays; `noddy-icon.svg`/`noddy-logo-big.svg` added, title/manifest/favicon wired, version `2.11.0-noddy.0` + `ci:versions` check, save filename `Noddy Project`, fork lines in README/about.
 - Verified: lint 0 err/2 warn (pre-existing), 618/618 tests pass, production build passes.
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
+- Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
 ## [Unreleased] — Phase 0: Discovery and baseline — 2026-09-07
 
