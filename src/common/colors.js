@@ -190,6 +190,58 @@ export const uiColors = {
 /* eslint-enable key-spacing */
 
 // --------------------------------------------------------------
+// Noddy design tokens — JS mirror of src/common/colors.css
+// Contract 1 §1 (exact OKLCH values), §3 (spacing), §4 (radii).
+// Legacy accentColors / uiColors above are FROZEN for backward-compat.
+// --------------------------------------------------------------
+
+export const designTokens = {
+	light: {
+		background: 'oklch(1 0 0)',
+		foreground: 'oklch(0.2707 0.054 44.1725)',
+		card: 'oklch(1 0 0)',
+		primary: 'oklch(0.8141 0.1261 58.1544)',
+		primaryForeground: 'oklch(0.2707 0.054 44.1725)',
+		secondary: 'oklch(0.9584 0.006 43.3348)',
+		muted: 'oklch(0.9702 0 0)',
+		mutedForeground: 'oklch(0.5931 0.0295 44.5478)',
+		border: 'oklch(0.9055 0.0111 54.4854)',
+		ring: 'oklch(0.8141 0.1261 58.1544)',
+		destructive: 'oklch(0.6137 0.2039 25.5645)',
+	},
+	dark: {
+		background: 'oklch(0.1979 0.0107 39.2759)',
+		foreground: 'oklch(0.9799 0.0076 48.6561)',
+		card: 'oklch(0.1979 0.0107 39.2759)',
+		// primary / primaryForeground / ring unchanged from light (peach passes on both)
+		secondary: 'oklch(0.2404 0.0153 39.2562)',
+		muted: 'oklch(0.2572 0.015 39.2662)',
+		mutedForeground: 'oklch(0.6848 0.0223 48.3765)',
+		border: 'oklch(0.2404 0.0153 39.2562)',
+		destructive: 'oklch(0.6884 0.2009 24.0561)',
+	},
+	radius: '0.45rem',
+	spacing: {
+		space1: '4px',
+		space2: '8px',
+		space3: '12px',
+		space4: '16px',
+		space6: '24px',
+		space8: '32px',
+	},
+	shadows: {
+		xs: '0px 4px 10px 0px hsl(0 0% 0% / 0.03)',
+		sm: '0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 1px 2px -1px hsl(0 0% 0% / 0.06)',
+		md: '0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.06)',
+	},
+	fonts: {
+		sans: "'Google Sans Flex', 'FiraGo', system-ui, sans-serif",
+		serif: "'Google Sans Flex', 'FiraGo', system-ui, sans-serif",
+		mono: "'Google Sans Code', 'FiraGo', ui-monospace, monospace",
+	},
+};
+
+// --------------------------------------------------------------
 // Color Math
 // --------------------------------------------------------------
 

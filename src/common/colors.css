@@ -1,4 +1,65 @@
+/* --------------------------------------------------------------
+	Noddy design tokens — Contract 1 §1 (OKLCH, Phase 2 foundation).
+	Legacy hsl() ramps below are FROZEN for backward-compat; do not
+	change their values. New work uses the tokens in this block.
+-------------------------------------------------------------- */
+:root {
+	/* Light theme (default) — exact values per Contract 1 §1 */
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.2707 0.054 44.1725);
+	--card: oklch(1 0 0);
+	--primary: oklch(0.8141 0.1261 58.1544);
+	--primary-foreground: oklch(0.2707 0.054 44.1725);
+	--secondary: oklch(0.9584 0.006 43.3348);
+	--muted: oklch(0.9702 0 0);
+	--muted-foreground: oklch(0.5931 0.0295 44.5478);
+	--border: oklch(0.9055 0.0111 54.4854);
+	--ring: oklch(0.8141 0.1261 58.1544);
+	--destructive: oklch(0.6137 0.2039 25.5645);
+	--radius: 0.45rem;
+	--tracking-normal: 0em;
+	--tracking-tight: calc(var(--tracking-normal) - 0.025em);
+	--shadow-xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.03);
+	--shadow-sm: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 1px 2px -1px hsl(0 0% 0% / 0.06);
+	--shadow-md: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.06);
 
+	/* Elevation & radii — Contract 1 §4 */
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-full: 999px;
+
+	/* Spacing — Contract 1 §3 (new/changed surfaces only; base 4px) */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-6: 24px;
+	--space-8: 32px;
+
+	/* UI type stacks — Contract 1 §2 / Contract 2 §4.
+	UI chrome only; never applied to project/font content surfaces. */
+	--font-sans: 'Google Sans Flex', 'FiraGo', system-ui, sans-serif;
+	--font-serif: 'Google Sans Flex', 'FiraGo', system-ui, sans-serif;
+	--font-mono: 'Google Sans Code', 'FiraGo', ui-monospace, monospace;
+}
+
+/* Dark theme — Contract 1 §1.
+--primary, --primary-foreground, --ring, --radius and shadows are
+UNCHANGED from light (peach passes on both); only neutrals invert. */
+.dark,
+[data-theme='dark'] {
+	--background: oklch(0.1979 0.0107 39.2759);
+	--foreground: oklch(0.9799 0.0076 48.6561);
+	--card: oklch(0.1979 0.0107 39.2759);
+	--secondary: oklch(0.2404 0.0153 39.2562);
+	--muted: oklch(0.2572 0.015 39.2662);
+	--muted-foreground: oklch(0.6848 0.0223 48.3765);
+	--border: oklch(0.2404 0.0153 39.2562);
+	--destructive: oklch(0.6884 0.2009 24.0561);
+}
+
+/* --------------------------------------------------------------
+	Legacy hsl() ramps — FROZEN for backward-compat. Do not change.
+-------------------------------------------------------------- */
 :root {
   --gray-l99: hsl(198, 40%, 98%);
   --gray-l97: hsl(198, 40%, 96%);
