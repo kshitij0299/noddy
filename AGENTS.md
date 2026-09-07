@@ -45,8 +45,18 @@ A UI/redesign agent may NOT modify a protected area unless ALL hold:
 
 Maintain separation: `src/project_data/` is pure domain (no DOM). UI lives in `src/app/`, `src/pages/`, `src/panels/`, `src/controls/`, `src/project_editor/` (app state). Prefer scoped UI/layout/CSS/control/page/panel/presentation work over broad refactors or dependency changes.
 
-## 4. Orchestration rules
+## 3b. Borrow-smart rule — old branches (user-approved 2026-09-07, INFECTION-PROOF)
 
+Prior redesign branches (`feat/ui-redesign-2`, `feat/ui-overhaul`) remain banned as implementation sources. Targeted borrowing of *surface design only* is allowed under ALL of these guarantees — if any one fails, the item is rejected:
+
+1. **Reference-only contact.** No file is ever copied, merged, checked out into work, or pasted from an old branch. Allowed contact: user-supplied screenshots + read-only `git show <branch>:<file>` reads for visual reference. Worktrees of old branches are for running a preview server for screenshots only — never for implementation.
+2. **Per-item allowlist.** Every borrowed item (e.g. "welcome Load-card button treatment") is named in the milestone plan and needs explicit user approval before implementation. No blanket reuse.
+3. **Surface only, never skeleton.** Borrowable: button/card treatments, copy tone, icon usage, spacing feel. Permanently banned: layout grids, breakpoints, drawer/transform mechanics, overflow-hack patterns (`overflow-x: clip`, `scrollbar-gutter`, `contain: layout`), glow/dot-grid wrappers, and any responsive workaround.
+4. **Rebuilt, never pasted.** Implementation is written fresh on the stable baseline by an agent briefed with the reference as a *picture*. Old-branch code must not appear in the diff.
+5. **Independent infection check.** The milestone reviewer greps the diff for old-branch structural markers and confirms: no banned values/patterns, no pasted blocks, contracts 10–13 still satisfied.
+6. **Logged.** Each borrowed item is recorded in `docs/redesign/CHANGELOG.md` with its source branch + file for traceability.
+
+## 4. Orchestration rules
 - Orchestrator only integrates. Implementation agents get narrow, non-overlapping scopes.
 - Each implementation agent works in an isolated branch/worktree. Never commit directly to `noddy/*` integration branch from an agent.
 - One feature area per milestone (Phase 3 order is fixed — see `docs/redesign/00-charter.md`).

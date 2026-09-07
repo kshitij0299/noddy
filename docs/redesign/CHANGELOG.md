@@ -17,6 +17,11 @@
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
 - Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
+## [Unreleased] — Borrow-smart rule + Phase 2.1 hotfix — 2026-09-07
+
+- `AGENTS.md` §3b (user-approved): targeted surface-only borrowing from old branches under 6 infection-proof guarantees (reference-only, per-item allowlist, no skeleton, rebuilt-not-pasted, independent infection check, logged). Wholesale copy/layout reuse stays banned.
+- User-reported Phase 2 issues accepted as hotfix scope: attributes-sidebar control overlap, Panel toggle missing on pages without `.top-bar__menus`, Load-dialog giant-text containment. Welcome/Load/Restore redesign + inside-app theming scheduled for Phase 3.1+ (pre-existing breakage, verified untouched by Phase 2 diff).
+
 ## [Unreleased] — Phase 0: Discovery and baseline — 2026-09-07
 
 - Created branch `noddy/phase0-discovery` fresh from stable `main` @ `b84c54db`. Prior redesign branches untouched/off-limits.
