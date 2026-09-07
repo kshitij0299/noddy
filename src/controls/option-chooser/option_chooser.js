@@ -23,6 +23,10 @@ export class OptionChooser extends HTMLElement {
 
 		this.disabled = false;
 
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+		if (!this.hasAttribute('aria-haspopup')) this.setAttribute('aria-haspopup', 'listbox');
+		if (!this.hasAttribute('aria-expanded')) this.setAttribute('aria-expanded', 'false');
+
 		this.wrapper = makeElement({
 			className: 'wrapper',
 			tabIndex: !this.disabled,
@@ -43,8 +47,8 @@ export class OptionChooser extends HTMLElement {
 
 		this.downArrow = makeElement({
 			className: 'downArrow',
-			content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><polygon points="14.5 8.5 5.5 8.5 10 13 14.5 8.5"/></svg>`,
-			attributes: { tabIndex: -1 },
+			content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true"><polygon points="14.5 8.5 5.5 8.5 10 13 14.5 8.5"/></svg>`,
+			attributes: { tabIndex: -1, 'aria-hidden': 'true' },
 		});
 		// @ts-expect-error 'property does exist'
 		this.downArrow.elementRoot = this;
@@ -76,8 +80,51 @@ export class OptionChooser extends HTMLElement {
 	 */
 	connectedCallback() {
 		// log(`OptionChooser.connectedCallback`, 'start');
-		if (this.disabled) this.wrapper.setAttribute('disabled', '');
+		if (this.disabled) {
+			this.wrapper.setAttribute('disabled', '');
+			this.setAttribute('aria-disabled', 'true');
+		}
+		this.syncAccessibleName();
+		this.syncEmptyState();
 		// log(`OptionChooser.connectedCallback`, 'end');
+	}
+
+	/**
+	 * Expose the current selection as a tooltip when no explicit
+	 * accessible name was provided at the call site.
+	 */
+	syncAccessibleName() {
+		if (!this.hasAttribute('aria-label') && !this.hasAttribute('title')) {
+			const name = this.getAttribute('selected-name');
+			if (name) this.setAttribute('title', name);
+		}
+	}
+
+	/**
+	 * Mark the empty state so placeholder copy can be styled
+	 */
+	syncEmptyState() {
+		if (!this.getAttribute('selected-name')) this.setAttribute('data-empty', '');
+		else this.removeAttribute('data-empty');
+	}
+
+	/**
+	 * Show an error state: destructive styling + message.
+	 * @param {String} message - plain-language error with recovery action
+	 */
+	setError(message = '') {
+		this.wrapper.setAttribute('data-error', '');
+		this.setAttribute('aria-invalid', 'true');
+		if (message) this.setAttribute('title', message);
+	}
+
+	/**
+	 * Clear a previously set error state
+	 */
+	clearError() {
+		this.wrapper.removeAttribute('data-error');
+		this.removeAttribute('aria-invalid');
+		this.syncAccessibleName();
 	}
 
 	/**
@@ -95,11 +142,13 @@ export class OptionChooser extends HTMLElement {
 				// disabled
 				this.wrapper.setAttribute('disabled', '');
 				this.wrapper.removeAttribute('tabIndex');
+				this.setAttribute('aria-disabled', 'true');
 				this.removeAllEventListeners();
 			} else if (oldValue === '') {
 				// enabled
 				this.wrapper.removeAttribute('disabled');
 				this.wrapper.setAttribute('tabIndex', '0');
+				this.removeAttribute('aria-disabled');
 				this.addAllEventListeners();
 			}
 		}
@@ -107,9 +156,11 @@ export class OptionChooser extends HTMLElement {
 			if (newValue === '') {
 				// deployed
 				this.wrapper.setAttribute('deployed', '');
+				this.setAttribute('aria-expanded', 'true');
 			} else if (oldValue === '') {
 				// closed
 				this.wrapper.removeAttribute('deployed');
+				this.setAttribute('aria-expanded', 'false');
 			}
 		}
 
@@ -119,6 +170,8 @@ export class OptionChooser extends HTMLElement {
 
 		if (attributeName === 'selected-name') {
 			this.selectionDisplay.innerHTML = this.getDisplayName();
+			this.syncAccessibleName();
+			this.syncEmptyState();
 		}
 
 		// log(`OptionChooser.attributeChangedCallback`, 'end');
@@ -221,9 +274,15 @@ export class OptionChooser extends HTMLElement {
 	 */
 	keyboardPress(ev) {
 		switch (ev.keyCode) {
+			case 13: // enter
+			case 32: // space
+				ev.preventDefault();
+				this.showOptions();
+				break;
+			case 38: // d-pad up
 			case 40: // d-pad down
 			case 98: // ten key down
-			case 109: // ten key -
+			case 104: // ten key up
 				this.showOptions();
 				break;
 

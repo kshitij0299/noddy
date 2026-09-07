@@ -22,7 +22,13 @@ export class InputNumber extends HTMLElement {
 			tag: 'input',
 			className: 'numberInput',
 			tabIndex: !isDisabled,
-			attributes: { type: 'text', value: this.sanitizeValue(this.getAttribute('value')) },
+			attributes: {
+				type: 'text',
+				value: this.sanitizeValue(this.getAttribute('value')),
+				inputmode: 'decimal',
+				autocomplete: 'off',
+				spellcheck: 'false',
+			},
 		});
 		// @ts-expect-error 'property does exist'
 		this.numberInput.elementRoot = this;
@@ -41,36 +47,42 @@ export class InputNumber extends HTMLElement {
 
 		this.upArrow = makeElement({
 			className: 'arrow upArrow',
-			content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><polygon points="6.5 7 13.5 7 10 3.5 6.5 7"/></svg>`,
-			attributes: { tabIndex: -1 },
+			content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10" aria-hidden="true"><polygon points="6.5 7 13.5 7 10 3.5 6.5 7"/></svg>`,
+			attributes: { tabIndex: -1, title: 'Increase value', 'aria-label': 'Increase value' },
 		});
 		// @ts-expect-error 'property does exist'
 		this.upArrow.elementRoot = this;
 
 		this.downArrow = makeElement({
 			className: 'arrow downArrow',
-			content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><polygon points="13.5 3 6.5 3 10 6.5 13.5 3"/></svg>`,
-			attributes: { tabIndex: -1 },
+			content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10" aria-hidden="true"><polygon points="13.5 3 6.5 3 10 6.5 13.5 3"/></svg>`,
+			attributes: { tabIndex: -1, title: 'Decrease value', 'aria-label': 'Decrease value' },
 		});
 		// @ts-expect-error 'property does exist'
 		this.downArrow.elementRoot = this;
 
 		// Lock
 		this.iconLocked = `
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true">
 			<path d="m11,4h-2c-1.66,0-3,1.34-3,3v8c0,1,1,2,2,2h4c1,0,2-1,2-2V7c0-1.66-1.34-3-3-3Zm-.5,11h-1v-3h1v3Zm-3.5-5v-3c0-1.1.9-2,2-2h2c1.1,0,2,.9,2,2v3h-6Z"/>
 			</svg>
 		`;
 
 		this.iconUnlocked = `
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true">
 			<path d="m14,7v-1c0-1.66-1.34-3-3-3h-2c-1.66,0-3,1.34-3,3v9c0,1,1,2,2,2h4c1,0,2-1,2-2v-5h-7v-4c0-1.1.9-2,2-2h2c1.1,0,2,.9,2,2v1h1Zm-1,4v5h-6v-5h6Z"/>
 			</svg>
 		`;
 
 		this.padlock = makeElement({
 			className: 'lock',
-			attributes: { tabIndex: 0 },
+			attributes: {
+				tabIndex: 0,
+				role: 'switch',
+				'aria-checked': 'false',
+				title: 'Lock value',
+				'aria-label': 'Lock value',
+			},
 			content: this.iconUnlocked,
 		});
 		// @ts-expect-error 'property does exist'
@@ -113,6 +125,8 @@ export class InputNumber extends HTMLElement {
 	connectedCallback() {
 		// log(`InputNumber.connectedCallback`, 'start');
 
+		this.syncInputLabel();
+
 		if (this.getAttribute('is-locked') === 'true') {
 			this.padlock.style.display = 'block';
 			this.setToLocked(true);
@@ -144,6 +158,46 @@ export class InputNumber extends HTMLElement {
 			this.setToDisabled();
 		}
 		// log(`InputNumber.connectedCallback`, 'end');
+	}
+
+	/**
+	 * Give the inner text input an accessible name from the host's
+	 * aria-label / title, so screen readers announce its purpose.
+	 */
+	syncInputLabel() {
+		const label = this.getAttribute('aria-label') || this.getAttribute('title');
+		if (label && !this.numberInput.hasAttribute('aria-label')) {
+			this.numberInput.setAttribute('aria-label', label);
+		}
+		if (!this.numberInput.hasAttribute('aria-label')) {
+			this.numberInput.setAttribute('aria-label', 'Numeric value');
+		}
+		if (label && !this.hasAttribute('title')) {
+			this.setAttribute('title', label);
+		}
+	}
+
+	/**
+	 * Show an error state: destructive styling + message + recovery hint.
+	 * The message is exposed via title/aria so it is announced.
+	 * @param {String} message - plain-language error with recovery action
+	 */
+	setError(message = '') {
+		this.setAttribute('data-error', '');
+		this.numberInput.setAttribute('aria-invalid', 'true');
+		if (message) {
+			this.setAttribute('title', message);
+			this.numberInput.setAttribute('aria-label', `${this.numberInput.getAttribute('aria-label') || 'Numeric value'}. Error: ${message}`);
+		}
+	}
+
+	/**
+	 * Clear a previously set error state
+	 */
+	clearError() {
+		this.removeAttribute('data-error');
+		this.numberInput.removeAttribute('aria-invalid');
+		this.syncInputLabel();
 	}
 
 	/**
@@ -197,6 +251,7 @@ export class InputNumber extends HTMLElement {
 		// log(`InputNumber.setToLocked`, 'start');
 		this.setAttribute('is-locked', 'true');
 		this.padlock.setAttribute('selected', '');
+		this.padlock.setAttribute('aria-checked', 'true');
 		this.setToDisabled();
 		this.padlock.innerHTML = this.iconLocked;
 		if (!internalEvent) {
@@ -213,6 +268,7 @@ export class InputNumber extends HTMLElement {
 		// log(`InputNumber.setToUnlocked`, 'start');
 		this.setAttribute('is-locked', 'false');
 		this.padlock.removeAttribute('selected');
+		this.padlock.setAttribute('aria-checked', 'false');
 		this.setToEnabled();
 		this.padlock.innerHTML = this.iconUnlocked;
 		if (!internalEvent) {
@@ -226,6 +282,7 @@ export class InputNumber extends HTMLElement {
 	 */
 	setToDisabled() {
 		// log(`InputNumber.setToDisabled`, 'start');
+		this.setAttribute('aria-disabled', 'true');
 		this.numberInput.setAttribute('disabled', '');
 		this.numberInput.removeAttribute('tabIndex');
 		this.arrowWrapper.setAttribute('disabled', '');
@@ -239,6 +296,7 @@ export class InputNumber extends HTMLElement {
 	 */
 	setToEnabled() {
 		// log(`InputNumber.setToEnabled`, 'start');
+		this.removeAttribute('aria-disabled');
 		this.numberInput.removeAttribute('disabled');
 		this.numberInput.setAttribute('tabIndex', '0');
 		this.arrowWrapper.removeAttribute('disabled');

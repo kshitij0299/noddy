@@ -7,8 +7,9 @@ let degrees = 0;
 /**
  * Updates the currently displayed progress indicator
  * @param {String} message - what text to show for this progress step
+ * @param {Boolean =} isError - switch the indicator to its error state
  */
-export async function updateProgressIndicator(message) {
+export async function updateProgressIndicator(message, isError = false) {
 	const container = document.querySelector('#progress-indicator__message');
 	if (container) {
 		/** @type {HTMLElement} */
@@ -17,6 +18,10 @@ export async function updateProgressIndicator(message) {
 			degrees = degrees + 0.5;
 			bar.style.backgroundPosition = `${degrees}%`;
 			if (message) container.innerHTML = message;
+		}
+		if (isError) {
+			container.closest('#progress-indicator__wrapper')?.setAttribute('data-error', 'true');
+			container.setAttribute('role', 'alert');
 		}
 		await pause();
 	}
@@ -29,10 +34,14 @@ export async function updateProgressIndicator(message) {
 export function makeProgressIndicator() {
 	// log('makeProgressIndicator', 'start');
 
-	let wrapper = makeElement({ id: 'progress-indicator__wrapper' });
+	let wrapper = makeElement({
+		id: 'progress-indicator__wrapper',
+		attributes: { role: 'progressbar', 'aria-busy': 'true', 'aria-label': 'Loading' },
+	});
 	let message = makeElement({
 		id: 'progress-indicator__message',
 		innerHTML: 'Working...',
+		attributes: { 'aria-live': 'polite' },
 	});
 	let bar = makeElement({
 		tag: 'div',

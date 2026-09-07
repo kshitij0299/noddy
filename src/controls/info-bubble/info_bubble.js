@@ -14,8 +14,18 @@ export class InfoBubble extends HTMLElement {
 	constructor() {
 		super();
 
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+		if (!this.hasAttribute('aria-expanded')) this.setAttribute('aria-expanded', 'false');
+		if (!this.hasAttribute('aria-label') && !this.hasAttribute('title')) {
+			this.setAttribute('aria-label', 'Show information');
+		}
+
 		let wrapper = makeElement({ className: 'wrapper', tabIndex: true });
-		this.entryPoint = makeElement({ id: 'entryPoint', content: '?' });
+		this.entryPoint = makeElement({
+			id: 'entryPoint',
+			content: '?',
+			attributes: { 'aria-hidden': 'true' },
+		});
 
 		// Put together visible stuff
 		let shadow = this.attachShadow({ mode: 'open' });
@@ -48,6 +58,7 @@ export class InfoBubble extends HTMLElement {
 		// log(`Making bubble...`);
 		let bubble = makeElement({
 			id: 'bubble',
+			attributes: { role: 'tooltip' },
 		});
 		let bubbleStyles = makeElement({ tag: 'style', innerHTML: bubbleStyle });
 		bubble.appendChild(bubbleStyles);
@@ -72,6 +83,14 @@ export class InfoBubble extends HTMLElement {
 
 		// Add and show bubble
 		document.body.appendChild(bubble);
+		this.setAttribute('aria-expanded', 'true');
+		bubble.addEventListener('keydown', (ev) => {
+			if (ev.key === 'Escape' || ev.keyCode === 27) {
+				ev.preventDefault();
+				this.hide(this.entryPoint);
+				this.focus();
+			}
+		});
 		let entryPointRect = this.entryPoint.getBoundingClientRect();
 		let bubbleRect = bubble.getBoundingClientRect();
 		let left = entryPointRect.x + entryPointRect.width + 2;
@@ -90,9 +109,9 @@ export class InfoBubble extends HTMLElement {
 		bubble.style.left = `${left}px`;
 		bubble.style.top = `${top}px`;
 
-		this.entryPoint.style.borderColor = 'rgb(180, 180, 180)';
-		this.entryPoint.style.backgroundColor = 'rgb(180, 180, 180)';
-		this.entryPoint.style.color = 'rgb(250, 250, 250)';
+		this.entryPoint.style.borderColor = 'var(--primary, rgb(180, 180, 180))';
+		this.entryPoint.style.backgroundColor = 'var(--primary, rgb(180, 180, 180))';
+		this.entryPoint.style.color = 'var(--primary-foreground, rgb(250, 250, 250))';
 		this.entryPoint.style.cursor = 'pointer';
 		this.entryPoint.innerHTML = '✖';
 
@@ -109,13 +128,14 @@ export class InfoBubble extends HTMLElement {
 		// log(entryPoint);
 		/** @type {HTMLElement} */
 		let bubble = document.querySelector('#bubble');
-		animateRemove(bubble, 120, 0.98, '0px');
+		if (bubble) animateRemove(bubble, 120, 0.98, '0px');
+		this.setAttribute('aria-expanded', 'false');
 		// document.body.removeChild(bubble);
 		// log(`bubble has been removed`);
 
-		entryPoint.style.borderColor = 'rgb(180, 180, 180)';
-		entryPoint.style.backgroundColor = 'transparent';
-		entryPoint.style.color = 'rgb(180, 180, 180)';
+		entryPoint.style.borderColor = 'var(--muted-foreground, rgb(180, 180, 180))';
+		entryPoint.style.backgroundColor = 'var(--card, transparent)';
+		entryPoint.style.color = 'var(--muted-foreground, rgb(180, 180, 180))';
 		entryPoint.style.cursor = 'help';
 		entryPoint.innerHTML = '?';
 		entryPoint.blur();
@@ -129,6 +149,13 @@ export class InfoBubble extends HTMLElement {
 	keyPress(ev) {
 		switch (ev.keyCode) {
 			case 13: // enter
+			case 32: // space
+				ev.preventDefault();
+				this.dispatchEvent(new Event('click'));
+				break;
+			case 27: // escape
+				this.hide(this.entryPoint);
+				break;
 			case 37: // d-pad left
 			case 39: // d-pad right
 			case 98: // ten key down

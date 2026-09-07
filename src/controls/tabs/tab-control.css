@@ -4,24 +4,54 @@
 	width: 100%;
 }
 
+/* Empty — placeholder copy so the region is never a blank trap */
+.tab-control__tab-container:empty::after {
+	content: 'No tabs';
+	display: block;
+	padding: var(--space-3, 12px);
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	font-style: italic;
+}
+
 .tab-control__tab {
 	display: block;
 	width: 100%;
+	min-height: var(--space-8, 32px);
 	font-size: 1.2em;
+	line-height: 1.4;
 	cursor: pointer;
-	padding: 10px;
-	border-radius: 2px;
+	padding: var(--space-2, 8px) var(--space-3, 12px);
+	border-radius: var(--radius-sm, 4px);
+	border: 1px solid transparent;
+	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	background-color: transparent;
+	text-transform: none;
 }
 
 .tab-control__tab:hover {
-	background-color: var(--blue-l95);
+	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
 }
 
 .tab-control__tab:focus {
-	outline: var(--global-outline-style);
+	outline: none;
 }
 
-.tab-control__tab[selected] {
-	color: var(--blue-l40);
-	background-color: var(--blue-l90);
+.tab-control__tab:focus-visible {
+	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+	outline-offset: 2px;
+}
+
+.tab-control__tab[selected],
+.tab-control__tab[aria-selected='true'] {
+	color: var(--primary-foreground, oklch(0.2707 0.054 44.1725));
+	background-color: var(--primary, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
+}
+
+.tab-control__tab[disabled],
+.tab-control__tab[aria-disabled='true'] {
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	background-color: var(--muted, oklch(0.9702 0 0));
+	cursor: not-allowed;
 }
