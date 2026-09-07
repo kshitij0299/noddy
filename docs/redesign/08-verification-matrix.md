@@ -1,6 +1,7 @@
 # 08 — Verification Matrix (regression)
 
-Baseline: `noddy/phase0-discovery` @ `b84c54db` — lint 0 err/2 warn, 612/612 pass, build passes. No product code yet, so all rows are BASELINE (unexecuted post-change). Smoke-test each row every milestone from Phase 2 on.
+Baseline: `noddy/phase0-discovery` @ `b84c54db` — lint 0 err/2 warn, 612/612 pass, build passes.
+Phase 2: `noddy/phase2-foundation` (integrates 2A tokens/type/states, 2B controls, 2C shell/brand/versioning) — lint 0 err/2 warn (same pre-existing), **618/618 pass** (612 + 6 new CSS-typography-guard tests), build passes, `ci:versions` passes (`2.11.0-noddy.0`). No protected-area logic changed; static checks green. Browser/manual + responsive-tier interaction checks are USER checks (see Phase 2 packet checklist).
 
 | # | Check | How | Phase 0 status |
 |---|-------|-----|----------------|

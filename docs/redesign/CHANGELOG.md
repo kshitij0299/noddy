@@ -8,6 +8,14 @@
 - Added `13-brand-and-versioning-contract.md` (naming map, `app_config.json` source of truth, first Noddy version `2.11.0-noddy.0`, `.gs2` open/save rules, attribution).
 - `.pen` files scoped out per user confirmation. No product code changed.
 
+## [Unreleased] — Phase 2: Shared Noddy foundation — 2026-09-07
+
+- 2A (tokens/type/states): OKLCH blocks added to `colors.css` (legacy ramps kept), `colors.js` mirror, font imports + scoped UI font + type roles + mono numerics + global states in `resets.css`, new `test/css-typography-guard.test.js` (6 tests).
+- 2B (shared controls): restyled `fancy-button`, `input-number` (mono), `option-chooser/toggle`, `tabs` (roving tabindex, `tabindex:1` removed), `dialogs` (modal trap + focus return, ARIA roles), `info-bubble`, `fancy-slider`, `progress-indicator`; icon-only buttons labelled; `font-preview`/`glyph-tile` internals untouched.
+- 2C (shell/brand/versioning): responsive tiers T1/T2/T3 + short-height rules, `min-width:1000px` lock removed, overlay drawer + focus management, re-anchored overlays; `noddy-icon.svg`/`noddy-logo-big.svg` added, title/manifest/favicon wired, version `2.11.0-noddy.0` + `ci:versions` check, save filename `Noddy Project`, fork lines in README/about.
+- Verified: lint 0 err/2 warn (pre-existing), 618/618 tests pass, production build passes.
+- Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
+
 ## [Unreleased] — Phase 0: Discovery and baseline — 2026-09-07
 
 - Created branch `noddy/phase0-discovery` fresh from stable `main` @ `b84c54db`. Prior redesign branches untouched/off-limits.
