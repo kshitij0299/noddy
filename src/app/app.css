@@ -23,7 +23,7 @@
 #app__main-content {
 	grid-row: 2;
 	width: 100%;
-	min-width: 1000px;
+	min-width: 0;
 }
 
 #app__page {
@@ -38,12 +38,54 @@
 }
 
 .top-bar__logo {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
 	margin-left: 2px;
+	min-height: 24px;
+	padding-left: 32px;
+	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat left center / 24px
+		24px;
 }
 
 .top-bar__logo svg {
-	fill: var(--blue-l50);
+	display: none;
+}
+
+/* Noddy wordmark text fallback next to the icon mark */
+.top-bar__logo::after {
+	content: 'Noddy';
+	font-size: 1.05rem;
+	font-weight: 700;
+	letter-spacing: var(--tracking-tight, -0.01em);
+	color: var(--foreground, var(--blue-l10));
+	white-space: nowrap;
+}
+
+/* Panel drawer toggle (wired by panels.js). Visible only at compact tiers. */
+.noddy-panel-toggle {
+	display: none;
+}
+
+@media (max-width: 1099px) {
+	.noddy-panel-toggle {
+		display: inline-block;
+	}
+}
+
+/* Compact top bar: icon-only Noddy mark, menus take the remaining space */
+@media (max-width: 759px) {
+	#app__top-bar {
+		grid-template-columns: auto 1fr;
+		column-gap: 8px;
+	}
+
+	.top-bar__logo {
+		padding-left: 28px;
+	}
+
+	.top-bar__logo::after {
+		display: none;
+	}
 }
 
 .top-bar__menus {
@@ -216,4 +258,28 @@
 .project-preview__secondary:hover h3 {
 	opacity: 1;
 	border-color: var(--blue-l80);
+}
+
+/* --------------------------------------------------------
+	Noddy responsive tiers: viewport-relative overlays.
+	Re-anchors the px-anchored toast/error positions from
+	dialogs.css (loaded later, so body-prefixed selectors
+	win without touching that file).
+-------------------------------------------------------- */
+body #toast,
+body #error {
+	left: 0;
+	right: 0;
+	top: auto;
+	bottom: 16px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+body #toast {
+	max-width: calc(100vw - 32px);
+}
+
+body #error {
+	width: min(420px, calc(100vw - 32px));
 }

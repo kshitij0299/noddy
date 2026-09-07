@@ -4,10 +4,15 @@
 	width: 100%;
 	min-width: 100%;
 	display: grid;
-	grid-template-columns: 450px 1fr;
+	grid-template-columns: clamp(340px, 30vw, 450px) minmax(0, 1fr);
 	grid-template-rows: 100%;
 	column-gap: 10px;
 	padding: 0px 10px 10px 10px;
+}
+
+.content-page__left-area,
+.content-page__right-area {
+	min-width: 0;
 }
 
 .content-page__left-area {
@@ -32,10 +37,14 @@
 
 #content-page__panel {
 	grid-row: 3;
-	width: 450px;
+	width: 100%;
+	max-width: 450px;
 	height: 100%;
 	overflow-y: auto;
-	overflow-x: hidden;
+	/* Interim: fixed-width panel content (remediated per-surface in
+		Phase 3) stays reachable while the T1 panel is fluid narrower
+		than 450px. Panel-column scroll is an allowed scroll region. */
+	overflow-x: auto;
 }
 
 .content-page__right-area {
@@ -615,4 +624,67 @@ span.spacer {
 	margin: 5px;
 	padding-right: 1px;
 	font-weight: bold;
+}
+
+/* --------------------------------------------------------
+	Noddy responsive tiers (tier behavior only).
+	Open/close state comes from body.noddy-panel-open,
+	wired by panels.js. No transform-based drawer patterns.
+-------------------------------------------------------- */
+
+/* T2 compact + T3 narrow: panel column becomes a dismissible
+	overlay drawer; the reading area keeps full width. */
+@media (max-width: 1099px) {
+	.content__page {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.content-page__left-area {
+		position: fixed;
+		left: 0;
+		top: 40px;
+		bottom: 0;
+		width: min(450px, calc(100vw - 32px));
+		z-index: 500;
+		display: none;
+		grid-template-rows: auto minmax(0, 1fr);
+		overflow: hidden;
+		background-color: var(--blue-l97);
+		border-right: 1px solid var(--blue-l85);
+		box-shadow: var(--l3-shadow);
+		padding: 10px;
+	}
+
+	body.noddy-panel-open .content-page__left-area {
+		display: grid;
+	}
+
+	#content-page__panel {
+		max-width: none;
+	}
+}
+
+/* T3 narrow: single column, drawer becomes a full-screen sheet. */
+@media (max-width: 759px) {
+	.content__page {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.content-page__left-area {
+		left: 0;
+		right: 0;
+		width: auto;
+		border-right: none;
+	}
+
+	.content-page__right-area {
+		grid-column: 1;
+	}
+}
+
+/* Short height: panel body scrolls internally with viewport headroom */
+@media (max-height: 619px) {
+	#content-page__panel {
+		max-height: calc(100vh - 140px);
+	}
 }

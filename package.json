@@ -1,10 +1,10 @@
 {
 	"name": "glyphr-studio-2",
 	"author": "Matt LaGrandeur",
-	"version": "2.10",
+	"version": "2.11.0-noddy.0",
 	"license": "GPL-3.0-or-later",
 	"homepage": "https://github.com/glyphr-studio/Glyphr-Studio-2#readme",
-	"description": "Glyphr Studio v2 is a web-based font editor, optimized for typeface design beginners or hobbyists.",
+	"description": "Noddy — a friendly font editor, forked from Glyphr Studio 2.",
 	"type": "module",
 	"scripts": {
 		"dev": "run-func scripts.js dev && vite serve ./src/",
@@ -13,7 +13,8 @@
 		"test": "vitest watch",
 		"coverage": "vitest watch --silent=true --coverage",
 		"lint": "eslint src",
-		"fix": "eslint src --fix"
+		"fix": "eslint src --fix",
+		"ci:versions": "node scripts/check-versions.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
