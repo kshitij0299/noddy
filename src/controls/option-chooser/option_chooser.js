@@ -234,6 +234,19 @@ export class OptionChooser extends HTMLElement {
 		top = Math.max(top, 0);
 		let parentHeight = navRect ? navRect.height : window.innerHeight;
 		let maxHeight = parentHeight - top - 10;
+		// Containment: choosers live in 450px cards that can sit near the
+		// viewport edge (scrolled panel, compact tiers). Clamp the deployed
+		// menu horizontally so options stay reachable instead of spilling
+		// past the viewport. Vertical flip stays deferred per panels.css.
+		let menuWidth = entryPointRect.width;
+		const viewportWidth =
+			(typeof window !== 'undefined' && window.innerWidth) ||
+			document.documentElement?.clientWidth ||
+			0;
+		if (viewportWidth > 0) {
+			menuWidth = Math.max(0, Math.min(menuWidth, viewportWidth - 16));
+			left = Math.min(left, Math.max(0, viewportWidth - menuWidth - 8));
+		}
 
 		// log(`showing options at ${left} / ${top}`);
 		// log(`maxHeight: ${maxHeight}`);
@@ -244,7 +257,7 @@ export class OptionChooser extends HTMLElement {
 		this.setAttribute('deployed', '');
 		insertAfter(
 			this,
-			makeContextMenu(optionRows, left, top - 1, entryPointRect.width, maxHeight, true)
+			makeContextMenu(optionRows, left, top - 1, menuWidth, maxHeight, true)
 		);
 
 		// log(`OptionsChooser.showOptions`, 'end');

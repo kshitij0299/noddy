@@ -208,11 +208,7 @@ export function togglePanelDrawer() {
 	else openPanelDrawer();
 }
 
-function wirePanelDrawerToggle() {
-	if (typeof document === 'undefined') return;
-	if (document.querySelector('#noddy-panel-toggle')) return;
-	const menus = document.querySelector('#app__top-bar .top-bar__menus');
-	if (!menus) return;
+function makePanelDrawerToggle() {
 	const toggle = makeElement({
 		tag: 'button',
 		id: 'noddy-panel-toggle',
@@ -224,7 +220,22 @@ function wirePanelDrawerToggle() {
 		},
 	});
 	toggle.addEventListener('click', () => togglePanelDrawer());
-	menus.appendChild(toggle);
+	return toggle;
+}
+
+function wirePanelDrawerToggle() {
+	if (typeof document === 'undefined') return;
+	if (document.querySelector('#noddy-panel-toggle')) return;
+	// Primary mount: app top-bar menus (present on every navigator page).
+	// Fallbacks cover shells without a top bar (editor / content page nav
+	// areas). Same toggle, same behavior, same focus discipline in all
+	// cases; no navigation logic is touched.
+	const mount =
+		document.querySelector('#app__top-bar .top-bar__menus') ||
+		document.querySelector('.editor-page__nav-area') ||
+		document.querySelector('.content-page__nav-area');
+	if (!mount) return;
+	mount.appendChild(makePanelDrawerToggle());
 }
 
 function wirePanelDrawerCloseButton() {
@@ -314,5 +325,18 @@ function ensurePanelDrawerWiring() {
 			query.addListener(onCompactChange);
 		}
 		onCompactChange();
+	}
+}
+
+// Eager wiring: makePanel()/refreshPanel() only run on editor-panel pages,
+// so content/app shells would otherwise never install the drawer observer
+// or the toggle. Installing once at import covers every shell from first
+// paint; per-page calls above just re-assert the chrome. No navigation
+// logic is touched.
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+	try {
+		ensurePanelDrawerWiring();
+	} catch {
+		// Non-DOM environments: pages wire on demand via makePanel().
 	}
 }
