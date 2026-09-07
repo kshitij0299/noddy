@@ -18,6 +18,10 @@ export class OptionToggle extends HTMLElement {
 		// log(`OptionToggle.constructor`, 'start');
 		super();
 		this.disabled = false;
+
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'switch');
+		if (!this.hasAttribute('aria-checked')) this.setAttribute('aria-checked', 'false');
+
 		this.wrapper = makeElement({
 			className: 'wrapper',
 			tabIndex: !this.disabled,
@@ -36,7 +40,7 @@ export class OptionToggle extends HTMLElement {
 		this.toggleIcon = makeElement({
 			className: 'toggleIcon',
 			content: this.makeIcon(),
-			attributes: { tabIndex: -1 },
+			attributes: { tabIndex: -1, 'aria-hidden': 'true' },
 		});
 		// @ts-expect-error 'property does exist'
 		this.toggleIcon.elementRoot = this;
@@ -68,7 +72,10 @@ export class OptionToggle extends HTMLElement {
 	 */
 	connectedCallback() {
 		// log(`OptionToggle.connectedCallback`, 'start');
-		if (this.disabled) this.wrapper.setAttribute('disabled', '');
+		if (this.disabled) {
+			this.wrapper.setAttribute('disabled', '');
+			this.setAttribute('aria-disabled', 'true');
+		}
 		this.options = [];
 
 		[...this.children].forEach((child) => {
@@ -85,7 +92,41 @@ export class OptionToggle extends HTMLElement {
 
 		this.selectionDisplay.innerHTML = this.getDisplayName();
 		this.toggleIcon.innerHTML = this.makeIcon(this.isFirstOptionSelected());
+		this.syncCheckedState();
 		// log(`OptionToggle.connectedCallback`, 'end');
+	}
+
+	/**
+	 * Mirror the toggle state to ARIA and to the wrapper for styling
+	 */
+	syncCheckedState() {
+		if (!this.wrapper) return;
+		const checked = !!this.options && this.options.length > 1 && !this.isFirstOptionSelected();
+		this.setAttribute('aria-checked', checked ? 'true' : 'false');
+		if (checked) this.wrapper.setAttribute('selected', '');
+		else this.wrapper.removeAttribute('selected');
+		if (!this.hasAttribute('aria-label') && !this.hasAttribute('title')) {
+			const name = this.getAttribute('selected-name');
+			if (name) this.setAttribute('title', name);
+		}
+	}
+
+	/**
+	 * Show an error state: destructive styling + message.
+	 * @param {String} message - plain-language error with recovery action
+	 */
+	setError(message = '') {
+		this.wrapper.setAttribute('data-error', '');
+		this.setAttribute('aria-invalid', 'true');
+		if (message) this.setAttribute('title', message);
+	}
+
+	/**
+	 * Clear a previously set error state
+	 */
+	clearError() {
+		this.wrapper.removeAttribute('data-error');
+		this.removeAttribute('aria-invalid');
 	}
 
 	/**
@@ -103,11 +144,13 @@ export class OptionToggle extends HTMLElement {
 				// disabled
 				this.wrapper.setAttribute('disabled', '');
 				this.wrapper.removeAttribute('tabIndex');
+				this.setAttribute('aria-disabled', 'true');
 				this.removeAllEventListeners();
 			} else if (oldValue === '') {
 				// enabled
 				this.wrapper.removeAttribute('disabled');
 				this.wrapper.setAttribute('tabIndex', '0');
+				this.removeAttribute('aria-disabled');
 				this.addAllEventListeners();
 			}
 		}
@@ -116,6 +159,7 @@ export class OptionToggle extends HTMLElement {
 			this.dispatchEvent(new Event('change'));
 			this.selectionDisplay.innerHTML = this.getDisplayName();
 			this.toggleIcon.innerHTML = this.makeIcon(this.isFirstOptionSelected());
+			this.syncCheckedState();
 		}
 
 		// log(`OptionToggle.attributeChangedCallback`, 'end');
@@ -149,6 +193,7 @@ export class OptionToggle extends HTMLElement {
 			this.selectionDisplay.innerHTML = this.options[0].name;
 			this.toggleIcon.innerHTML = this.makeIcon(true);
 		}
+		this.syncCheckedState();
 		// this.dispatchEvent(new Event('change'));
 		// log(`OptionToggle.toggle`, 'end');
 	}
@@ -192,6 +237,10 @@ export class OptionToggle extends HTMLElement {
 		switch (ev.keyCode) {
 			case 13: // enter
 			case 32: // space
+				ev.preventDefault();
+				// this.toggle();
+				this.dispatchEvent(new Event('click'));
+				break;
 			case 37: // d-pad left
 			case 38: // d-pad up
 			case 39: // d-pad right

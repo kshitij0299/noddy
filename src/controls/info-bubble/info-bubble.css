@@ -12,34 +12,48 @@
 
 .wrapper {
 	margin: 0px;
-	padding: 0px;
+	padding: var(--space-1, 4px);
+	min-width: var(--space-8, 32px);
+	min-height: var(--space-8, 32px);
 	width: 100%;
 	height: 100%;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	border-radius: var(--radius-full, 999px);
 }
 
 .wrapper:focus {
-	outline: 0;
+	outline: none;
+}
+
+.wrapper:focus-visible {
+	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+	outline-offset: 2px;
 }
 
 #entryPoint {
 	border-style: solid;
 	border-width: 1px;
-	border-color: rgb(180, 180, 180);
-	background-color: transparent;
-	color: rgb(180, 180, 180);
+	border-color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	background-color: var(--card, oklch(1 0 0));
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
 	border-radius: 50%;
-	font-family: monospace, verdana, sans-serif;
-	font-size: 8px;
-	font-weight: bold;
-	width: 12px;
-	height: 12px;
-	line-height: 11px;
+	font-family: var(--font-mono, 'Google Sans Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+	font-size: 12px;
+	font-weight: 500;
+	width: 24px;
+	height: 24px;
+	line-height: 22px;
 	text-align: center;
 	box-sizing: border-box;
-	padding: 0px 0px 1px 0.5px;
+	padding: 0px;
+}
+
+.wrapper:hover #entryPoint {
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
+	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
 }
 
 .wrapper:hover,

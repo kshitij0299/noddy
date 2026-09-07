@@ -30,6 +30,20 @@ export function closeEveryTypeOfDialog() {
  */
 export function closeAllModalDialogs() {
 	// log(`closeAllModalDialogs`, 'start');
+	/** @type {NodeListOf<HTMLElement>} */
+	const modals = document.querySelectorAll('#modal-dialog');
+	modals.forEach((modal) => {
+		// Return keyboard focus to whatever opened the dialog.
+		// Skipped when something else (e.g. a replacement dialog or
+		// error box) has already taken focus.
+		const returnFocusTo = modal._noddyReturnFocusTo;
+		if (returnFocusTo && document.contains(returnFocusTo)) {
+			window.setTimeout(() => {
+				if (document.activeElement && document.activeElement !== document.body) return;
+				if (typeof returnFocusTo.focus === 'function') returnFocusTo.focus();
+			}, 130);
+		}
+	});
 	animateRemoveAll('dialog');
 	// log(`closeAllModalDialogs`, 'end');
 }
@@ -170,7 +184,7 @@ export function showToast(message = '0_o', duration = 3000, fancy = false) {
 		element = makeElement({
 			tag: 'div',
 			id: 'toast',
-			attributes: { tabindex: '-1' },
+			attributes: { tabindex: '-1', role: 'status', 'aria-live': 'polite' },
 			style: 'display: none;',
 		});
 		if (fancy) element.setAttribute('fancy', '');
@@ -266,10 +280,10 @@ export function makeContextMenu(rows = [], x, y, width, height, isDropdown = fal
 
 	const className = isDropdown ? 'context-menu__dropdown' : 'context-menu__top-menu';
 	let element = makeElement({
-		tag: 'dialog',
+		tag: 'div',
 		id: 'context-menu',
 		className: className,
-		attributes: { tabindex: '-1' },
+		attributes: { tabindex: '-1', role: 'menu', 'aria-label': 'Menu' },
 	});
 
 	// Create and add each row
@@ -320,9 +334,12 @@ function makeOneContextMenuRow(data = {}) {
 	let row = makeElement({
 		tag: 'div',
 		className: data?.className || 'context-menu-row',
-		attributes: { tabindex: '0' },
+		attributes: { tabindex: isDisabled ? '-1' : '0', role: 'menuitem' },
 	});
-	if (isDisabled) row.setAttribute('disabled', '');
+	if (isDisabled) {
+		row.setAttribute('disabled', '');
+		row.setAttribute('aria-disabled', 'true');
+	}
 
 	if (data.child) {
 		row.appendChild(data.child);
@@ -331,11 +348,20 @@ function makeOneContextMenuRow(data = {}) {
 				closeAllOptionChoosers();
 				if (data.onClick) data.onClick();
 			});
+			row.addEventListener('keydown', (ev) => {
+				if (ev.keyCode === 13 || ev.keyCode === 32) {
+					ev.preventDefault();
+					closeAllOptionChoosers();
+					if (data.onClick) data.onClick();
+				}
+			});
 		}
 		return row;
 	}
 
 	if (data.name === 'hr') {
+		row.setAttribute('role', 'separator');
+		row.removeAttribute('tabindex');
 		row.appendChild(makeElement({ tag: 'hr' }));
 		return row;
 	}
@@ -381,11 +407,20 @@ function makeOneContextMenuRow(data = {}) {
 	}
 	row.appendChild(noteWrapper);
 
-	// Click function
-	row.addEventListener('click', () => {
-		closeAllOptionChoosers();
-		if (data.onClick) data.onClick();
-	});
+	// Click function (disabled rows never activate)
+	if (!isDisabled) {
+		row.addEventListener('click', () => {
+			closeAllOptionChoosers();
+			if (data.onClick) data.onClick();
+		});
+		row.addEventListener('keydown', (ev) => {
+			if (ev.keyCode === 13 || ev.keyCode === 32) {
+				ev.preventDefault();
+				closeAllOptionChoosers();
+				if (data.onClick) data.onClick();
+			}
+		});
+	}
 
 	// log(`makeOneContextMenuRow`, 'end');
 	return row;
@@ -400,9 +435,18 @@ function makeOneContextMenuRow(data = {}) {
  * @param {String} message - HTML content of the dialog box
  */
 export function showError(message) {
-	let element = makeElement({ tag: 'div', id: 'error' });
+	let element = makeElement({
+		tag: 'div',
+		id: 'error',
+		attributes: { role: 'alert', tabindex: '-1' },
+	});
 	let header = makeElement({ className: 'error__header', innerHTML: '<h3>Error</h3>' });
-	let close = makeElement({ tag: 'button', innerHTML: '&times;' });
+	let close = makeElement({
+		tag: 'button',
+		innerHTML: '&times;',
+		title: 'Dismiss error',
+		attributes: { 'aria-label': 'Dismiss error' },
+	});
 	close.addEventListener('click', closeEveryTypeOfDialog);
 	header.appendChild(close);
 	let body = makeElement({ className: 'error__body', innerHTML: message });
@@ -410,6 +454,7 @@ export function showError(message) {
 
 	closeEveryTypeOfDialog();
 	document.body.appendChild(element);
+	close.focus();
 }
 
 // --------------------------------------------------------------
@@ -426,6 +471,9 @@ export function showModalDialog(contentNode, maxWidth, noPadding) {
 	let modal = makeModalDialog(contentNode, maxWidth, noPadding);
 	closeEveryTypeOfDialog();
 	document.body.appendChild(modal);
+	// Move focus into the dialog; it returns on close
+	const closeButton = modal.querySelector('.modal-dialog__close-button');
+	if (closeButton) closeButton.focus();
 }
 
 /**
@@ -443,16 +491,24 @@ export function makeModalDialog(contentNode, maxWidth, openProjectDialog = false
 	let modal = makeElement({
 		tag: 'dialog',
 		id: 'modal-dialog',
+		attributes: { role: 'dialog', 'aria-modal': 'true' },
 		innerHTML: `
 		<div class="modal-dialog__content">
 			<div class="modal-dialog__header">
 				<span></span>
-				<button class="modal-dialog__close-button">&times;</button>
+				<button class="modal-dialog__close-button" title="Close dialog" aria-label="Close dialog">&times;</button>
 			</div>
 			<div class="modal-dialog__body"></div>
 		</div>
 		`,
 	});
+
+	// Accessible name: first heading inside the content, else a generic label
+	const firstHeading = contentNode?.querySelector?.('h1, h2');
+	modal.setAttribute('aria-label', firstHeading?.textContent?.trim() || 'Dialog');
+
+	// Remember what opened the dialog so focus can return on close
+	modal._noddyReturnFocusTo = document.activeElement;
 
 	modal
 		.querySelector('.modal-dialog__close-button')
@@ -461,6 +517,31 @@ export function makeModalDialog(contentNode, maxWidth, openProjectDialog = false
 		const clickTarget = event.target;
 		// @ts-expect-error 'property does exist'
 		if (clickTarget.getAttribute('id') === 'modal-dialog') closeEveryTypeOfDialog();
+	});
+	modal.addEventListener('keydown', (event) => {
+		if (event.key === 'Escape' || event.keyCode === 27) {
+			event.preventDefault();
+			closeEveryTypeOfDialog();
+			return;
+		}
+		if (event.key !== 'Tab' && event.keyCode !== 9) return;
+		// Focus trap: cycle Tab within the dialog
+		const focusable = [...modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+			(elem) => !elem.hasAttribute('disabled') && elem.offsetParent !== null
+		);
+		if (focusable.length === 0) {
+			event.preventDefault();
+			return;
+		}
+		const first = focusable[0];
+		const last = focusable[focusable.length - 1];
+		if (event.shiftKey && document.activeElement === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && document.activeElement === last) {
+			event.preventDefault();
+			first.focus();
+		}
 	});
 
 	if (openProjectDialog) {

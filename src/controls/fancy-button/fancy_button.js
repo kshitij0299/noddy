@@ -17,6 +17,8 @@ export class FancyButton extends HTMLElement {
 		this.buttonContent = makeElement({ className: 'buttonContent' });
 		this.buttonText = makeElement({ tag: 'slot', className: 'buttonText' });
 
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+
 		if (this.hasAttribute('secondary')) {
 			this.wrapper.setAttribute('secondary', '');
 		}
@@ -29,10 +31,20 @@ export class FancyButton extends HTMLElement {
 
 		if (this.hasAttribute('disabled')) {
 			this.wrapper.setAttribute('disabled', '');
+			this.setAttribute('aria-disabled', 'true');
 			this.disabled = true;
 		} else {
 			this.wrapper.setAttribute('tabIndex', '0');
 			this.disabled = false;
+		}
+
+		if (this.hasAttribute('loading')) {
+			this.wrapper.setAttribute('loading', '');
+			this.setAttribute('aria-busy', 'true');
+		}
+
+		if (this.hasAttribute('error')) {
+			this.wrapper.setAttribute('error', '');
 		}
 
 		// Put it all together
@@ -47,13 +59,57 @@ export class FancyButton extends HTMLElement {
 		if (!this.disabled) {
 			this.addEventListener('keydown', this.keyPress);
 		}
+		// Disabled / loading buttons must not activate, even for synthetic clicks
+		this.addEventListener('click', this.guardDisabledClick, true);
+	}
+
+	/**
+	 * Initialize accessible naming once the light DOM is available
+	 */
+	connectedCallback() {
+		this.syncAccessibleName();
+		this.hideDecorativeIcons();
+	}
+
+	/**
+	 * Icon-only buttons need an accessible name: prefer an explicit
+	 * aria-label, then title, and fall back to a generic label so
+	 * icon-only controls are never unnamed.
+	 */
+	syncAccessibleName() {
+		const hasText = (this.textContent || '').trim().length > 0;
+		if (!hasText && !this.hasAttribute('aria-label')) {
+			this.setAttribute('aria-label', this.getAttribute('title') || 'Button');
+		}
+	}
+
+	/**
+	 * Decorative icon glyphs inside the button must not be announced.
+	 * Only spans explicitly marked as icons are hidden, so text labels
+	 * are never affected.
+	 */
+	hideDecorativeIcons() {
+		this.querySelectorAll(
+			'span.material-symbols-rounded, span.material-symbols, span[class*="icon"]'
+		).forEach((icon) => icon.setAttribute('aria-hidden', 'true'));
+	}
+
+	/**
+	 * Swallow activation while disabled or loading
+	 * @param {Object} ev - event
+	 */
+	guardDisabledClick(ev) {
+		if (this.hasAttribute('disabled') || this.hasAttribute('loading')) {
+			ev.preventDefault();
+			ev.stopImmediatePropagation();
+		}
 	}
 
 	/**
 	 * Specify which attributes are observed and trigger attributeChangedCallback
 	 */
 	static get observedAttributes() {
-		return ['disabled', 'secondary', 'danger', 'minimal'];
+		return ['disabled', 'secondary', 'danger', 'minimal', 'loading', 'error'];
 	}
 
 	/**
@@ -69,9 +125,35 @@ export class FancyButton extends HTMLElement {
 			if (newValue === '') {
 				// disabled
 				this.wrapper.setAttribute('disabled', '');
+				this.setAttribute('aria-disabled', 'true');
+				this.wrapper.removeAttribute('tabIndex');
+				this.disabled = true;
 			} else if (oldValue === '') {
 				// enabled
 				this.wrapper.removeAttribute('disabled');
+				this.removeAttribute('aria-disabled');
+				if (!this.hasAttribute('loading')) this.wrapper.setAttribute('tabIndex', '0');
+				this.disabled = false;
+			}
+		}
+		if (attributeName === 'loading') {
+			if (newValue !== null) {
+				// loading
+				this.wrapper.setAttribute('loading', '');
+				this.setAttribute('aria-busy', 'true');
+				this.wrapper.removeAttribute('tabIndex');
+			} else {
+				// done loading
+				this.wrapper.removeAttribute('loading');
+				this.removeAttribute('aria-busy');
+				if (!this.hasAttribute('disabled')) this.wrapper.setAttribute('tabIndex', '0');
+			}
+		}
+		if (attributeName === 'error') {
+			if (newValue !== null) {
+				this.wrapper.setAttribute('error', '');
+			} else {
+				this.wrapper.removeAttribute('error');
 			}
 		}
 		if (attributeName === 'secondary') {
@@ -108,7 +190,9 @@ export class FancyButton extends HTMLElement {
 	 * @param {Object} ev - event
 	 */
 	keyPress(ev) {
-		if (ev.keyCode === 13) {
+		if (ev.keyCode === 13 || ev.keyCode === 32) {
+			if (ev.keyCode === 32 && ev.target !== this) return;
+			if (ev.keyCode === 32) ev.preventDefault();
 			let click = new MouseEvent('click', {
 				shiftKey: ev.shiftKey,
 				ctrlKey: ev.ctrlKey,
