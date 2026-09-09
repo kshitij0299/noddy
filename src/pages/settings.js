@@ -11,7 +11,7 @@ import { makeSettingsTabContentProject } from './settings_project.js';
 
 /**
  * Page > Settings
- * One place to edit all the settings for Glyphr Studio.
+ * One place to edit all the settings for Noddy.
  * @returns {Element} - page content
  */
 export function makePage_Settings() {

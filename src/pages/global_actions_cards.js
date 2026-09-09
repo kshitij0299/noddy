@@ -415,7 +415,8 @@ export function makeCard_Flatten() {
 	card.appendChild(effect);
 
 	let button = makeElement({
-		tag: 'fancy-button', attributes: {'secondary': ''},
+		tag: 'fancy-button',
+		attributes: { danger: '' },
 		content: 'Convert Component Instances to Paths',
 	});
 	button.addEventListener('click', () => {
@@ -605,7 +606,7 @@ export function makeCard_RemoveItems() {
 
 	let effect = makeElement({
 		className: 'global-actions__effect-description',
-		content: `Project data will be deleted for the selected items.`,
+		content: `Project data will be deleted for the selected items. This cannot be reached by accident: the Remove button below is marked destructive, and every change is grouped in one History entry so Undo restores everything.`,
 	});
 	card.appendChild(effect);
 
@@ -615,7 +616,8 @@ export function makeCard_RemoveItems() {
 	card.appendChild(options);
 
 	let button = makeElement({
-		tag: 'fancy-button', attributes: {'secondary': ''},
+		tag: 'fancy-button',
+		attributes: { danger: '' },
 		content: 'Remove items',
 	});
 	button.style.marginTop = '0';
