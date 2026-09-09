@@ -691,3 +691,69 @@ span.spacer {
 		max-height: calc(100vh - 140px);
 	}
 }
+
+/* --------------------------------------------------------
+	Overview page (Phase 3.1) — overview scope only.
+	Project-info card tidy + character-browsing grid tidy.
+	Preview surfaces (display-canvas, glyph art) untouched.
+-------------------------------------------------------- */
+.overview__page .overview__info-grid {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	column-gap: 12px;
+	row-gap: 6px;
+	margin: 4px 0 12px 0;
+	align-items: baseline;
+}
+
+.overview__page .overview__info-label {
+	font-size: 0.8125rem;
+	font-weight: 500;
+	line-height: 1.5;
+	color: var(--enabled-restingLight-lightText);
+	white-space: nowrap;
+}
+
+.overview__page .overview__info-grid span:nth-child(even) {
+	min-width: 0;
+	overflow-wrap: break-word;
+}
+
+.overview__page .panel__card h2 {
+	margin-top: 0;
+}
+
+.overview__page .overview__info-card {
+	display: flex;
+	flex-direction: column;
+}
+
+.overview__page .overview__info-card fancy-button {
+	display: block;
+	margin-top: 8px;
+}
+
+/* Character browsing: keep tiles aligned, wrapped, and reachable */
+.overview__page .item-chooser__wrapper {
+	padding: 0;
+}
+
+.overview__page .item-chooser__tile-grid {
+	padding: 4px 0 12px 0;
+}
+
+.overview__page .item-chooser__tile-grid glyph-tile {
+	vertical-align: top;
+}
+
+.overview__page a:focus-visible {
+	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+	outline-offset: 2px;
+}
+
+/* T3 narrow: reading area keeps full width, tighter padding */
+@media (max-width: 759px) {
+	.overview__page .content-page__right-area {
+		padding: 12px;
+	}
+}

@@ -1,5 +1,5 @@
 import { addAsChildren, makeElement } from '../common/dom.js';
-import logoVertical from '../common/graphics/logo-wordmark-vertical.svg?raw';
+import noddyLogoBig from '../common/graphics/noddy-logo-big.svg?raw';
 import { closeEveryTypeOfDialog, showError, showToast } from '../controls/dialogs/dialogs.js';
 import { makeProgressIndicator } from '../controls/progress-indicator/progress_indicator.js';
 import { cancelDefaultEventActions } from '../edit_canvas/events.js';
@@ -21,7 +21,7 @@ import {
 
 /**
  * Page > Open Project
- * The first page you see when you open Glyphr Studio.
+ * The first page you see when you open Noddy.
  */
 let isSecondProject;
 
@@ -47,13 +47,16 @@ export function makePage_OpenProject(secondProjectFlag = false) {
 		innerHTML: `
 			<div id="open-project__page">
 				<div id="open-project__left-area" vertical-align="middle">
-					<div id="open-project__logo">${logoVertical}</div>
+					<div id="open-project__logo">${noddyLogoBig}</div>
 					<span class="open-project__version-name">${app.versionName}</span>
 					<span class="open-project__version-number">${app.version}${recentMessage}</span>
 					<div class="open-project__blurb">
-						For more information visit <a href="http://www.glyphrstudio.com" target="_blank">www.glyphrstudio.com</a><br>
-						Glyphr Studio is licensed under a <a href="https://www.gnu.org/licenses/gpl.html" target="_blank">GNU General Public License</a>,
-						which is a free / open source "copyleft" license. You are free to use, distribute, and modify Glyphr Studio as long as
+						Noddy is an independent fork of
+						<a href="http://www.glyphrstudio.com" target="_blank">Glyphr Studio</a>,
+						a friendly font editor. For tutorials and docs visit
+						<a href="http://www.glyphrstudio.com" target="_blank">www.glyphrstudio.com</a>.<br>
+						Noddy is licensed under a <a href="https://www.gnu.org/licenses/gpl.html" target="_blank">GNU General Public License</a>,
+						which is a free / open source "copyleft" license. You are free to use, distribute, and modify Noddy as long as
 						this license and its freeness stays intact.
 					</div>
 				</div>
@@ -96,12 +99,16 @@ function showDefaultTab(node) {
 		/** @type {HTMLElement} */
 		const loadArea = node.querySelector('#tab-content__load');
 		loadArea.style.display = 'block';
-		node.querySelector('#open-project__tab-load').setAttribute('selected', '');
+		const tab = node.querySelector('#open-project__tab-load');
+		tab.setAttribute('selected', '');
+		tab.setAttribute('aria-selected', 'true');
 	} else {
 		/** @type {HTMLElement} */
 		const newArea = node.querySelector('#tab-content__new');
 		newArea.style.display = 'block';
-		node.querySelector('#open-project__tab-new').setAttribute('selected', '');
+		const tab = node.querySelector('#open-project__tab-new');
+		tab.setAttribute('selected', '');
+		tab.setAttribute('aria-selected', 'true');
 	}
 }
 
@@ -129,14 +136,21 @@ export function makeOpenProjectTabs() {
 	const tabContentNew = makeElement({
 		id: 'tab-content__new',
 		className: 'open-project__tab-content',
-		innerHTML: '<h2>Start a new Glyphr Studio project</h2>\nProject name: &nbsp;',
+		innerHTML:
+			'<h2>Start a new Noddy project</h2>\n<label for="input__new-project-name">Project name:</label>',
 		style: 'display: none;',
+		attributes: { role: 'tabpanel', 'aria-labelledby': 'open-project__tab-new' },
 	});
 
 	const inputProjectName = makeElement({
 		tag: 'input',
 		id: 'input__new-project-name',
 		attributes: { type: 'text', value: 'My Font', autofocus: 'true' },
+	});
+
+	const newProjectHelp = makeElement({
+		className: 'open-project__help-text',
+		innerHTML: 'Creates a fresh font project you can start drawing in right away.',
 	});
 
 	const buttonStartNewProject = makeElement({
@@ -146,21 +160,21 @@ export function makeOpenProjectTabs() {
 		onClick: handleNewProject,
 	});
 
-	const br = makeElement({ tag: 'br' });
-	addAsChildren(tabContentNew, [inputProjectName, br, br, buttonStartNewProject]);
+	addAsChildren(tabContentNew, [inputProjectName, newProjectHelp, buttonStartNewProject]);
 
 	// Content for Load tab
 	const tabContentLoad = makeElement({
 		id: 'tab-content__load',
 		className: 'open-project__tab-content',
-		innerHTML: '<h2>Load a file</h2>\nDrag and drop one of the following:<br>',
+		innerHTML: '<h2>Load a file</h2>\n<p class="open-project__help-text">Drag and drop a file anywhere on this page, or use the buttons below:</p>',
 		style: 'display: none;',
+		attributes: { role: 'tabpanel', 'aria-labelledby': 'open-project__tab-load' },
 	});
 
 	const dropTarget = makeElement({
 		id: 'open-project__drop-target',
 		innerHTML: `
-			Glyphr Studio Project &ensp;(.gs2, .txt)<br>
+			Noddy Project &ensp;(.gs2, .txt)<br>
 			Open Type, True Type, or WOFF&ensp;(.otf, .ttf, .woff)<br>
 			SVG Font &ensp;(.svg)
 		`,
@@ -168,21 +182,27 @@ export function makeOpenProjectTabs() {
 
 	const openFileChooser = makeElement({
 		tag: 'fancy-button',
-		attributes: { dark: '' },
-		innerHTML: 'or, open file chooser...',
+		id: 'button__open-file-chooser',
+		innerHTML: 'Open file chooser...',
 		onClick: async () => {
 			getFilesFromFilePicker(handleOpenProjectPageFileInput);
 		},
 	});
 
-	addAsChildren(tabContentLoad, [dropTarget, openFileChooser]);
+	const loadHelp = makeElement({
+		className: 'open-project__help-text',
+		innerHTML: 'Noddy opens Glyphr Studio projects, OpenType fonts, and SVG fonts.',
+	});
+
+	addAsChildren(tabContentLoad, [dropTarget, openFileChooser, loadHelp]);
 
 	// Auto-saved backups
 	const tabContentAutoSaves = makeElement({
 		id: 'tab-content__auto-saves',
 		className: 'open-project__tab-content',
-		innerHTML: `<h2>Restore from auto-saved backup</h2>`,
+		innerHTML: `<h2>Restore from auto-saved backup</h2><p class="open-project__help-text">Pick a backup to reopen it where you left off.</p>`,
 		style: 'display: none;',
+		attributes: { role: 'tabpanel', 'aria-labelledby': 'open-project__tab-auto-saves' },
 	});
 
 	const contentAutoSavesList = makeElement({
@@ -223,8 +243,20 @@ export function makeOpenProjectTabs() {
 	const tabContentExamples = makeElement({
 		id: 'tab-content__examples',
 		className: 'open-project__tab-content',
-		innerHTML: `<h2>Load an example project</h2>`,
+		innerHTML: `<h2>Load an example project</h2><p class="open-project__help-text">Explore Noddy with a ready-made sample font.</p>`,
 		style: 'display: none;',
+		attributes: { role: 'tabpanel', 'aria-labelledby': 'open-project__tab-examples' },
+	});
+
+	const contentOblegg = makeElement({
+		tag: 'div',
+		innerHTML: `Oblegg is the sample project we use to test all the various Noddy features:<br><br>`,
+	});
+
+	const buttonOblegg = makeElement({
+		tag: 'fancy-button',
+		innerHTML: 'Oblegg',
+		onClick: () => handleLoadSample('oblegg'),
 	});
 
 	const contentSimpleProject = makeElement({
@@ -236,17 +268,6 @@ export function makeOpenProjectTabs() {
 		tag: 'fancy-button',
 		innerHTML: 'Simple v2 project',
 		onClick: () => handleLoadSample('simpleProject'),
-	});
-
-	const contentOblegg = makeElement({
-		tag: 'div',
-		innerHTML: `Oblegg is the GSv2 project we use to test all the various Glyphr Studio features:<br><br>`,
-	});
-
-	const buttonOblegg = makeElement({
-		tag: 'fancy-button',
-		innerHTML: 'Oblegg',
-		onClick: () => handleLoadSample('oblegg'),
 	});
 
 	addAsChildren(tabContentExamples, [
@@ -265,9 +286,11 @@ export function makeOpenProjectTabs() {
 		id: 'open-project__tab-new',
 		className: 'open-project__tab',
 		innerHTML: 'New',
+		attributes: { role: 'tab', 'aria-selected': 'false', 'aria-controls': 'tab-content__new' },
 		onClick: () => {
 			deselectAllTabs();
 			tabNew.setAttribute('selected', '');
+			tabNew.setAttribute('aria-selected', 'true');
 			tabContentNew.style.display = 'block';
 		},
 	});
@@ -277,9 +300,11 @@ export function makeOpenProjectTabs() {
 		id: 'open-project__tab-load',
 		className: 'open-project__tab',
 		innerHTML: 'Load',
+		attributes: { role: 'tab', 'aria-selected': 'false', 'aria-controls': 'tab-content__load' },
 		onClick: () => {
 			deselectAllTabs();
 			tabLoad.setAttribute('selected', '');
+			tabLoad.setAttribute('aria-selected', 'true');
 			tabContentLoad.style.display = 'block';
 		},
 	});
@@ -289,9 +314,15 @@ export function makeOpenProjectTabs() {
 		id: 'open-project__tab-auto-saves',
 		className: 'open-project__tab',
 		innerHTML: 'Restore',
+		attributes: {
+			role: 'tab',
+			'aria-selected': 'false',
+			'aria-controls': 'tab-content__auto-saves',
+		},
 		onClick: () => {
 			deselectAllTabs();
 			tabAutoSaves.setAttribute('selected', '');
+			tabAutoSaves.setAttribute('aria-selected', 'true');
 			tabContentAutoSaves.style.display = 'block';
 		},
 	});
@@ -301,14 +332,16 @@ export function makeOpenProjectTabs() {
 		id: 'open-project__tab-examples',
 		className: 'open-project__tab',
 		innerHTML: 'Examples',
+		attributes: { role: 'tab', 'aria-selected': 'false', 'aria-controls': 'tab-content__examples' },
 		onClick: () => {
 			deselectAllTabs();
 			tabExamples.setAttribute('selected', '');
+			tabExamples.setAttribute('aria-selected', 'true');
 			tabContentExamples.style.display = 'block';
 		},
 	});
 
-	const tabs = makeElement({ className: 'open-project__tabs' });
+	const tabs = makeElement({ className: 'open-project__tabs', attributes: { role: 'tablist' } });
 	let tabControls = [tabNew, tabLoad, tabExamples];
 	if (!isSecondProject) tabControls.splice(2, 0, tabAutoSaves);
 	addAsChildren(tabs, tabControls);
@@ -350,7 +383,10 @@ export async function getFilesFromFilePicker(callback, pickerOptions = {}) {
  */
 function deselectAllTabs() {
 	const tabs = document.querySelectorAll('.open-project__tab');
-	tabs.forEach((tab) => tab.removeAttribute('selected'));
+	tabs.forEach((tab) => {
+		tab.removeAttribute('selected');
+		tab.setAttribute('aria-selected', 'false');
+	});
 
 	const tabContents = document.querySelectorAll('.open-project__tab-content');
 	tabContents.forEach((/** @type {HTMLElement} */ content) => (content.style.display = 'none'));
