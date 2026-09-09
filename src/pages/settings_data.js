@@ -5,7 +5,7 @@ export default {
 	project: {
 		name: {
 			label: `Project name`,
-			description: `Name for this project. Can be different than the Font or Font Family name. Also, this will be used as the name of the saved Glyphr Studio Project (.gs2) file.`,
+			description: `Name for this project. Can be different than the Font or Font Family name. Also, this will be used as the name of the saved Noddy project (.gs2) file.`,
 		},
 		latestVersion: {
 			label: `Version`,
@@ -24,12 +24,12 @@ export default {
 		},
 		exportComponentsAsComposites: {
 			label: `Export components as composite glyphs`,
-			description: `When checked, characters that are built entirely from Components (using pure-position moves, with no resizing, rotating, or flipping) are exported as TrueType composite glyphs. This preserves the component structure so the font can round-trip back into Glyphr Studio with its components intact. When unchecked, these characters are flattened into plain outlines on export.<br><br>Note: This only applies to TrueType-flavored formats (.ttf, .woff, .woff2). OpenType/CFF (.otf) does not support composite glyphs, so components are always flattened for that format. Characters using resized, rotated, or flipped components are always flattened as well.`,
+			description: `When checked, characters that are built entirely from Components (using pure-position moves, with no resizing, rotating, or flipping) are exported as TrueType composite glyphs. This preserves the component structure so the font can round-trip back into Noddy with its components intact. When unchecked, these characters are flattened into plain outlines on export.<br><br>Note: This only applies to TrueType-flavored formats (.ttf, .woff, .woff2). OpenType/CFF (.otf) does not support composite glyphs, so components are always flattened for that format. Characters using resized, rotated, or flipped components are always flattened as well.`,
 			type: `Boolean`,
 		},
 		importComponentsFromComposites: {
 			label: `Import composite glyphs as components`,
-			description: `When checked, TrueType composite glyphs (like accented letters, which reference other glyphs at an x/y offset) are imported as Glyphr Studio Components and Component Instances. A shared Component Root is created once for each referenced base glyph and re-used (linked) by every character that needs it. When unchecked, composite glyphs are flattened into plain outlines on import.<br><br>Note: Only pure-position composites qualify. Composite components that are scaled, rotated, or use point-matching are always flattened.`,
+			description: `When checked, TrueType composite glyphs (like accented letters, which reference other glyphs at an x/y offset) are imported as Noddy Components and Component Instances. A shared Component Root is created once for each referenced base glyph and re-used (linked) by every character that needs it. When unchecked, composite glyphs are flattened into plain outlines on import.<br><br>Note: Only pure-position composites qualify. Composite components that are scaled, rotated, or use point-matching are always flattened.`,
 			type: `Boolean`,
 		},
 	},
@@ -90,7 +90,7 @@ export default {
 		overshoot: {
 			label: `Overshoot`,
 			description: `Rounded characters are usually slightly larger than square characters to compensate for visual weight. For example, a lowercase 'o' will extend slightly above and below a lowercase 'x'. Overshoot is the measure of this distance.
-			<br>Note: This is used internally by Glyphr Studio, it is not exported to fonts.`,
+			<br>Note: This is used internally by Noddy, it is not exported to fonts.`,
 			type: `Em`,
 		},
 		lineGap: {
@@ -186,7 +186,7 @@ export default {
 		},
 		formatSaveFile: {
 			label: `Format project file for reading`,
-			description: `Glyphr Studio Project files (.gs2) are text files in JSON format. By default, this file is saved to optimize for smaller file size. Setting this option to true formats the file to be more easily read by a human, but could increase the file size by 2x or more.`,
+			description: `Noddy project files (.gs2) are text files in JSON format. By default, this file is saved to optimize for smaller file size. Setting this option to true formats the file to be more easily read by a human, but could increase the file size by 2x or more.`,
 			type: `Boolean`,
 		},
 		saveLivePreviews: {
@@ -196,7 +196,7 @@ export default {
 		},
 		autoSave: {
 			label: `Auto-save a copy of the project with each change`,
-			description: `When enabled, this option will use your browser's local storage to keep backups. These backups can be restored from the Open Projects page. Your browser's local storage is confined to this browser on this computer. If you use Glyphr Studio from another browser or on another computer, those backups will be available from there.`,
+			description: `When enabled, this option will use your browser's local storage to keep backups. These backups can be restored from the Open Projects page. Your browser's local storage is confined to this browser on this computer. If you use Noddy from another browser or on another computer, those backups will be available from there.`,
 			type: `Boolean`,
 		},
 		savePreferences: {

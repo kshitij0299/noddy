@@ -64,11 +64,15 @@
 }
 
 .about-page__logo {
-	/* fill: url(#logoGradient); */
-	width: 300px;
-	fill: var(--purple-l40);
-	stroke: var(--purple-l10);
-	stroke-width: 10px;
+	/* Noddy full-color logo (inline SVG carries its own fills). */
+	width: 100%;
+	max-width: 300px;
+}
+
+.about-page__logo svg {
+	display: block;
+	width: 100%;
+	height: auto;
 }
 
 .about-page__contact-table {
@@ -233,7 +237,6 @@ span.spacer {
 }
 
 .settings-page__tab-content {
-	width: clamp(300px 500px max-content);
 	animation: var(--animate-fade-in);
 }
 
@@ -774,6 +777,126 @@ span.spacer {
 .overview__page a:focus-visible {
 	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
 	outline-offset: 2px;
+}
+
+/* --------------------------------------------------------
+	Phase 3.2 — Settings, Global actions, Help, About.
+	Scope: these content pages only (settings tabs, global-actions
+	cards, help/about reading-area cards). Presentation + Contract 1
+	tokens only; behavior, logic, and confirm flows untouched.
+	No banned patterns: no structural grid values, no new breakpoints
+	beyond the Contract 3 tiers, no overflow masks, no glow wrappers.
+-------------------------------------------------------- */
+
+/* Token retheme: reading-area cards keep their light look, track tokens */
+.content-page__right-area .page__card,
+.global-actions__card {
+	background-color: var(--card, oklch(1 0 0));
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius, 0.45rem);
+	box-shadow: var(--shadow-xs, 0px 4px 10px 0px hsl(0 0% 0% / 0.03));
+	text-align: left;
+}
+
+.content-page__right-area .page__card {
+	max-width: 100%;
+}
+
+.page__card.family-card {
+	max-width: 100%;
+}
+
+/* Help link lists: block rows with comfortable touch targets */
+.content-page__right-area .page__card__help-links a {
+	display: block;
+	padding: 6px 8px;
+	border-radius: var(--radius-sm, calc(0.45rem * 0.6));
+}
+
+.content-page__right-area .page__card__help-links a:hover {
+	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
+}
+
+/* Settings tabs: left-aligned reading measure (fixes an invalid
+`clamp()` with missing commas that browsers ignored) */
+.settings-page__tab-content {
+	max-width: 840px;
+	text-align: left;
+}
+
+/* Settings rows: auto-height rows with centered items. The old fixed
+24px explicit row clipped h1/p openers and 32px input-number controls. */
+.settings-page__tab-content.settings-table,
+.settings-page__tab-content .settings-table,
+.global-actions__card .settings-table {
+	grid-template-rows: none;
+	grid-auto-rows: minmax(24px, auto);
+	align-items: center;
+}
+
+.settings-page__tab-content input[type='checkbox'] {
+	height: 24px;
+	margin: 0;
+}
+
+/* Fill model for primary + destructive actions (mirrors overview):
+full-width block buttons; secondary/minimal variants keep inline flow */
+.settings-page__tab-content fancy-button:not([secondary]):not([minimal]),
+.global-actions__card fancy-button[danger] {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	margin: 8px 0 0 0;
+	box-sizing: border-box;
+}
+
+/* D5: info-bubble "?" must not touch input left borders. The bubble's
+circle lives in shadow DOM and contributes nothing to the grid's
+min-content column, so reserve explicit space plus a breathing gap. */
+.settings-page__tab-content .settings-table info-bubble,
+.settings-page__tab-content.settings-table > info-bubble,
+.global-actions__card .settings-table info-bubble {
+	display: inline-block;
+	width: 32px;
+	height: 32px;
+	margin-right: 4px;
+	vertical-align: middle;
+}
+
+/* D6: the custom-range action is minimal (borderless) and wraps under the
+full-width primary as bare text. Restyle the host as a full-width
+secondary-style block so it reads as a button (the shadow DOM is
+transparent, so the host surface shows through). */
+#tab-content__project fancy-button[minimal] {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	margin: 8px 0 10px 0;
+	box-sizing: border-box;
+	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius, 0.45rem);
+	background-color: var(--card, oklch(1 0 0));
+}
+
+/* Empty pattern (Contract 1 §5): muted note, no faux action */
+.range-table__list-area .span-all-columns {
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	font-style: normal;
+	padding: 10px 2px;
+}
+
+/* Range tables: designated scroll region in both axes so long names
+stay reachable instead of pushing layout at narrow tiers */
+.range-table__list-area {
+	overflow-x: auto;
+}
+
+/* T3 narrow: reading-area cards keep full width, tighter rhythm */
+@media (max-width: 759px) {
+	.content-page__right-area .page__card,
+	.global-actions__card {
+		margin-right: 0;
+	}
 }
 
 /* T3 narrow: reading area keeps full width, tighter padding */
