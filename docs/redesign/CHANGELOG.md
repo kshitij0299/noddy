@@ -24,6 +24,7 @@
 - User-reported polish fixed same round: equal-height cards (stretch, 450px all tabs), identical pill radius selected/unselected + no unselected stroke, paint-only hovers (global button:hover neutralized in welcome scope).
 - Verification: builder self-screenshots + independent verifier GO (8 shots, console empty) + orchestrator eyeball on tiebreak. Lint 0 err, 618/618 pass, build exit 0.
 - Deferred minors: T3 hero empty zone; Load help-line wording; D2 transient; vertical menu flip.
+- Fix round (user-reported): pill hover reduced to text tint only (white-rect hover removed); overview Project info left-aligned to page rhythm; fill buttons (Edit-info, Contribute, welcome CTA, file-chooser). Verified via browser loop + orchestrator eyeball. Lint 0 err, 618/618 pass.
 
 ## [Unreleased] — Phase 3 left-side system (reordered before 3.1, user-approved) — 2026-09-09
 
