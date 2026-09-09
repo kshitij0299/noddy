@@ -55,13 +55,18 @@ export function makePage_Overview() {
 	const rightArea = content.querySelector('.content-page__right-area');
 	let previewText = project.settings.app.previewText || 'Aa Bb Cc Xx Yy Zz';
 
-	rightArea.appendChild(
+	// Preview box: plain block wrapper so the display-canvas measures the
+	// right-area content width (not its border box) and shares the exact
+	// left/right edges of the stacked boxes below. No sizing/overflow hacks.
+	const previewBox = makeElement({ tag: 'div', className: 'overview__preview-box' });
+	previewBox.appendChild(
 		makeElement({
 			tag: 'display-canvas',
 			attributes: { text: previewText, 'font-size': '64', 'show-placeholder-message': 'true' },
 			title: 'You can customize the the project preview text from the Settings > App page.',
 		})
 	);
+	rightArea.appendChild(previewBox);
 
 	rightArea.appendChild(makeElement({ tag: 'hr', style: 'margin: 10px 0px 20px 0px;' }));
 	rightArea.appendChild(itemsContent);

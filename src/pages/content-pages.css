@@ -780,6 +780,59 @@ span.spacer {
 }
 
 /* --------------------------------------------------------
+	Overview polish — right-area edge rhythm + hover-reveal scroller.
+	Scope: overview page only. No layout-structure changes, no
+	scrollbar-gutter, no overflow clipping hacks.
+	(1) The preview host is a block box inside a plain full-width
+	wrapper, so the preview, the hr, and the chooser below share
+	identical left/right edges (same width + padding rhythm).
+	(2) The right-area scroll region keeps `overflow: auto` and gets
+	an overlay-style hover-reveal scroller: thin, transparent track,
+	thumb painted only on hover/focus-within.
+-------------------------------------------------------- */
+.overview__page .overview__preview-box display-canvas {
+	display: block;
+}
+
+.overview__page .content-page__right-area {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+}
+
+.overview__page .content-page__right-area:hover,
+.overview__page .content-page__right-area:focus-within {
+	scrollbar-color: var(--gray-l80) transparent;
+}
+
+.overview__page .content-page__right-area::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+	background-color: transparent;
+	border-color: transparent;
+	padding: 0;
+}
+
+.overview__page .content-page__right-area::-webkit-scrollbar-track,
+.overview__page .content-page__right-area::-webkit-scrollbar-track-piece {
+	background-color: transparent;
+}
+
+.overview__page .content-page__right-area::-webkit-scrollbar-thumb {
+	background-color: transparent;
+	border-radius: 4px;
+}
+
+.overview__page .content-page__right-area:hover::-webkit-scrollbar-thumb,
+.overview__page .content-page__right-area:focus-within::-webkit-scrollbar-thumb {
+	background-color: var(--gray-l80);
+}
+
+.overview__page .content-page__right-area::-webkit-scrollbar-button {
+	height: 0;
+	background-color: transparent;
+}
+
+/* --------------------------------------------------------
 	Phase 3.2 — Settings, Global actions, Help, About.
 	Scope: these content pages only (settings tabs, global-actions
 	cards, help/about reading-area cards). Presentation + Contract 1
