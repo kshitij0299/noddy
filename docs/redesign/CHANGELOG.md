@@ -17,6 +17,12 @@
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
 - Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
+## [Unreleased] — Phase 3.2 settings/actions/help/about — 2026-09-09
+
+- Rebuilt settings (Project/Font/App), global actions, help, about with Noddy copy + token retheme; destructive deletes danger-marked; help links intact; empty states muted pattern.
+- Verifier round found 2 majors, both evaporated on re-check (danger already on instance; "4th tab" was a brief error — baseline has 3); copy/spacing/button fixes applied (D4/D5/D6); T3 nav confirmed reachable via Panel drawer.
+- Lint 0 err, 618/618 pass, build exit 0. Deferred: per-page first-run placeholders (need 3.3 files).
+
 ## [Unreleased] — Phase 3.1 welcome/overview/browse — 2026-09-09
 
 - Rebuilt welcome (Noddy hero card + pill tabs + peach buttons), overview (Noddy copy, tidy info/grid), character click-through. Load/Restore/Examples all usable; 40px overflow fixed via page-scope type cap.
