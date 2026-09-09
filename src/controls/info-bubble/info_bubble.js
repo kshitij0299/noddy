@@ -14,11 +14,11 @@ export class InfoBubble extends HTMLElement {
 	constructor() {
 		super();
 
-		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
-		if (!this.hasAttribute('aria-expanded')) this.setAttribute('aria-expanded', 'false');
-		if (!this.hasAttribute('aria-label') && !this.hasAttribute('title')) {
-			this.setAttribute('aria-label', 'Show information');
-		}
+		// NOTE: never call this.setAttribute() in the constructor. Chrome throws
+		// NotSupportedError ("the result must not have attributes") when a custom
+		// element constructor adds host attributes during a
+		// document.createElement() upgrade, leaving a dead (un-upgraded) element.
+		// Host-attribute defaults live in connectedCallback() instead.
 
 		let wrapper = makeElement({ className: 'wrapper', tabIndex: true });
 		this.entryPoint = makeElement({
@@ -38,6 +38,18 @@ export class InfoBubble extends HTMLElement {
 		// Event listeners
 		this.addEventListener('click', this.toggle);
 		this.addEventListener('keydown', this.keyPress);
+	}
+
+	/**
+	 * Apply host-attribute defaults once the element is connected (see
+	 * constructor note: these must not run during construction).
+	 */
+	connectedCallback() {
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+		if (!this.hasAttribute('aria-expanded')) this.setAttribute('aria-expanded', 'false');
+		if (!this.hasAttribute('aria-label') && !this.hasAttribute('title')) {
+			this.setAttribute('aria-label', 'Show information');
+		}
 	}
 
 	/**

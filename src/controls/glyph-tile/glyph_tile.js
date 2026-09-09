@@ -66,8 +66,13 @@ export class GlyphTile extends HTMLElement {
 		// Selection
 		if (this.hasAttribute('selected')) this.wrapper.setAttribute('selected', '');
 
+		// NOTE: never call this.setAttribute() in the constructor. Chrome throws
+		// NotSupportedError ("the result must not have attributes") when a custom
+		// element constructor adds host attributes during a
+		// document.createElement() upgrade, leaving a dead (un-upgraded) element.
+		// The title text is staged here and applied in connectedCallback().
 		if (this.glyph && this.glyph.hasChangedThisSession === true) {
-			this.setAttribute('title', `${name}\n${displayedItemID}${sessionMessage}`);
+			this._titleText = `${name}\n${displayedItemID}${sessionMessage}`;
 			this.thumbnail = makeElement({
 				tag: 'span',
 				className: 'thumbnail',
@@ -77,7 +82,7 @@ export class GlyphTile extends HTMLElement {
 			// @ts-expect-error 'property does exist'
 			this.thumbnail.height = overallSize;
 		} else {
-			this.setAttribute('title', `${name}\n${displayedItemID}${sessionMessage}`);
+			this._titleText = `${name}\n${displayedItemID}${sessionMessage}`;
 			this.thumbnail = makeElement({
 				className: 'thumbnail',
 			});
@@ -113,6 +118,16 @@ export class GlyphTile extends HTMLElement {
 		this.redraw();
 
 		// log(`GlyphTile.constructor`, 'end');
+	}
+
+	/**
+	 * Apply the staged title once connected (see constructor note: host
+	 * attributes must not be set during construction).
+	 */
+	connectedCallback() {
+		if (this._titleText && !this.hasAttribute('title')) {
+			this.setAttribute('title', this._titleText);
+		}
 	}
 
 	/**

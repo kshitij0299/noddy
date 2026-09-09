@@ -31,10 +31,8 @@
 	max-width: 450px;
 	height: 100%;
 	overflow-y: auto;
-	/* Interim: fixed 450px cards (remediated in Phase 3.4) stay reachable
-		while the T1 panel is fluid narrower than 450px. Panel-column
-		scroll is an allowed scroll region. */
-	overflow-x: auto;
+	/* Panel cards are fluid (Phase 3.4 remediated the fixed 450px cards),
+	so no horizontal overflow is expected; keep vertical scroll only. */
 }
 #editor-page__panel span {
 	animation: var(--animate-slide-in);
@@ -94,7 +92,7 @@
 
 .editor-page__edit-canvas-wrapper,
 .live-preview-page__canvas-wrapper {
-	border: 1px solid var(--blue-l85);
+	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
 	background-color: white;
 	grid-column: 3;
 	border-radius: 4px;
@@ -278,10 +276,13 @@ code.warning {
 		width: min(450px, calc(100vw - 32px));
 		z-index: 500;
 		display: none;
-		grid-template-rows: auto minmax(0, 1fr);
+		/* Three children live here (drawer close button, nav area, panel),
+		so three rows: the panel takes the flexible row and scrolls
+		internally instead of leaving a gap. */
+		grid-template-rows: auto auto minmax(0, 1fr);
 		overflow: hidden;
-		background-color: var(--blue-l97);
-		border-right: 1px solid var(--blue-l85);
+		background-color: var(--card, oklch(1 0 0));
+		border-right: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
 		box-shadow: var(--l3-shadow);
 		padding: 10px;
 	}

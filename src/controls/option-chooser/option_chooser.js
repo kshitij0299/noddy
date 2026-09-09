@@ -23,9 +23,11 @@ export class OptionChooser extends HTMLElement {
 
 		this.disabled = false;
 
-		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
-		if (!this.hasAttribute('aria-haspopup')) this.setAttribute('aria-haspopup', 'listbox');
-		if (!this.hasAttribute('aria-expanded')) this.setAttribute('aria-expanded', 'false');
+		// NOTE: never call this.setAttribute() in the constructor. Chrome throws
+		// NotSupportedError ("the result must not have attributes") when a custom
+		// element constructor adds host attributes during a
+		// document.createElement() upgrade, leaving a dead (un-upgraded) element.
+		// Host-attribute defaults live in connectedCallback() instead.
 
 		this.wrapper = makeElement({
 			className: 'wrapper',
@@ -80,6 +82,11 @@ export class OptionChooser extends HTMLElement {
 	 */
 	connectedCallback() {
 		// log(`OptionChooser.connectedCallback`, 'start');
+		// Host-attribute defaults (see constructor note: these must not run
+		// during construction or document.createElement() upgrade breaks).
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+		if (!this.hasAttribute('aria-haspopup')) this.setAttribute('aria-haspopup', 'listbox');
+		if (!this.hasAttribute('aria-expanded')) this.setAttribute('aria-expanded', 'false');
 		if (this.disabled) {
 			this.wrapper.setAttribute('disabled', '');
 			this.setAttribute('aria-disabled', 'true');

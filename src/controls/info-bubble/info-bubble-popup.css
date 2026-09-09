@@ -43,6 +43,10 @@
 	display: block;
 	box-shadow: var(--shadow-md, 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.06));
 	line-height: 1.6;
+	/* The popup mounts on document.body, outside the scoped UI-font
+	selectors in resets.css — set the UI font here so help copy never
+	falls back to the browser default (serif). */
+	font-family: var(--font-sans, 'Google Sans Flex', 'FiraGo', system-ui, sans-serif);
 }
 
 .content:focus-visible {
