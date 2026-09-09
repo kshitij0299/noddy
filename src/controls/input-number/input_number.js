@@ -102,8 +102,12 @@ export class InputNumber extends HTMLElement {
 		shadow.appendChild(this.padlock);
 
 		if (isDisabled) {
+			// NOTE: do not re-set the host 'disabled' attribute here. Chrome throws
+			// NotSupportedError when a constructor adds host attributes during a
+			// document.createElement() upgrade. The attribute is already present
+			// in the parser path, and connectedCallback()/attributeChangedCallback
+			// apply the disabled state in all paths.
 			this.numberInput.setAttribute('disabled', '');
-			this.setAttribute('disabled', '');
 		} else {
 			this.addAllEventListeners();
 		}

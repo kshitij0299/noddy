@@ -19,8 +19,11 @@ export class OptionToggle extends HTMLElement {
 		super();
 		this.disabled = false;
 
-		if (!this.hasAttribute('role')) this.setAttribute('role', 'switch');
-		if (!this.hasAttribute('aria-checked')) this.setAttribute('aria-checked', 'false');
+		// NOTE: never call this.setAttribute() in the constructor. Chrome throws
+		// NotSupportedError ("the result must not have attributes") when a custom
+		// element constructor adds host attributes during a
+		// document.createElement() upgrade, leaving a dead (un-upgraded) element.
+		// Host-attribute defaults live in connectedCallback() instead.
 
 		this.wrapper = makeElement({
 			className: 'wrapper',
@@ -72,6 +75,10 @@ export class OptionToggle extends HTMLElement {
 	 */
 	connectedCallback() {
 		// log(`OptionToggle.connectedCallback`, 'start');
+		// Host-attribute defaults (see constructor note: these must not run
+		// during construction or document.createElement() upgrade breaks).
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'switch');
+		if (!this.hasAttribute('aria-checked')) this.setAttribute('aria-checked', 'false');
 		if (this.disabled) {
 			this.wrapper.setAttribute('disabled', '');
 			this.setAttribute('aria-disabled', 'true');

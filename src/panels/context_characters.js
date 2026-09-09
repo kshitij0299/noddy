@@ -27,7 +27,7 @@ export function makePanel_ContextCharacters() {
 	});
 
 	const ccOptions = project.settings.app.contextCharacters;
-	let toggleCheckboxLabel = makeSingleLabel('Show&nbsp;context&nbsp;characters&nbsp;&nbsp;');
+	let toggleCheckboxLabel = makeSingleLabel('Show context characters');
 	let toggleCheckbox = makeDirectCheckbox(ccOptions, 'showCharacters', () => {
 		getCurrentProjectEditor().autoFitView();
 		refresh();

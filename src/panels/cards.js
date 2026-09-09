@@ -433,6 +433,7 @@ export function makeLinkReferenceRow(itemID) {
 	row.appendChild(
 		makeElement({
 			className: 'item-link__title',
+			attributes: { title: `${targetItem?.name || 'ERROR'}` },
 			innerHTML: `${targetItem?.name || 'ERROR'}`,
 		})
 	);
@@ -440,6 +441,7 @@ export function makeLinkReferenceRow(itemID) {
 	row.appendChild(
 		makeElement({
 			className: 'item-link__subtitle',
+			attributes: { title: `${targetItem?.displayType || 'ERROR'} | ${itemID}` },
 			innerHTML: `${targetItem?.displayType || 'ERROR'}&ensp;|&ensp;${itemID}`,
 		})
 	);

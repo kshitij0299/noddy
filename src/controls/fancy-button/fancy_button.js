@@ -17,7 +17,11 @@ export class FancyButton extends HTMLElement {
 		this.buttonContent = makeElement({ className: 'buttonContent' });
 		this.buttonText = makeElement({ tag: 'slot', className: 'buttonText' });
 
-		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+		// NOTE: never call this.setAttribute() in the constructor. Chrome throws
+		// NotSupportedError ("the result must not have attributes") when a custom
+		// element constructor adds host attributes during a
+		// document.createElement() upgrade, leaving a dead (un-upgraded) element.
+		// Host-attribute defaults live in connectedCallback() instead.
 
 		if (this.hasAttribute('secondary')) {
 			this.wrapper.setAttribute('secondary', '');
@@ -31,7 +35,6 @@ export class FancyButton extends HTMLElement {
 
 		if (this.hasAttribute('disabled')) {
 			this.wrapper.setAttribute('disabled', '');
-			this.setAttribute('aria-disabled', 'true');
 			this.disabled = true;
 		} else {
 			this.wrapper.setAttribute('tabIndex', '0');
@@ -40,7 +43,6 @@ export class FancyButton extends HTMLElement {
 
 		if (this.hasAttribute('loading')) {
 			this.wrapper.setAttribute('loading', '');
-			this.setAttribute('aria-busy', 'true');
 		}
 
 		if (this.hasAttribute('error')) {
@@ -67,6 +69,11 @@ export class FancyButton extends HTMLElement {
 	 * Initialize accessible naming once the light DOM is available
 	 */
 	connectedCallback() {
+		// Host-attribute defaults (see constructor note: these must not run
+		// during construction or document.createElement() upgrade breaks).
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+		if (this.hasAttribute('disabled')) this.setAttribute('aria-disabled', 'true');
+		if (this.hasAttribute('loading')) this.setAttribute('aria-busy', 'true');
 		this.syncAccessibleName();
 		this.hideDecorativeIcons();
 	}

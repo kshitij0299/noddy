@@ -69,7 +69,7 @@ export function makePanel_CharacterInfo() {
 						href="https://www.wikipedia.org/wiki/${range.name.replace(/ /gi, '_')}_(Unicode_block)"
 						target="_new"
 						title="Wikipedia Link\nwikipedia.org/wiki/${range.name.replace(/ /gi, '_')}_(Unicode_block)"
-						style="display: inline-block; width: 420px; overflow: hidden; text-overflow: ellipsis;">
+						style="display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
 						wikipedia.org/wiki/${range.name.replace(/ /gi, '_')}_(Unicode_block)
 					</a>
 				</span>

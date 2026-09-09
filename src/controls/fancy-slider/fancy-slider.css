@@ -1,7 +1,9 @@
 .fancy-slider__wrapper {
 	display: grid;
-	grid-template-columns: 1fr 40px;
+	grid-template-columns: minmax(0, 1fr) 40px;
 	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	min-height: var(--space-8, 32px);
 	align-items: center;
 }
@@ -22,6 +24,9 @@
 	display: inline-block;
 	padding: 0;
 	margin: 0;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	min-height: var(--space-8, 32px);
 	accent-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 }
