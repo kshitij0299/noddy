@@ -22,7 +22,7 @@ export function makePage_LivePreview() {
 		tag: 'div',
 		id: 'app__page',
 		innerHTML: `
-		<div class="content__page">
+		<div class="content__page live-preview__page" data-page="live-preview">
 			<div class="content-page__left-area">
 				<div class="content-page__nav-area">
 					${makeNavButton({ level: 'l1', superTitle: 'PAGE', title: 'Live preview' })}

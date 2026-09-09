@@ -905,3 +905,40 @@ stay reachable instead of pushing layout at narrow tiers */
 		padding: 12px;
 	}
 }
+
+/* --------------------------------------------------------
+	Phase 3.3 — Live preview page chrome.
+	Scope: live-preview content page only. Presentation + Contract 1
+	tokens only; the renderer (display-canvas / font-preview internals,
+	preview text) is untouched and keeps rendering project data.
+	No banned patterns: no structural grid values, no new breakpoints
+	beyond the Contract 3 tiers, no overflow masks, no glow wrappers.
+-------------------------------------------------------- */
+
+/* Sample-text buttons: full-width wrapping rows that stay inside the
+	panel column at every tier. */
+.live-preview__page #content-page__panel .panel__card button {
+	max-width: 100%;
+	min-width: 0;
+	white-space: normal;
+	overflow-wrap: break-word;
+	text-align: left;
+}
+
+/* Flavor chooser row already wraps (panels.css); keep it inside the
+	column and left-aligned on this page. */
+.live-preview__page #content-page__panel .renderFlavorButtonWrapper {
+	justify-content: flex-start;
+}
+
+/* Canvas chrome: token border + rest shadow only. */
+.live-preview__page .live-preview-page__canvas-wrapper {
+	min-width: 0;
+}
+
+/* T3 narrow: canvas keeps the single column, tighter rhythm. */
+@media (max-width: 759px) {
+	.live-preview__page .live-preview-page__canvas-wrapper {
+		grid-column: 1;
+	}
+}

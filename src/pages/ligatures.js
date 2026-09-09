@@ -45,7 +45,7 @@ export function makePage_Ligatures() {
 		<div class="editor-page__zoom-area"></div>
 	`;
 
-	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper" style="grid-column: span 2; overflow-y: scroll;"></div>`;
+	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper editor-page__edit-canvas-wrapper--first-run"></div>`;
 
 	const content = makeElement({
 		tag: 'div',
@@ -210,10 +210,10 @@ function makeLigaturesFirstRunContent() {
 				Ligatures are a feature of fonts where a specified sequence of characters
 				is recognized and replaced with a single new character that you design.
 				In Latin, there are some common ligatures:
-				<div class="first-run__examples-table">
-				${commonLigatureTable}
-				</div>
 			</p>
+			<div class="first-run__examples-table">
+			${commonLigatureTable}
+			</div>
 			<p>
 				These are just some examples. <strong>Ligatures can have any sequence of two
 				or more characters.</strong> In a text editing program that has ligatures enabled,
@@ -390,10 +390,10 @@ export function showAddLigatureDialog() {
 				<input type="checkbox" id="ligatures__multi-input-checkbox" style="margin: 0 0 15px 0;"/>
 				<label for="ligatures__multi-input-checkbox" style="grid-column-start: 2;">Create many ligatures at once with a comma separated list.<br>Ligatures cannot contain commas or spaces if you use this option.</label>
 			</div>
-			<input id="ligatures__new-ligature-input" type="text" style="width: 90%;"
+			<input id="ligatures__new-ligature-input" type="text" style="width: 100%; box-sizing: border-box;"
 				autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
 			/>
-			<info-bubble style="display: inline-block; margin-left: 10px;">
+			<info-bubble style="display: inline-block; margin: 8px 0 0 0;">
 				Ligature characters can be specified in three different formats:
 				<ul>
 					<li>By just typing characters: <code>ff</code></li>

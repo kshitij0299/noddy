@@ -34,7 +34,7 @@ export function makePanel_LivePreview(textBlockOptions, showPopOutCard = true) {
 	addAsChildren(basicOptionsCard, basicOptions.elements);
 
 	/**
-	 * Shows or hides flavor-dependent controls. The Glyphr Studio renderer
+	 * Shows or hides flavor-dependent controls. The Noddy renderer
 	 * supports the Text input and the Show card (bounding boxes, baselines,
 	 * page outline); the native OTF / TTF renderers render live text directly,
 	 * so those controls do not apply.
@@ -200,7 +200,7 @@ function makeTextBlockOptions_basicOptions(textBlockOptions, onFlavorChange) {
 		'Render flavor:',
 		`Choose how the live preview is rendered:
 		<br><br>
-		<b>Glyphr Studio</b> &ndash; draws your glyph outlines directly to a
+		<b>Noddy</b> &ndash; draws your glyph outlines directly to a
 		canvas, exactly as you've designed them. Best for inspecting your work
 		with bounding boxes, baselines, and other guides.
 		<br><br>
@@ -295,7 +295,8 @@ function makeTextBlockOptions_basicOptions(textBlockOptions, onFlavorChange) {
 // Render flavor IDs map to the previewFlavor stored in TextBlockOptions.
 // 'gs' uses the display-canvas renderer; 'otf' / 'ttf' use the native
 // font-preview renderer (FontFlux-generated font binary).
-const RENDER_FLAVOR_NAMES = { gs: 'Glyphr Studio', otf: 'OTF', ttf: 'TTF' };
+// Display names only — the stored IDs ('gs' / 'otf' / 'ttf') are unchanged.
+const RENDER_FLAVOR_NAMES = { gs: 'Noddy', otf: 'OTF', ttf: 'TTF' };
 
 function makeRenderFlavorChooser(textBlockOptions, onFlavorChange) {
 	const currentFlavor = textBlockOptions.previewFlavor || 'gs';

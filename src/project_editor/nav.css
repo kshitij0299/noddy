@@ -109,6 +109,17 @@ nav:focus-visible {
 	padding: 10px 0px 0px 5px;
 }
 
+/* Opaque token surface for all nav dropdown panels (PAGE/EDITING/PANEL).
+	navigator.js sets an inline background-color copied from the parent
+	button, so force the Contract 1 card surface here to keep open menu
+	options legible above page content. Border/shadow/positioning/tiers,
+	focus, and keyboard behavior are unchanged (all inherited from `nav`). */
+#nav-dropdown-page,
+#nav-dropdown-chooser,
+#nav-dropdown-panel {
+	background-color: var(--card, oklch(1 0 0)) !important;
+}
+
 .nav-dropdown__subtitle {
 	margin: 15px 0px 5px 10px;
 	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
