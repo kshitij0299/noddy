@@ -23,6 +23,7 @@
 - Verifier NO-GO triaged to one real bug: transparent PAGE nav dropdown (ghost text) → opaque token surface fix in `nav.css` only (navigator.js logic untouched); eyeballed by orchestrator. Other flags evaporated (brief error, already-correct).
 - Lint 0 err, 618/618 pass, build exit 0. Note: stray `browser-agent/` dir is another session's work — left alone per coordination guardrails.
 - Overview polish (user-reported): preview canvas painted 42px past its box forcing a permanent scrollbar — fixed with a plain wrapper (component now measures content width); all right-area boxes share edges (473/1409); grid scroller is hover-reveal thin. Lint 0 err, 618/618 pass.
+- Panel-column scrollers (user-reported, approved): permanent track narrowed white cards vs peach header — hover-reveal thin on both panel columns. Lint 0 err, 618/618 pass.
 
 ## [Unreleased] — Phase 3.2 settings/actions/help/about — 2026-09-09
 
