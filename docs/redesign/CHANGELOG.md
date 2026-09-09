@@ -24,6 +24,7 @@
 - Browser loop is live: `scripts/browser/drive.mjs` (naked Chrome, zero deps) + `docs/redesign/14-browser-loop.md`; verifier rubric `docs/redesign/skills/NODDY-UX-RUBRIC.md` (distilled from user-supplied `skills/UX-Audit-Rethink.md`; full strategy scoring skipped as non-actionable mid-redesign); `viewportOnly` shot mode added after a capture artifact caused a false NO-GO.
 - Verification: builder self-screenshots + independent verifier survey (15 panels, T1/T2/T3, short height, console empty) → GO after round-2 tiebreak (seen with orchestrator's own eyes: dropdown floats correctly).
 - Deferred: layer-row subtitle legacy colors; nav-button ellipsis tooltips (navigator.js off-limits); D2 zoom-readout transient (self-healing); vertical menu flip near viewport bottom.
+- Spinner fix (user-picked Option A): `input-number` halves equalized (`1fr/1px/1fr`), 24px min-height overflow removed, chevrons flex-centered, hover-border hack deleted. Verified via browser loop (before/after deck in Obsidian `Noddy/assets/spinner-redesign.md`). Lint 0 err, 618/618 pass. Also removed stray `browser-agent/` junk an agent installed against instructions (unreferenced).
 
 ## [Unreleased] — Borrow-smart rule + Phase 2.1 hotfix — 2026-09-07
 
