@@ -726,11 +726,36 @@ span.spacer {
 .overview__page .overview__info-card {
 	display: flex;
 	flex-direction: column;
+	/* Left-edge rhythm: override .panel__card align-items:center so the
+	heading + rows align with the Welcome heading below. Stretch keeps
+	fill buttons full-width. */
+	align-items: stretch;
+	justify-items: left;
+	text-align: left;
+}
+
+.overview__page .overview__info-card h2,
+.overview__page .overview__info-card .overview__info-grid {
+	align-self: stretch;
+	justify-self: start;
+	text-align: left;
 }
 
 .overview__page .overview__info-card fancy-button {
+	/* Figma fill model: full container width with comfortable spacing. */
 	display: block;
-	margin-top: 8px;
+	width: 100%;
+	max-width: 100%;
+	margin: 8px 0 0 0;
+	box-sizing: border-box;
+}
+
+.overview__page fancy-button.overview__fill {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	margin: 8px 0 0 0;
+	box-sizing: border-box;
 }
 
 /* Character browsing: keep tiles aligned, wrapped, and reachable */
