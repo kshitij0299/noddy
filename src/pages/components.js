@@ -40,7 +40,7 @@ export function makePage_Components() {
 		<div class="editor-page__zoom-area"></div>
 	`;
 
-	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper" style="grid-column: span 2; overflow-y: scroll;"></div>`;
+	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper editor-page__edit-canvas-wrapper--first-run"></div>`;
 
 	const content = makeElement({
 		tag: 'div',
@@ -223,15 +223,15 @@ function makeComponentsFirstRunContent() {
 		innerHTML: `
 			<h1>There are no components in your project</h1>
 			<p>
-				Components are a Glyphr Studio feature that lets you re-use a collection of paths
-				across many different glyphs. The root is called a 'Component' and these are added
-				by reference to other glyphs, where they are called 'Component Instances'.
+				Components are a Noddy feature that lets you re-use a collection of paths
+				across many different glyphs. The root is called a component and these are added
+				by reference to other glyphs, where they are called component instances.
 				Updating the root component will also update all component instances.
 			</p>
-			<p>
-				<div class="first-run__examples-table">
+			<div class="first-run__examples-table">
 					${componentExampleTable}
 				</div>
+			<p>
 				Diacritic glyphs (glyphs with accents) are just one example of where having a shared
 				component root can be used across many individual characters.
 			</p>

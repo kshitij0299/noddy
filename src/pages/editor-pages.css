@@ -347,3 +347,180 @@ code.warning {
 		max-height: calc(100vh - 140px);
 	}
 }
+
+/* --------------------------------------------------------
+	Phase 3.3 — Components / Ligatures / Kerning + first-run.
+	Scope: editor pages and live-preview canvas chrome only.
+	Presentation + Contract 1 tokens only; editing/compute logic,
+	panel structure, dialog flows, and preview rendering untouched.
+	No banned patterns: no structural grid values, no new breakpoints
+	beyond the Contract 3 tiers, no overflow masks, no glow wrappers.
+-------------------------------------------------------- */
+
+/* First-run wrapper: spans the tools + canvas columns at T1/T2,
+	single column at T3 (see tier rule below). Vertical scroll is
+	in-region (auto, not forced) so the empty pattern stays reachable
+	at short heights without pushing layout. */
+.editor-page__edit-canvas-wrapper--first-run {
+	grid-column: span 2;
+	overflow-y: auto;
+}
+
+/* Empty pattern (Contract 1 §5): left-aligned rhythm, muted helper
+	copy, clear action button. Headings stay in foreground text. */
+.editor-page__first-run {
+	text-align: left;
+	min-width: 0;
+}
+
+.editor-page__first-run h1,
+.editor-page__first-run h2 {
+	text-align: left;
+}
+
+.editor-page__first-run p {
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	max-width: 64ch;
+	overflow-wrap: break-word;
+}
+
+.editor-page__first-run fancy-button {
+	max-width: 100%;
+}
+
+/* Example rows: token surfaces, wrap in-region instead of pushing
+	layout. The examples are plain text (not project-font rendering). */
+.first-run__examples-table {
+	max-width: 100%;
+	overflow-x: auto;
+	padding-bottom: 4px;
+}
+
+.first-run__example-wrapper {
+	max-width: 100%;
+	box-sizing: border-box;
+	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius, 0.45rem);
+}
+
+.first-run__example-wrapper pre {
+	max-width: 100%;
+	overflow-wrap: break-word;
+	white-space: pre-wrap;
+}
+
+/* Kern group rows: token retheme + aligned, wrapping chips. The base
+	grid columns are untouched; members get room to wrap so long groups
+	no longer collide or clip. */
+.editor__page .kern-group-chooser__list {
+	max-width: 100%;
+	min-width: 0;
+}
+
+.editor__page .kern-group-chooser__row {
+	background-color: var(--card, oklch(1 0 0));
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius, 0.45rem);
+	max-width: 100%;
+	box-sizing: border-box;
+	height: auto;
+	min-height: 40px;
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+
+.editor__page .kern-group-chooser__row:hover,
+.editor__page .kern-group-chooser__row:active {
+	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+}
+
+.editor__page .kern-group-chooser__row[selected] {
+	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+}
+
+.editor__page .kern-group-chooser__row:focus-visible {
+	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+	outline-offset: 2px;
+}
+
+.editor__page .kern-group-chooser__members-divider {
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+}
+
+.editor__page .kern-group-chooser__left-members,
+.editor__page .kern-group-chooser__right-members {
+	min-width: 0;
+	max-width: 100%;
+	width: auto;
+}
+
+/* Chip wrapper (plain div from makeKernGroupCharChips): wrapping flex
+	rows so long memberships align instead of overlapping. */
+.editor__page .kern-group-chooser__left-members > div,
+.editor__page .kern-group-chooser__right-members > div {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	min-width: 0;
+}
+
+.editor__page .kern-group-chooser__left-members > div {
+	justify-content: flex-end;
+}
+
+.editor__page .kern-group-chooser__right-members > div {
+	justify-content: flex-start;
+}
+
+/* Kern ID label (first cell): tabular mono so IDs align down the list. */
+.editor__page .kern-group-chooser__row > div:first-child {
+	font-family: var(--font-mono, ui-monospace, monospace);
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: break-word;
+	min-width: 0;
+}
+
+/* Char chips on these pages: token surfaces; the warning chip tracks
+	the destructive token. Glyph art itself is untouched. */
+.editor__page .kern-group-chooser__row code {
+	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
+}
+
+.editor__page code.warning {
+	color: var(--destructive, oklch(0.6137 0.2039 25.5645));
+}
+
+/* Kern sort dropdown control: fits the panel column. */
+.editor__page #kern-group-chooser__sort-control {
+	max-width: 100%;
+}
+
+/* Kern letter-pair dialog inputs: fit side by side in the dialog. */
+#kerning__letter-pair__left-group,
+#kerning__letter-pair__right-group {
+	box-sizing: border-box;
+	min-width: 0;
+}
+
+/* Ligature dialog: checkbox row and text input fit the dialog width. */
+#ligatures__new-ligature-input {
+	max-width: 100%;
+}
+
+/* Live-preview canvas chrome: token border + rest shadow only. The
+	renderer itself (display-canvas / font-preview internals, preview
+	text) is untouched and keeps rendering project data. */
+.live-preview-page__canvas-wrapper {
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
+	box-shadow: var(--shadow-xs, 0px 4px 10px 0px hsl(0 0% 0% / 0.03));
+	min-width: 0;
+}
+
+/* T3 narrow: first-run wrapper joins the single column. */
+@media (max-width: 759px) {
+	.editor-page__edit-canvas-wrapper--first-run {
+		grid-column: 1;
+	}
+}

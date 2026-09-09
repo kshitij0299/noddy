@@ -42,7 +42,7 @@ export function makePage_Kerning() {
 		<div class="editor-page__zoom-area"></div>
 	`;
 
-	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper" style="grid-column: span 2; overflow-y: scroll;"></div>`;
+	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper editor-page__edit-canvas-wrapper--first-run"></div>`;
 
 	const content = makeElement({
 		tag: 'div',
@@ -189,10 +189,9 @@ function makeKerningFirstRunContent() {
 			<p>
 				Font files encode kerning values as three pieces of information: a left character, a right
 				character, and a horizontal adjustment value. Fonts with many characters can end up having
-				a huge amount of kern pairs. Glyphr Studio uses a system called Class-based Kerning, where
+				a huge amount of kern pairs. Noddy uses a system called Class-based Kerning, where
 				groups of characters with similar edges (like
-					<code>V</code><code>v</code><code>W</code><code>w</code>
-					)
+					<code>V</code><code>v</code><code>W</code><code>w</code>)
 				can be treated as a single left-hand group, and a group of right-hand characters (for example,
 				<code>A</code><code>/</code>) can be treated as single group - which can be given a single value.
 				When a font is exported, the permutations are saved as individual kern pairs. But, while
@@ -385,7 +384,7 @@ export function showFindSingleLetterPairDialog() {
 		gets used may not be the expected one.
 		<br><br>
 
-		<div class="list__two-column" style="max-width: 100px;">
+		<div class="list__two-column" style="max-width: 240px;">
 			<div class="list__column-header">Left group letter</div>
 			<div class="list__column-header">Right group letter</div>
 			<input
@@ -441,7 +440,7 @@ export function showDeleteSingleLetterPairDialog() {
 		than just the kern value for those two letters.
 		<br><br>
 
-		<div class="list__two-column" style="max-width: 100px;">
+		<div class="list__two-column" style="max-width: 240px;">
 			<div class="list__column-header">Left group letter</div>
 			<div class="list__column-header">Right group letter</div>
 			<input
