@@ -115,6 +115,7 @@ export function makePage_Overview() {
 	projectSummaryCard.appendChild(
 		makeElement({
 			tag: 'fancy-button',
+			className: 'overview__fill',
 			innerHTML: 'Edit project and font info',
 			attributes: { secondary: '' },
 			onClick: () => {
@@ -126,7 +127,7 @@ export function makePage_Overview() {
 	);
 
 	const contributeCard = makeElement({
-		className: 'panel__card full-width more-padding',
+		className: 'panel__card full-width more-padding overview__contribute-card',
 		innerHTML: `
 			Noddy is open source and community supported — an independent fork of Glyphr Studio 2
 			(GPL-3.0-or-later) by Matt LaGrandeur and contributors.
@@ -136,6 +137,7 @@ export function makePage_Overview() {
 	contributeCard.appendChild(
 		makeElement({
 			tag: 'fancy-button',
+			className: 'overview__fill',
 			innerHTML: 'Learn how you can help Noddy!',
 			attributes: { secondary: '' },
 			onClick: () => {
