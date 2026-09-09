@@ -17,6 +17,12 @@
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
 - Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
+## [Unreleased] — Phase 3.3 components/ligatures/kerning/preview — 2026-09-09
+
+- Rebuilt components/ligatures/kerning/live-preview pages + first-run empty states (Noddy copy, token retheme, tidy cards, danger-marked deletes, dialog width fixes).
+- Verifier NO-GO triaged to one real bug: transparent PAGE nav dropdown (ghost text) → opaque token surface fix in `nav.css` only (navigator.js logic untouched); eyeballed by orchestrator. Other flags evaporated (brief error, already-correct).
+- Lint 0 err, 618/618 pass, build exit 0. Note: stray `browser-agent/` dir is another session's work — left alone per coordination guardrails.
+
 ## [Unreleased] — Phase 3.2 settings/actions/help/about — 2026-09-09
 
 - Rebuilt settings (Project/Font/App), global actions, help, about with Noddy copy + token retheme; destructive deletes danger-marked; help links intact; empty states muted pattern.

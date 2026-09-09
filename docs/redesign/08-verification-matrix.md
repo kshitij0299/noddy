@@ -5,6 +5,7 @@ Phase 2: `noddy/phase2-foundation` (integrates 2A tokens/type/states, 2B control
 Phase 3 left-side (`noddy/phase3-leftside`, reordered before 3.1): panel-system rebuild + dead-element fix, browser-loop verified (15-panel survey, T1/T2/T3, short height, console empty) — lint 0 err/2 warn, 618/618 pass, build passes.
 Phase 3.1 (`noddy/phase3-leftside` cont.): welcome/overview/browse rebuild + user polish (equal cards, pill radius, paint-only hovers) — independent verifier GO (8 shots, console empty), lint 0 err/2 warn, 618/618 pass, build exit 0.
 Phase 3.2 (same branch): settings/actions/help/about rebuild — verifier NO-GO round triaged (both majors evaporated: danger already present, 3-tab brief error), fixes applied + re-verified, lint 0 err/2 warn, 618/618 pass, build exit 0.
+Phase 3.3 (same branch): components/ligatures/kerning/preview + first-run states — verifier caught transparent nav dropdown (fixed in nav.css, eyeballed by orchestrator), lint 0 err/2 warn, 618/618 pass, build exit 0.
 
 | # | Check | How | Phase 0 status |
 |---|-------|-----|----------------|
