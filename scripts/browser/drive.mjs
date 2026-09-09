@@ -228,7 +228,9 @@ async function runStep(send, events, step) {
 			const shot = await send('Page.captureScreenshot', {
 				format: jpeg ? 'jpeg' : 'png',
 				...(jpeg ? { quality: 80 } : {}),
-				captureBeyondViewport: true,
+				// Viewport-only for floating overlays (menus/popups): full-page
+				// capture can mis-composite them. Pass {do:'shot', path, viewportOnly:true}.
+				captureBeyondViewport: step.viewportOnly !== true,
 			});
 			const buf = Buffer.from(shot.data, 'base64');
 			writeFileSync(outPath, buf);

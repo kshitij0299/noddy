@@ -17,6 +17,14 @@
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
 - Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
+## [Unreleased] — Phase 3 left-side system (reordered before 3.1, user-approved) — 2026-09-09
+
+- Root-caused the dropdown explosion: Chrome 150 throws when custom-element constructors call `setAttribute` during `createElement` upgrades → dead elements with no shadow DOM → light-DOM options rendered as text. Fixed by moving host-attribute writes to `connectedCallback` (5 controls); console errors 44 → 0.
+- Rebuilt panel system as one unit: fluid cards, minmax grids, Contract-1 paper/peach retheme, plain/icon button system, links, focus rings (`panels.css`); control fixes (chooser/input/toggle/button/tile/slider/info-bubble); tier CSS fixes; nav token retheme.
+- Browser loop is live: `scripts/browser/drive.mjs` (naked Chrome, zero deps) + `docs/redesign/14-browser-loop.md`; verifier rubric `docs/redesign/skills/NODDY-UX-RUBRIC.md` (distilled from user-supplied `skills/UX-Audit-Rethink.md`; full strategy scoring skipped as non-actionable mid-redesign); `viewportOnly` shot mode added after a capture artifact caused a false NO-GO.
+- Verification: builder self-screenshots + independent verifier survey (15 panels, T1/T2/T3, short height, console empty) → GO after round-2 tiebreak (seen with orchestrator's own eyes: dropdown floats correctly).
+- Deferred: layer-row subtitle legacy colors; nav-button ellipsis tooltips (navigator.js off-limits); D2 zoom-readout transient (self-healing); vertical menu flip near viewport bottom.
+
 ## [Unreleased] — Borrow-smart rule + Phase 2.1 hotfix — 2026-09-07
 
 - `AGENTS.md` §3b (user-approved): targeted surface-only borrowing from old branches under 6 infection-proof guarantees (reference-only, per-item allowlist, no skeleton, rebuilt-not-pasted, independent infection check, logged). Wholesale copy/layout reuse stays banned.
