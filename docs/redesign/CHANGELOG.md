@@ -17,6 +17,14 @@
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
 - Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
+## [Unreleased] — Phase 3.1 welcome/overview/browse — 2026-09-09
+
+- Rebuilt welcome (Noddy hero card + pill tabs + peach buttons), overview (Noddy copy, tidy info/grid), character click-through. Load/Restore/Examples all usable; 40px overflow fixed via page-scope type cap.
+- §3b borrow log (all rebuilt fresh, no pasted code): (1) two-card welcome feel, (2) pill-tab + peach-button treatment — both from user screenshots; (3) Noddy hero art (in-repo); (4) read-only `git show feat/ui-overhaul:src/app/open_project.js + app-pages.css` (visual reference only; diff grep clean of banned markers).
+- User-reported polish fixed same round: equal-height cards (stretch, 450px all tabs), identical pill radius selected/unselected + no unselected stroke, paint-only hovers (global button:hover neutralized in welcome scope).
+- Verification: builder self-screenshots + independent verifier GO (8 shots, console empty) + orchestrator eyeball on tiebreak. Lint 0 err, 618/618 pass, build exit 0.
+- Deferred minors: T3 hero empty zone; Load help-line wording; D2 transient; vertical menu flip.
+
 ## [Unreleased] — Phase 3 left-side system (reordered before 3.1, user-approved) — 2026-09-09
 
 - Root-caused the dropdown explosion: Chrome 150 throws when custom-element constructors call `setAttribute` during `createElement` upgrades → dead elements with no shadow DOM → light-DOM options rendered as text. Fixed by moving host-attribute writes to `connectedCallback` (5 controls); console errors 44 → 0.

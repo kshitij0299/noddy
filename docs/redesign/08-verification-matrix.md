@@ -3,6 +3,7 @@
 Baseline: `noddy/phase0-discovery` @ `b84c54db` — lint 0 err/2 warn, 612/612 pass, build passes.
 Phase 2: `noddy/phase2-foundation` (integrates 2A tokens/type/states, 2B controls, 2C shell/brand/versioning) — lint 0 err/2 warn (same pre-existing), **618/618 pass** (612 + 6 new CSS-typography-guard tests), build passes, `ci:versions` passes (`2.11.0-noddy.0`). No protected-area logic changed; static checks green. Browser/manual + responsive-tier interaction checks are USER checks (see Phase 2 packet checklist).
 Phase 3 left-side (`noddy/phase3-leftside`, reordered before 3.1): panel-system rebuild + dead-element fix, browser-loop verified (15-panel survey, T1/T2/T3, short height, console empty) — lint 0 err/2 warn, 618/618 pass, build passes.
+Phase 3.1 (`noddy/phase3-leftside` cont.): welcome/overview/browse rebuild + user polish (equal cards, pill radius, paint-only hovers) — independent verifier GO (8 shots, console empty), lint 0 err/2 warn, 618/618 pass, build exit 0.
 
 | # | Check | How | Phase 0 status |
 |---|-------|-----|----------------|
