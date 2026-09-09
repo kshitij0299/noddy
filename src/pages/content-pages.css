@@ -43,6 +43,26 @@
 	overflow-y: auto;
 	/* Panel cards are fluid (Phase 3.4 remediated the fixed-width panel
 	content), so no horizontal overflow is expected; vertical scroll only. */
+	/* Hover-reveal scroller (same reason as editor panel): a permanent
+	track would narrow the white cards vs the header above. */
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+}
+#content-page__panel:hover,
+#content-page__panel:focus-within {
+	scrollbar-color: var(--gray-l80) transparent;
+}
+#content-page__panel::-webkit-scrollbar {
+	width: 8px;
+	background: transparent;
+}
+#content-page__panel::-webkit-scrollbar-thumb {
+	background: transparent;
+	border-radius: 4px;
+}
+#content-page__panel:hover::-webkit-scrollbar-thumb,
+#content-page__panel:focus-within::-webkit-scrollbar-thumb {
+	background: var(--gray-l80);
 }
 
 .content-page__right-area {
