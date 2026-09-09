@@ -16,8 +16,9 @@ export function makePage_Overview() {
 	const content = makeElement({
 		tag: 'div',
 		id: 'app__page',
+		attributes: { 'data-page': 'overview' },
 		innerHTML: `
-		<div class="content__page">
+		<div class="content__page overview__page">
 			<div class="content-page__left-area">
 				<div class="content-page__nav-area">
 					${makeNavButton({ level: 'l1', superTitle: 'PAGE', title: 'Overview' })}
@@ -77,8 +78,9 @@ export function makePage_Overview() {
 	welcomeCard.appendChild(
 		makeElement({
 			innerHTML: `
-		<h2>Welcome to Glyphr Studio!</h2>
+		<h2>Welcome to Noddy!</h2>
 		<p>
+			Noddy is a friendly font editor — an independent fork of Glyphr Studio.
 			You can stay up to date on the latest news over at the
 			<a href="https://www.glyphrstudio.com/blog" target="_blank">Glyphr Studio Blog</a>.
 			We also have a
@@ -94,19 +96,20 @@ export function makePage_Overview() {
 	);
 
 	const projectSummaryCard = makeElement({
-		className: 'panel__card more-padding',
+		className: 'panel__card more-padding overview__info-card',
 		innerHTML: `
 			<h2>Project info</h2>
-			<label>Project name: </label><span>${project.settings.project.name}</span>
-			<label>Font family: </label><span>${project.settings.font.family}</span>
-			<label>Style: </label><span>${project.settings.font.style}</span>
-			<label>Glyph count: </label><span>${
-				countItems(project.glyphs) + countItems(project.ligatures)
-			}</span>
-			<label>UPM: </label><span>${project.settings.font.upm}</span>
-			<label>Ascent: </label><span>${project.settings.font.ascent}</span>
-			<label>Descent: </label><span>${project.settings.font.descent}</span>
-			<br><span></span>
+			<div class="overview__info-grid">
+				<span class="overview__info-label">Project name</span><span>${project.settings.project.name}</span>
+				<span class="overview__info-label">Font family</span><span>${project.settings.font.family}</span>
+				<span class="overview__info-label">Style</span><span>${project.settings.font.style}</span>
+				<span class="overview__info-label">Glyph count</span><span>${
+					countItems(project.glyphs) + countItems(project.ligatures)
+				}</span>
+				<span class="overview__info-label">UPM</span><span>${project.settings.font.upm}</span>
+				<span class="overview__info-label">Ascent</span><span>${project.settings.font.ascent}</span>
+				<span class="overview__info-label">Descent</span><span>${project.settings.font.descent}</span>
+			</div>
 		`,
 	});
 	projectSummaryCard.appendChild(
@@ -125,14 +128,15 @@ export function makePage_Overview() {
 	const contributeCard = makeElement({
 		className: 'panel__card full-width more-padding',
 		innerHTML: `
-			Glyphr Studio is open source and community supported.
+			Noddy is open source and community supported — an independent fork of Glyphr Studio 2
+			(GPL-3.0-or-later) by Matt LaGrandeur and contributors.
 			<br>
 			`,
 	});
 	contributeCard.appendChild(
 		makeElement({
 			tag: 'fancy-button',
-			innerHTML: 'Learn how you can help Glyphr Studio!',
+			innerHTML: 'Learn how you can help Noddy!',
 			attributes: { secondary: '' },
 			onClick: () => {
 				showModalDialog(makeContributeContent(), 500);
