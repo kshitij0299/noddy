@@ -17,6 +17,11 @@
 - Deferred: favicon `.ico` regen (no rasterizer), toolbar condense (needs Phase 3.5), notation flip-to-trigger JS, `data-font-content` stamping on preview roots, per-surface 450px card remediation (Phase 3.4), stale brand links until Noddy URLs supplied.
 - Review fix-ups applied: `glyph-tile` added to guard banned elements; README description Noddy-framed; panel drawer default-closed (no auto-open); right-area `overflow-x:auto`.
 
+## [Unreleased] — Phase 3.4 inspector panels — 2026-09-11
+
+- Full pass: shared baselines, Layers drift fix, guide touch targets, danger marking, empty states, tooltips, Undo/Redo copy. Verifier GO (attrs/layers/quality/kerning/T2/T3/short/console all pass; 2 coverage notes, no product defects).
+- Lint 0 err, 618/618 pass, build exit 0.
+
 ## [Unreleased] — Phase 3.3 components/ligatures/kerning/preview — 2026-09-09
 
 - Rebuilt components/ligatures/kerning/live-preview pages + first-run empty states (Noddy copy, token retheme, tidy cards, danger-marked deletes, dialog width fixes).
