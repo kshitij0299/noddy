@@ -12,6 +12,7 @@ export function makeActionButton({
 	disabled = false,
 	onClick = () => {},
 	id = false,
+	danger = false,
 } = {}) {
 	// log(`makeActionButton`, 'start');
 	// log(`iconName: ${iconName}`);
@@ -29,6 +30,8 @@ export function makeActionButton({
 	if (onClick) newButton.addEventListener('click', onClick);
 	if (disabled) newButton.setAttribute('disabled', 'disabled');
 	if (typeof id === 'string') newButton.setAttribute('id', id);
+	if (danger) newButton.classList.add('action-button--danger');
+	if (title) newButton.setAttribute('aria-label', title.split('\n')[0]);
 
 	// log(`makeActionButton`, 'end');
 	return newButton;

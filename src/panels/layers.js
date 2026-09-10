@@ -94,6 +94,7 @@ export function makePanel_Layers() {
 			row.appendChild(
 				makeElement({
 					className: 'item-link__title',
+					attributes: { title: `${item.name}` },
 					innerHTML: `${item.name}`,
 				})
 			);
@@ -103,6 +104,7 @@ export function makePanel_Layers() {
 			row.appendChild(
 				makeElement({
 					className: 'item-link__subtitle',
+					attributes: { title: item.link ? `Component instance | ${project.getItem(item.link).name}` : 'Path' },
 					innerHTML: subtitle,
 				})
 			);
@@ -112,7 +114,8 @@ export function makePanel_Layers() {
 	} else {
 		rowsArea.appendChild(
 			makeElement({
-				content: `No paths exist yet.  You can create one with the New Path tools on the canvas, or by pressing "add new path" below.`,
+				className: 'panel__empty-state spanAll',
+				content: `No paths exist yet. You can create one with the New Path tools on the canvas, or by pressing "add new path" below.`,
 			})
 		);
 	}

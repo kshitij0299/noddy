@@ -203,8 +203,8 @@ function makeCustomGuideRow(guide, number) {
 	const nameInput = makeSingleInput(guide, 'name', 'editCanvasView', 'input');
 
 	// Delete
-	const deleteButton = makeActionButton({ iconName: 'delete', title: 'Delete guide' });
-	deleteButton.setAttribute('class', 'guide-delete-button');
+	const deleteButton = makeActionButton({ iconName: 'delete', title: 'Delete guide', danger: true });
+	deleteButton.setAttribute('class', 'guide-delete-button action-button--danger');
 	deleteButton.addEventListener('click', () => {
 		const guides = getCurrentProject().settings.app.guides.custom;
 		guides.splice(number, 1);

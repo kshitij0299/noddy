@@ -20,14 +20,14 @@ export function makePanel_History() {
 	let undoButton = makeElement({
 		tag: 'button',
 		className: length > 0 ? 'button__call-to-action number' : 'number',
-		innerHTML: `undo ${length}`,
+		innerHTML: `Undo ${length}`,
 	});
 	buttonRow.appendChild(undoButton);
 
 	let redoButton = makeElement({
 		tag: 'button',
 		className: redoLength > 0 ? 'button__call-to-action number' : 'number',
-		innerHTML: `redo ${redoLength}`,
+		innerHTML: `Redo ${redoLength}`,
 	});
 	buttonRow.appendChild(redoButton);
 
