@@ -28,6 +28,10 @@
 	grid-template-columns: 1fr;
 	grid-template-rows: 1fr;
 	gap: 2px;
+	/* Breathing room: the PAGE button's outset ring (2px + 2px offset)
+	needs 4px clearance or neighbors/page edges clip it. */
+	padding: 4px;
+	box-sizing: border-box;
 }
 
 .content-page__nav-area #nav-button-l1 {

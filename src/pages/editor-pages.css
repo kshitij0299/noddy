@@ -64,6 +64,10 @@
 	grid-template-columns: min-content 1fr;
 	grid-template-rows: 1fr 1fr;
 	gap: 2px;
+	/* Breathing room (parity with overview nav): outset rings need 4px
+	clearance or siblings/page edges clip them. */
+	padding: 4px;
+	box-sizing: border-box;
 }
 
 .editor-page__nav-area #nav-button-l3 {

@@ -28,6 +28,25 @@
 	outline-offset: -1px;
 }
 
+/* Outset keyboard ring stays above the open dropdown sibling (which is
+inserted right after the button and otherwise paints over the ring's
+lower part). Same --ring token, AA-contrasting on every tier surface. */
+.nav-button:focus-visible {
+	position: relative;
+	z-index: 101;
+	outline: 2px solid var(--ring, var(--blue-l60));
+	outline-offset: 2px;
+}
+
+/* ID-pinned override: guarantees the token ring wins over any
+lower-specificity :focus rule for the three nav buttons. */
+#nav-button-l1:focus-visible,
+#nav-button-l2:focus-visible,
+#nav-button-l3:focus-visible {
+	outline: 2px solid var(--ring, var(--blue-l60));
+	outline-offset: 2px;
+}
+
 #nav-button-l1,
 #nav-button-l1:active,
 #nav-button-l1:hover,
@@ -118,6 +137,9 @@ nav:focus-visible {
 #nav-dropdown-chooser,
 #nav-dropdown-panel {
 	background-color: var(--card, oklch(1 0 0)) !important;
+	/* Clear the trigger button's outset ring: JS parks the dropdown top
+	3px over the button's bottom edge, which buried the ring. */
+	margin-top: 4px;
 }
 
 .nav-dropdown__subtitle {
