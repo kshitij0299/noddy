@@ -105,7 +105,10 @@
 }
 
 .editor-page__zoom-readout {
-	width: 4.5em;
+	/* 6em fits 2-decimal percentages (e.g. "161.05%") in one line.
+	Global border-box reset means padding/border eat into the width,
+	so 4.5em clipped the trailing "%" on longer values. */
+	width: 6em;
 	height: 30px;
 	text-align: right;
 	padding-right: 4px;
@@ -356,6 +359,23 @@ code.warning {
 		margin: 0;
 	}
 
+	/* T3 zoom/control cluster: dock INSIDE the canvas. The cluster is an
+	absolute overlay anchored to the app wrapper (a sibling of the canvas
+	wrapper, not a child), so the base right:15px / bottom:14px with a
+	-4px bottom margin lands its bottom edge flush on the canvas border +
+	corner radius and the buttons read half-cut at narrow widths. Inset
+	with clear air on both axes and zero the overlay margins. Tier
+	visibility (responsive-group hidden below 885px) is unchanged. */
+	.editor-page__zoom-area {
+		right: 24px;
+		bottom: 24px;
+		margin-bottom: 0;
+	}
+
+	.editor-page__zoom-area .editor-page__tool {
+		margin: 0;
+	}
+
 	.editor-page__edit-canvas-wrapper {
 		grid-column: 1;
 		grid-row: 2;
@@ -544,4 +564,129 @@ code.warning {
 	.editor-page__edit-canvas-wrapper--first-run {
 		grid-column: 1;
 	}
+}
+
+/* --------------------------------------------------------
+	Phase 3.5 — Edit-canvas chrome (tool rail, zoom bar,
+	done-path button, canvas corner chrome).
+	Scope: presentation AROUND the drawing surface only. The
+	pixels INSIDE the canvas (glyph outlines, affordances,
+	handles, guides drawing, cursors, view math) are untouched.
+	Contract 1 tokens + §5 states; Contract 2 separation (no
+	font-rendering props on canvas content surfaces — the
+	zoom readout is toolbar chrome, not project content);
+	Contract 3 tiers unchanged (no new breakpoints, no
+	overflow masks, no layout-structure changes).
+	Per-button accessible names + done-button copy live in
+	src/edit_canvas/tools/ (protected) and are intentionally
+	NOT changed here; the rail/zoom groups get group labels
+	in the page templates instead.
+-------------------------------------------------------- */
+
+/* Canvas corner/edge chrome: token border + rest shadow only.
+	The renderer inside (edit-canvas glyph content, guides,
+	context characters) is untouched. position:relative anchors
+	the done-path overlay to the canvas corner instead of the
+	page (Contract 3 §2: overlays anchor viewport/canvas-relative,
+	no px-anchored page positions). Background stays white: the
+	canvas surface must keep glyph contrast. */
+.editor-page__edit-canvas-wrapper {
+	position: relative;
+	border-color: var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius, 0.45rem);
+	box-shadow: var(--shadow-xs, 0px 4px 10px 0px hsl(0 0% 0% / 0.03));
+}
+
+/* Tool rail + zoom bar buttons: token surfaces, 32px targets
+	(Contract 3 §4: 32px preferred), perfectly centered icons.
+	Margins/layout are inherited from the base rules so the T3
+	row-wrap behavior is unchanged. */
+.editor-page__tools-area .editor-page__tool,
+.editor-page__zoom-area .editor-page__tool {
+	height: 32px;
+	width: 32px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background-color: var(--card, oklch(1 0 0));
+	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius-sm, calc(0.45rem * 0.6));
+}
+
+.editor-page__tools-area .editor-page__tool svg,
+.editor-page__zoom-area .editor-page__tool svg {
+	position: static;
+	height: 20px;
+	width: 20px;
+}
+
+.editor-page__tools-area .editor-page__tool:hover,
+.editor-page__zoom-area .editor-page__tool:hover {
+	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
+}
+
+/* Selected tool: --primary accent per Contract 1 §5 (selected/
+	active uses --primary + --primary-foreground). The SVG icons
+	draw white fill + dark outline when selected, which reads on
+	peach in both themes. :hover never drops the selected fill. */
+.editor-page__tools-area .editor-page__tool-selected,
+.editor-page__tools-area .editor-page__tool-selected:hover,
+.editor-page__tools-area .editor-page__tool-selected:active,
+.editor-page__tools-area .editor-page__tool-selected:focus,
+.editor-page__zoom-area .editor-page__tool-selected,
+.editor-page__zoom-area .editor-page__tool-selected:hover,
+.editor-page__zoom-area .editor-page__tool-selected:active,
+.editor-page__zoom-area .editor-page__tool-selected:focus {
+	background-color: var(--primary, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary-foreground, oklch(0.2707 0.054 44.1725));
+}
+
+/* Keyboard focus stays visible on every chrome control
+	(Contract 1 §5; mirrors the global :focus-visible rule). */
+.editor-page__tools-area .editor-page__tool:focus-visible,
+.editor-page__zoom-area .editor-page__tool:focus-visible,
+.editor-page__zoom-readout:focus-visible,
+#done-creating-path-button:focus-visible {
+	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+	outline-offset: 2px;
+}
+
+/* Zoom readout: token chrome + tabular mono numerics per
+	Contract 2 §3 (measurement readouts use the mono role).
+	This input is toolbar chrome — never project content. */
+.editor-page__zoom-readout {
+	height: 32px;
+	background-color: var(--card, oklch(1 0 0));
+	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
+	border-radius: var(--radius-sm, calc(0.45rem * 0.6));
+	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	font-family: var(--font-mono, ui-monospace, monospace);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Done-path button: Noddy pill pinned to the canvas top-right
+	corner (Contract 3 §2: pins near the toolbar/canvas, not a
+	px-anchored page position). Copy + element creation live in
+	the protected new_path tool — presentation only here. */
+#done-creating-path-button {
+	top: 12px;
+	right: 12px;
+	left: auto;
+	height: auto;
+	min-height: 32px;
+	padding: 6px 14px;
+	background-color: var(--primary, oklch(0.8141 0.1261 58.1544));
+	color: var(--primary-foreground, oklch(0.2707 0.054 44.1725));
+	border: 1px solid var(--primary-foreground, oklch(0.2707 0.054 44.1725));
+	border-radius: var(--radius-full, 999px);
+	box-shadow: var(--shadow-sm, 0px 4px 10px 0px hsl(0 0% 0% / 0.06));
+	opacity: 1;
+	z-index: 10;
+}
+
+#done-creating-path-button:hover,
+#done-creating-path-button:focus {
+	opacity: 1;
+	background-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 }

@@ -35,9 +35,9 @@ export function makePage_Components() {
 	const selectedComponentID = editor.selectedComponentID;
 
 	const editingContent = `
-		<div class="editor-page__tools-area"></div>
+		<div class="editor-page__tools-area" role="group" aria-label="Edit tools"></div>
 		<div class="editor-page__edit-canvas-wrapper"></div>
-		<div class="editor-page__zoom-area"></div>
+		<div class="editor-page__zoom-area" role="group" aria-label="Canvas view controls"></div>
 	`;
 
 	const firstRunContent = `<div class="editor-page__edit-canvas-wrapper editor-page__edit-canvas-wrapper--first-run"></div>`;
