@@ -93,7 +93,7 @@ function makeMenu(menuName) {
 		// for new projects) drives the file name preview and the Ctrl+E note.
 		const preferredExportFormat = getPreferredExportFormat();
 		if (typeof editor.loadedFileHandle === 'object') {
-			let projectDisplayName = `${editor.project.settings.project.name} - Glyphr Studio Project.gs2`;
+			let projectDisplayName = `${editor.project.settings.project.name} - Noddy Project.gs2`;
 
 			// @ts-expect-error 'property does exist'
 			if (typeof editor?.loadedFileHandle?.name === 'string') {

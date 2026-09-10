@@ -1097,7 +1097,7 @@ export class ProjectEditor {
 		// log('saveProjectFile - \n'+saveData);
 
 		await saveTextFile('gs2', saveData, saveAsCopy);
-		showToast('Saved Glyphr Studio Project File');
+		showToast('Saved Noddy Project File');
 		this.setProjectAsSaved();
 		// log(`ProjectEditor.saveProjectFile`, 'end');
 	}

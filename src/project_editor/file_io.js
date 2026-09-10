@@ -81,7 +81,7 @@ async function saveTextFileDirectly(fileSuffix, fileContent, fileHandle = false)
 		suggestedName: fileName,
 		types: [
 			{
-				description: 'Glyphr Studio Project file',
+				description: 'Noddy Project file',
 				accept: { 'application/json': ['.gs2'] },
 			},
 		],
