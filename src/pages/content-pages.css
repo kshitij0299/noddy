@@ -37,6 +37,11 @@
 .content-page__nav-area #nav-button-l1 {
 	width: 100%;
 	border-radius: 4px;
+	/* Compensate the nav-area's 4px breathing room: without this the
+	header renders 8px narrower than the white cards below. Negative
+	margins restore shared outer edges while the ring keeps clearance. */
+	width: calc(100% + 8px);
+	margin: 0 -4px;
 }
 
 #content-page__panel {
