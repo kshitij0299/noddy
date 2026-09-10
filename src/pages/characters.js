@@ -14,7 +14,7 @@ import { ProjectEditor } from '../project_editor/project_editor.js';
 
 /**
  * Page > Characters
- * The main edit surface for Glyphr Studio, comprised of Panels of tools, and the Edit Canvas.
+ * The main edit surface for Noddy, comprised of Panels of tools, and the Edit Canvas.
  * @returns {Element} - page content
  */
 export function makePage_Characters() {
@@ -45,13 +45,13 @@ export function makePage_Characters() {
 				</div>
 				<div id="editor-page__panel"></div>
 			</div>
-			<div class="editor-page__tools-area"></div>
+			<div class="editor-page__tools-area" role="group" aria-label="Edit tools"></div>
 			<div class="editor-page__edit-canvas-wrapper">
 				<edit-canvas id="editor-page__edit-canvas" editing-item-id="${
 					editor.selectedGlyphID
 				}"></edit-canvas>
 			</div>
-			<div class="editor-page__zoom-area"></div>
+			<div class="editor-page__zoom-area" role="group" aria-label="Canvas view controls"></div>
 		</div>
 	`,
 	});
