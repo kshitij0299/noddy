@@ -214,6 +214,7 @@ export function getActionData(name) {
 			{
 				iconName: 'deleteGlyph',
 				title: `Delete Glyph\nRemove this Glyph from the project. \nDon't worry, you can undo this action.`,
+				danger: true,
 				onClick: () => {
 					const editor = getCurrentProjectEditor();
 					const name = editor.selectedItem.name;
@@ -308,6 +309,7 @@ export function getActionData(name) {
 			{
 				iconName: 'deleteShape',
 				title: 'Delete\nRemoves the currently selected shape(s) from this glyph.',
+				danger: true,
 				onClick: deleteSelectedPaths,
 			},
 			{
@@ -417,6 +419,7 @@ export function getActionData(name) {
 				iconName: 'deleteShape',
 				iconOptions: true,
 				title: 'Delete\nRemoves the currently selected component instance from this glyph.',
+				danger: true,
 				onClick: deleteSelectedPaths,
 			},
 		];
@@ -436,6 +439,7 @@ export function getActionData(name) {
 			{
 				iconName: 'delete',
 				title: 'Delete this kern group',
+				danger: true,
 				onClick: () => {
 					const editor = getCurrentProjectEditor();
 					const name = editor.selectedKernGroupID;
@@ -463,6 +467,7 @@ export function getActionData(name) {
 			{
 				iconName: 'deleteSingleLetterPair',
 				title: 'Find and delete a single letter pair from all kern groups',
+				danger: true,
 				onClick: showDeleteSingleLetterPairDialog,
 			},
 		];
@@ -727,6 +732,7 @@ export function getActionData(name) {
 				iconName: 'deletePathPoint',
 				title: `Delete Path Point\nRemoves the currently selected point or points from the path.`,
 				disabled: selectedPaths.length === 0,
+				danger: true,
 				onClick: deleteSelectedPoints,
 			},
 			{

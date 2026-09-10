@@ -171,6 +171,15 @@
 	overflow-wrap: break-word;
 }
 
+/* Empty pattern (Contract 1 §5): muted helper copy, action lives below. */
+.panel__empty-state {
+	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	line-height: 1.6;
+	min-width: 0;
+	max-width: 100%;
+	overflow-wrap: break-word;
+}
+
 .panel__card .full-width {
 	grid-column: 1 / -1;
 }
@@ -230,6 +239,20 @@
 	background-color: var(--offWhite);
 	padding: 10px 5px;
 	border-radius: 4px;
+	max-width: 100%;
+	height: auto;
+	box-sizing: border-box;
+}
+
+/* Help bubbles float above content: cap inner media so long help never forces panel overflow. */
+.panel__card info-bubble div,
+.panel__card info-bubble img {
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.panel__card info-bubble img {
+	height: auto;
 }
 
 .panel__card input[type='checkbox'] {
@@ -527,6 +550,16 @@
 	outline-offset: 2px;
 }
 
+/* Destructive actions (class only): delete/remove buttons track --destructive. */
+.panel__actions-area button.action-button--danger {
+	border-color: var(--destructive, oklch(0.6137 0.2039 25.5645));
+	color: var(--destructive, oklch(0.6137 0.2039 25.5645));
+}
+
+.panel__actions-area button.action-button--danger:hover {
+	border-color: var(--destructive, oklch(0.6137 0.2039 25.5645));
+}
+
 .panel__actions-area button:disabled {
 	background-color: transparent;
 	box-shadow: none;
@@ -707,7 +740,8 @@ nav .item-chooser__wrapper {
 	grid-template-columns: min-content minmax(0, 1fr);
 	grid-template-rows: 2fr 1fr;
 	align-items: center;
-	grid-column: -1 / 1;
+	grid-column: 1 / -1;
+	min-width: 0;
 }
 
 .item-link__row:hover,
@@ -846,6 +880,12 @@ nav .item-chooser__wrapper {
 	overflow-wrap: break-word;
 }
 
+.history-list__title {
+	min-width: 0;
+	max-width: 100%;
+	overflow-wrap: break-word;
+}
+
 .history-list__initial-entry {
 	opacity: 0.6;
 }
@@ -941,7 +981,6 @@ nav .item-chooser__wrapper {
 	position: relative;
 	top: -2px;
 	grid-column: 2 / -1;
-	column-span: 2 / 3;
 }
 
 .guides-card__view-options label {
@@ -970,7 +1009,7 @@ nav .item-chooser__wrapper {
 
 .guides-card__custom {
 	display: grid;
-	grid-template-columns: 20px minmax(0, 1fr) 22px 22px 22px minmax(0, 5.5rem);
+	grid-template-columns: 20px minmax(0, 1fr) 24px 24px 24px minmax(0, 5.5rem);
 	column-gap: 4px;
 	align-items: center;
 }
@@ -985,8 +1024,10 @@ nav .item-chooser__wrapper {
 }
 
 .guides-card__custom button {
-	height: 22px;
-	width: 22px;
+	height: 24px;
+	width: 24px;
+	min-height: 24px;
+	min-width: 24px;
 	padding: 0;
 }
 
@@ -1026,6 +1067,11 @@ nav .item-chooser__wrapper {
 
 .guides-card__custom .guide-delete-button {
 	opacity: 0.4;
+}
+
+.guides-card__custom .guide-delete-button.action-button--danger:hover,
+.guides-card__custom .guide-delete-button.action-button--danger:focus-visible {
+	border-color: var(--destructive, oklch(0.6137 0.2039 25.5645));
 }
 
 .guides-card__custom .guide-angle-button {
