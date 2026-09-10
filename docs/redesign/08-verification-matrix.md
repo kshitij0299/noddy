@@ -7,6 +7,7 @@ Phase 3.1 (`noddy/phase3-leftside` cont.): welcome/overview/browse rebuild + use
 Phase 3.2 (same branch): settings/actions/help/about rebuild — verifier NO-GO round triaged (both majors evaporated: danger already present, 3-tab brief error), fixes applied + re-verified, lint 0 err/2 warn, 618/618 pass, build exit 0.
 Phase 3.3 (same branch): components/ligatures/kerning/preview + first-run states — verifier caught transparent nav dropdown (fixed in nav.css, eyeballed by orchestrator), lint 0 err/2 warn, 618/618 pass, build exit 0.
 Phase 3.4 (same branch): inspector panels full pass — verifier GO (attrs/layers/quality/kerning/T2/T3/short/console), lint 0 err/2 warn, 618/618 pass, build exit 0.
+Phase 3.5 (same branch): canvas chrome retheme + user focus/hover/tab fixes + T3 zoom fixes — verifier GO after 1 fix round (glyph T3 framing confirmed pre-existing, untouched), lint 0 err/2 warn, 618/618 pass, build exit 0.
 
 | # | Check | How | Phase 0 status |
 |---|-------|-----|----------------|
