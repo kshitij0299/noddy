@@ -1,0 +1,23 @@
+# NOTICE — Noddy
+
+Noddy is an independent fork of **Glyphr Studio 2** (GPL-3.0-or-later),
+Copyright 2010-2026 Matthew LaGrandeur and contributors.
+Upstream: https://github.com/glyphr-studio/Glyphr-Studio-2
+
+## What changed
+
+- User-facing rebrand to Noddy: name, logos, warm-peach/paper visual theme,
+  Google Sans interface typography, Noddy versioning (`2.11.0-noddy.0`).
+- UI/layout/accessibility rework across welcome, overview, settings,
+  components/ligatures/kerning/preview, inspector panels, and edit-canvas chrome.
+- Internal class/file names, `.gs2` project format, and file compatibility
+  with Glyphr Studio projects are intentionally preserved.
+
+## License
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version. See `LICENSE-gpl-3.0.txt` for the full text.
+
+Fonts created with Noddy belong to their creators, not to this app.
