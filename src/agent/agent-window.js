@@ -324,21 +324,15 @@ export function createAgentWindow({
 		clamp(rect.left + delta[0], rect.top + delta[1]);
 	});
 	root.addEventListener('keydown', (event) => {
+		// Focus in this non-modal window belongs to its controls. Keep native
+		// input/button behavior, but never forward Delete or tool keys to canvas.
+		event.stopPropagation();
 		if (event.key === 'Escape') {
-			event.stopPropagation();
 			hide();
-		} else if (
-			event.target.closest('button, select, summary') &&
-			['Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)
-		)
-			event.stopPropagation();
+		}
 	});
 	root.addEventListener('keyup', (event) => {
-		if (
-			event.target.closest('button, select, summary') &&
-			['Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)
-		)
-			event.stopPropagation();
+		event.stopPropagation();
 	});
 	root.addEventListener('focusin', () => {
 		if (!controller.running) {
@@ -406,5 +400,7 @@ export function makeAgentToggle() {
 	toggle.setAttribute('aria-pressed', String(singleton ? !singleton.root.hidden : false));
 	toggle.setAttribute('aria-expanded', toggle.getAttribute('aria-pressed'));
 	toggle.title = 'Show or hide the Agent window';
+	for (const eventName of ['keydown', 'keyup'])
+		toggle.addEventListener(eventName, (event) => event.stopPropagation());
 	return toggle;
 }
