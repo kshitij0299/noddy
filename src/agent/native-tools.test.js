@@ -3,6 +3,7 @@ import { getGlyphrStudioApp, setCurrentProjectEditor } from '../app/main.js';
 import { Glyph } from '../project_data/glyph.js';
 import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
 import { ProjectEditor } from '../project_editor/project_editor.js';
+import { shouldExportItem } from '../formats_io/otf/font_export.js';
 import { createNativeToolSession } from './native-tools.js';
 import { TOOL_DEFINITIONS, validateToolInput } from './tool-definitions.js';
 
@@ -157,6 +158,58 @@ describe('native agent tool boundary', () => {
 		input.value = 75;
 		input.dispatchEvent(new Event('change'));
 		expect(selected().rightSideBearing).toBe(75);
+	});
+
+	it('rebinds real inspector change handlers after native undo and redo even after session disposal', () => {
+		document.body.insertAdjacentHTML('beforeend', '<div id="editor-page__panel"></div>');
+		editor.nav.panel = 'Attributes';
+		expect(spacing(60).ok).toBe(true);
+		session.dispose();
+		const inputAfterAgent = document.querySelector('.singleInput-rightSideBearing');
+		editor.history.restoreState();
+		const inputAfterUndo = document.querySelector('.singleInput-rightSideBearing');
+		expect(inputAfterUndo).not.toBe(inputAfterAgent);
+		inputAfterUndo.value = 45;
+		inputAfterUndo.dispatchEvent(new Event('change'));
+		expect(selected().rightSideBearing).toBe(45);
+		editor.history.redoState();
+		const inputAfterRedo = document.querySelector('.singleInput-rightSideBearing');
+		expect(inputAfterRedo).not.toBe(inputAfterUndo);
+		expect(selected().rightSideBearing).toBe(60);
+		inputAfterRedo.value = 75;
+		inputAfterRedo.dispatchEvent(new Event('change'));
+		expect(selected().rightSideBearing).toBe(75);
+	});
+
+	it('preserves transient export eligibility for glyphs, components, and ligatures across history', () => {
+		editor.project.settings.app.exportUneditedItems = false;
+		for (const [group, id] of [
+			['glyphs', 'glyph-0x42'],
+			['components', 'comp-agent'],
+			['ligatures', 'liga-0x66-0x69'],
+		]) {
+			editor.project[group][id] = new Glyph({ id, parent: editor.project });
+			expect(shouldExportItem(editor.project[group][id])).toBe(false);
+		}
+		selected().wasCreatedThisSession = false;
+		selected().hasChangedThisSession = false;
+		expect(spacing(60).ok).toBe(true);
+		expect(selected().wasCreatedThisSession).toBe(false);
+		expect(selected().hasChangedThisSession).toBe(true);
+		editor.history.restoreState();
+		editor.history.redoState();
+		expect(selected().wasCreatedThisSession).toBe(false);
+		expect(selected().hasChangedThisSession).toBe(true);
+		expect(shouldExportItem(selected())).toBe(true);
+		for (const [group, id] of [
+			['glyphs', 'glyph-0x42'],
+			['components', 'comp-agent'],
+			['ligatures', 'liga-0x66-0x69'],
+		]) {
+			expect(editor.project[group][id].wasCreatedThisSession).toBe(true);
+			expect(editor.project[group][id].hasChangedThisSession).toBe(false);
+			expect(shouldExportItem(editor.project[group][id])).toBe(false);
+		}
 	});
 
 	it('moves outlines for LSB while retaining RSB, and rebinds selected paths/points', () => {
