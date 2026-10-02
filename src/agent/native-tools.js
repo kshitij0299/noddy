@@ -6,7 +6,9 @@ import { validateToolInput } from './tool-definitions.js';
 
 let nextSession = 0;
 const activeTransactions = new WeakSet();
+const agentSnapshots = new WeakSet();
 const copy = (value) => JSON.parse(JSON.stringify(value));
+const jsonSize = (value) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 const fail = (code, message) => {
 	throw Object.assign(new Error(message), { code });
 };
@@ -195,13 +197,13 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 			// Detach that historical reference before a subsequent write; otherwise
 			// later redo would replay a mutated snapshot.
 			for (const entry of [...queue, ...redoQueue.flat()]) {
-				if (entry.itemState === project) {
+				if (!agentSnapshots.has(entry) && entry.itemState === project) {
 					detached.push(entry);
 					entry.itemState = snapshot(project);
 				}
 			}
 			history.addWholeProjectChangePreState(title);
-			history.queue[0].itemState = snapshot(project);
+			captureHistorySnapshot(history.queue[0], project);
 			abortIfNeeded(signal);
 			candidate.parent = project;
 			project.glyphs[glyphId] = candidate;
@@ -217,7 +219,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 				})
 				.filter(Boolean);
 			history.addWholeProjectChangePostState();
-			history.queue[0].itemState = snapshot(project);
+			captureHistorySnapshot(history.queue[0], project);
 			abortIfNeeded(signal);
 			editor.publish('currentItem', candidate);
 			// Inspector change handlers capture native object references. Rebuild
@@ -282,7 +284,25 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 }
 
 function snapshot(project) {
-	const data = copy(project.save());
+	return hydrateSnapshot(project.save());
+}
+
+function captureHistorySnapshot(entry, project) {
+	const saved = copy(project.save());
+	// History installs itemState directly as the live project on undo/redo.
+	// Agent-owned entries must return a detached project on every restoration,
+	// including when the *next* edit is manual. A local snapshot accessor keeps
+	// that invariant without changing or monkeypatching the native History API.
+	Object.defineProperty(entry, 'itemState', {
+		enumerable: true,
+		configurable: true,
+		get: () => hydrateSnapshot(saved),
+	});
+	agentSnapshots.add(entry);
+}
+
+function hydrateSnapshot(saved) {
+	const data = copy(saved);
 	const result = new GlyphrStudioProject(data);
 	// Import hydration stamps version metadata and ignores boolean settings.
 	// History must preserve exact settings, retaining only the three native
@@ -308,7 +328,7 @@ function getSelection(editor, glyph) {
 	return { pathIndices, pointIndices };
 }
 
-function describeGlyph(glyph, includePaths, maxChars = 112000) {
+function describeGlyph(glyph, includePaths, maxBytes = 112000) {
 	const bounds = glyph.maxes;
 	const description = {
 		glyphId: glyph.id,
@@ -345,11 +365,11 @@ function describeGlyph(glyph, includePaths, maxChars = 112000) {
 				: {}),
 		})),
 	};
-	if (JSON.stringify(description).length > maxChars) {
+	if (jsonSize(description) > maxBytes) {
 		for (const path of description.paths) delete path.points;
 		description.pathsIncluded = false;
 	}
-	while (JSON.stringify(description).length > maxChars && description.paths.length) {
+	while (jsonSize(description) > maxBytes && description.paths.length) {
 		description.paths.length = Math.floor(description.paths.length / 2);
 	}
 	description.pathsTruncated = description.paths.length < glyph.shapes.length;

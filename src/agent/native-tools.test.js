@@ -104,7 +104,7 @@ describe('native agent tool boundary', () => {
 			const glyph = new Glyph({ id, parent: editor.project });
 			for (let path = 0; path < 128; path++)
 				glyph.addOneShape({
-					name: 'x'.repeat(500),
+					name: '💖'.repeat(500),
 					pathPoints: points.map((point) => ({
 						p: { coord: { x: point.x, y: point.y } },
 						h1: { use: false },
@@ -116,7 +116,7 @@ describe('native agent tool boundary', () => {
 		}
 		const result = session.execute('read_glyphs', { glyphIds: ids, includePaths: true });
 		expect(result.ok).toBe(true);
-		expect(JSON.stringify(result).length).toBeLessThan(120000);
+		expect(new TextEncoder().encode(JSON.stringify(result)).byteLength).toBeLessThan(120000);
 		expect(result.glyphs.some((glyph) => !glyph.pathsIncluded)).toBe(true);
 		expect(result.glyphs.every((glyph) => glyph.pathCount === 128)).toBe(true);
 	});
@@ -361,6 +361,31 @@ describe('native agent tool boundary', () => {
 		expect(selected().rightSideBearing).toBe(60);
 		editor.history.redoState();
 		expect(selected().rightSideBearing).toBe(80);
+	});
+
+	it('keeps a native redo snapshot isolated from a subsequent manual edit', () => {
+		spacing(60);
+		editor.history.restoreState();
+		editor.history.redoState();
+		selected().advanceWidth = 1200;
+		editor.history.addState('Manual width after redo');
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(1108);
+	});
+
+	it('keeps an undone multi-command snapshot isolated from a subsequent manual edit', () => {
+		spacing(60);
+		spacing(80);
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(1108);
+		selected().advanceWidth = 1200;
+		editor.history.addState('Manual width after undo');
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(1108);
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(1088);
+		editor.history.redoState();
+		expect(selected().advanceWidth).toBe(1108);
 	});
 
 	it('deeply isolates whole-project snapshots, including arrays on unrelated glyphs', () => {
