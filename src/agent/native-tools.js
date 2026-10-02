@@ -7,6 +7,7 @@ import { validateToolInput } from './tool-definitions.js';
 let nextSession = 0;
 const activeTransactions = new WeakSet();
 const agentSnapshots = new WeakSet();
+const editorsWithHistoryRefresh = new WeakSet();
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const jsonSize = (value) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 const fail = (code, message) => {
@@ -143,6 +144,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 				const before = project.glyphs[glyphId];
 				assertNoDependents(project, before);
 				const candidate = new Glyph(copy(before.save(true)));
+				candidate.wasCreatedThisSession = before.wasCreatedThisSession;
 				// Component resolution is coupled to the active app. Do not claim
 				// isolated geometry edits on component-bearing glyphs in this slice.
 				if (candidate.shapes.some((shape) => shape.objType !== 'Path')) {
@@ -192,6 +194,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 		const detached = [];
 		activeTransactions.add(editor);
 		try {
+			ensureHistoryPanelRefresh(editor);
 			if (history.initialProject === project) history.initialProject = snapshot(project);
 			// Native undo/redo may install a history snapshot as the live project.
 			// Detach that historical reference before a subsequent write; otherwise
@@ -284,11 +287,12 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 }
 
 function snapshot(project) {
-	return hydrateSnapshot(project.save());
+	return hydrateSnapshot(project.save(), captureSessionState(project));
 }
 
 function captureHistorySnapshot(entry, project) {
 	const saved = copy(project.save());
+	const sessionState = captureSessionState(project);
 	// History installs itemState directly as the live project on undo/redo.
 	// Agent-owned entries must return a detached project on every restoration,
 	// including when the *next* edit is manual. A local snapshot accessor keeps
@@ -296,12 +300,12 @@ function captureHistorySnapshot(entry, project) {
 	Object.defineProperty(entry, 'itemState', {
 		enumerable: true,
 		configurable: true,
-		get: () => hydrateSnapshot(saved),
+		get: () => hydrateSnapshot(saved, sessionState),
 	});
 	agentSnapshots.add(entry);
 }
 
-function hydrateSnapshot(saved) {
+function hydrateSnapshot(saved, sessionState) {
 	const data = copy(saved);
 	const result = new GlyphrStudioProject(data);
 	// Import hydration stamps version metadata and ignores boolean settings.
@@ -312,7 +316,50 @@ function hydrateSnapshot(saved) {
 	result.settings.project.characterRanges = hydrated.project.characterRanges;
 	result.settings.app.guides.custom = hydrated.app.guides.custom;
 	result.settings.app.livePreviews = hydrated.app.livePreviews;
+	for (const group of ['glyphs', 'components', 'ligatures']) {
+		for (const [id, flags] of Object.entries(sessionState[group])) {
+			if (result[group][id]) Object.assign(result[group][id], flags);
+		}
+	}
 	return result;
+}
+
+function captureSessionState(project) {
+	// These flags affect exportUneditedItems, but intentionally are not part of
+	// .gs2 serialization. Preserve them as a private history sidecar.
+	return Object.fromEntries(
+		['glyphs', 'components', 'ligatures'].map((group) => [
+			group,
+			Object.fromEntries(
+				Object.entries(project[group]).map(([id, glyph]) => [
+					id,
+					{
+						hasChangedThisSession: glyph.hasChangedThisSession,
+						wasCreatedThisSession: glyph.wasCreatedThisSession,
+					},
+				])
+			),
+		])
+	);
+}
+
+function ensureHistoryPanelRefresh(editor) {
+	if (editorsWithHistoryRefresh.has(editor)) return;
+	let previousProject = editor.project;
+	// Menu/keyboard undo uses native History directly, outside a tool session.
+	// Its restored project replaces every object referenced by inspector event
+	// handlers. Keep one editor-owned observer alive for that history's lifetime,
+	// even after the agent window/session closes; no global history monkeypatch.
+	editor.subscribe({
+		topic: 'currentItem',
+		subscriberID: 'agent-history-project-restoration',
+		callback: () => {
+			if (editor.project === previousProject) return;
+			previousProject = editor.project;
+			if (getCurrentProjectEditor() === editor) refreshPanel();
+		},
+	});
+	editorsWithHistoryRefresh.add(editor);
 }
 
 function getSelection(editor, glyph) {
