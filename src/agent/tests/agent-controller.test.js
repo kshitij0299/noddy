@@ -58,6 +58,37 @@ function setup(transport, options = {}) {
 }
 
 describe('agent runner', () => {
+	it('resolves the Muse automatic route locally and sends Auto for independent server validation', async () => {
+		const transport = vi.fn().mockResolvedValue(reply('Ready'));
+		const { controller, events } = setup(transport);
+		controller.connect({
+			provider: 'opencode-zen',
+			protocol: 'auto',
+			model: 'muse-spark-1.3-contributor-free',
+			apiKey: 'not-a-real-key',
+		});
+		expect(events.at(-1).effectiveProtocol).toBe('responses');
+		await controller.run('Read this glyph');
+		expect(transport.mock.calls[0][0]).toMatchObject({
+			provider: 'opencode-zen',
+			model: 'muse-spark-1.3-contributor-free',
+			protocol: 'auto',
+		});
+	});
+	it('rejects Overview requests before contacting the model or consuming attachments', async () => {
+		const transport = vi.fn();
+		const { controller, session, events } = setup(transport);
+		session.getContext.mockReturnValue({ ...context, glyphId: false, writable: false });
+		const references = [{ id: 'font', kind: 'font', name: 'reference.ttf', summary: {} }];
+		await expect(controller.run('Edit this font', references)).rejects.toThrow(
+			'Select a glyph in Characters'
+		);
+		expect(session.dispose).toHaveBeenCalledOnce();
+		expect(transport).not.toHaveBeenCalled();
+		expect(events.some((event) => event.type === 'start')).toBe(false);
+		expect(controller.references).toEqual([]);
+		expect(references).toHaveLength(1);
+	});
 	it('always finishes cleanly when the project is closed while the provider is thinking', async () => {
 		let resolve;
 		const { controller, session, events } = setup(
@@ -120,7 +151,7 @@ describe('agent runner', () => {
 	it('rejects the Messages protocol for OpenAI before any request', () => {
 		const { controller } = setup(vi.fn());
 		expect(() => controller.connect({ ...config, protocol: 'messages' })).toThrow(
-			'OpenAI supports'
+			'Choose an API format supported by the selected provider.'
 		);
 	});
 	it('does not contact a provider merely by configuring credentials', () => {

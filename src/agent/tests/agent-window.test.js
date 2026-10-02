@@ -27,6 +27,69 @@ afterEach(() => {
 });
 
 describe('additive Agent window', () => {
+	it('shows the effective automatic Muse protocol and preserves an explicit advanced override', () => {
+		const window = windowFixture();
+		const [provider, protocol] = window.root.querySelectorAll('select');
+		const model = window.root.querySelector('input[type=text]');
+		provider.value = 'opencode-zen';
+		provider.dispatchEvent(new Event('change'));
+		model.value = 'muse-spark-1.3-contributor-free';
+		model.dispatchEvent(new Event('input'));
+		expect(protocol.value).toBe('auto');
+		expect(window.root.textContent).toContain('Automatic API: Responses.');
+		protocol.value = 'chat';
+		protocol.dispatchEvent(new Event('change'));
+		expect(window.root.textContent).toContain('Selected API: Chat Completions.');
+		model.dispatchEvent(new Event('input'));
+		expect(protocol.value).toBe('chat');
+	});
+	it('retains the Overview draft and files and asks for a glyph before configuring or calling a model', async () => {
+		const transport = vi.fn();
+		const window = createAgentWindow({
+			createSession: () => ({
+				getContext: () => ({ ...context, glyphId: false, writable: false }),
+				dispose: vi.fn(),
+			}),
+			transport,
+		});
+		windows.push(window);
+		window.start({
+			prompt: 'Make this wider',
+			attachments: [{ id: 'font', kind: 'font', name: 'reference.ttf', summary: {} }],
+		});
+		await vi.waitFor(() =>
+			expect(window.composer.root.textContent).toContain('Select a glyph in Characters')
+		);
+		expect(window.composer.getDraft().prompt).toBe('Make this wider');
+		expect(window.composer.getDraft().attachments).toHaveLength(1);
+		expect(window.root.querySelector('.agent-connection').hidden).toBe(true);
+		expect(transport).not.toHaveBeenCalled();
+		expect(window.root.querySelector('.agent-window__context').textContent).toContain(
+			'Current glyph only'
+		);
+	});
+
+	it('does not restore a draft that was cleared while a font import was running', async () => {
+		let finishImport;
+		const window = createAgentWindow({
+			createSession: () => ({ getContext: () => context, dispose: vi.fn() }),
+			openFont: () =>
+				new Promise((resolve) => {
+					finishImport = resolve;
+				}),
+		});
+		windows.push(window);
+		window.composer.setValue('Old draft', [{ id: 'font', kind: 'font', name: 'font.ttf' }]);
+		Array.from(window.composer.root.querySelectorAll('button'))
+			.find((node) => node.textContent === 'Open as project')
+			.click();
+		Array.from(window.root.querySelectorAll('button'))
+			.find((node) => node.textContent === 'Clear chat')
+			.click();
+		finishImport();
+		await Promise.resolve();
+		expect(window.composer.getDraft()).toEqual({ prompt: '', attachments: [] });
+	});
 	it('owns all control keystrokes without suppressing native text editing', () => {
 		const window = windowFixture();
 		const canvasKeyHandler = vi.fn();
@@ -85,7 +148,7 @@ describe('additive Agent window', () => {
 		const [provider, protocol] = window.root.querySelectorAll('select');
 		const messagesOption = protocol.querySelector('[value="messages"]');
 		expect(messagesOption.disabled).toBe(true);
-		expect(protocol.value).toBe('responses');
+		expect(protocol.value).toBe('auto');
 		provider.value = 'opencode-zen';
 		provider.dispatchEvent(new Event('change'));
 		expect(messagesOption.disabled).toBe(false);
@@ -93,7 +156,7 @@ describe('additive Agent window', () => {
 		provider.value = 'openai';
 		provider.dispatchEvent(new Event('change'));
 		expect(messagesOption.disabled).toBe(true);
-		expect(protocol.value).toBe('responses');
+		expect(protocol.value).toBe('auto');
 	});
 	it('welcome action reveals a composer before creating a project', () => {
 		const tabs = makeOpenProjectTabs();
