@@ -14,7 +14,10 @@
 		"coverage": "vitest watch --silent=true --coverage",
 		"lint": "eslint src",
 		"fix": "eslint src --fix",
-		"ci:versions": "node scripts/check-versions.mjs"
+		"ci:versions": "node scripts/check-versions.mjs",
+		"agent:serve": "node server/agent/serve.js",
+		"test:agent-relay": "node --test server/agent/*.checks.js",
+		"typecheck:agent-relay": "tsc -p server/agent/tsconfig.json"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
@@ -49,9 +52,16 @@
 		"arrowParens": "always"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^4.0.71",
+		"@ai-sdk/openai": "^4.0.83",
+		"@ai-sdk/openai-compatible": "^3.0.62",
 		"@mattlag/xmltojson": "^2.0.2",
+		"ai": "^7.0.127",
 		"bezier-boolean": "^1.0.6",
 		"eslint": "^10.8.0",
 		"font-flux-js": "^2.7.1"
+	},
+	"engines": {
+		"node": ">=22"
 	}
 }
