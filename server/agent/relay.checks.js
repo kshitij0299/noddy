@@ -11,6 +11,8 @@ import { createProviderModel } from './providers.js';
 import { createAgentMiddleware, publicError } from './relay.js';
 import { LIMITS, validateRequest } from './validation.js';
 import { createLocalAgentServer } from './serve.js';
+import { resolveProviderProtocol } from '../../src/agent/provider-config.js';
+import { providerToolSchema } from './tool-schema.js';
 
 // Deliberately small fixture; the real shared native registry is tested separately.
 const definitions = [
@@ -52,6 +54,136 @@ const toolResult = {
 	],
 };
 const usage = { inputTokens: { total: 10 }, outputTokens: { total: 4 } };
+
+test('shared automatic protocol routing follows documented Zen families and Qwen exceptions', () => {
+	assert.equal(resolveProviderProtocol('openai', 'any-model'), 'responses');
+	for (const model of [
+		'muse-spark-1.3-contributor-free',
+		'muse-spark-1.3',
+		'gpt-6-astra',
+		'grok-build-0.1',
+	]) {
+		assert.equal(resolveProviderProtocol('opencode-zen', model), 'responses');
+	}
+	for (const model of [
+		'claude-sonnet-4-6',
+		'claude-fable-5-1',
+		'qwen3.8-flash',
+		'qwen3.7-max',
+		'qwen3.7-plus',
+		'qwen3.6-plus',
+		'qwen3.5-plus',
+	]) {
+		assert.equal(resolveProviderProtocol('opencode-zen', model), 'messages');
+	}
+	for (const model of [
+		'qwen3.8-max',
+		'deepseek-v4.1-flash',
+		'glm-5.3',
+		'kimi-k3',
+		'minimax-m3',
+		'big-pickle',
+		'space-bunny-free',
+		'longcat-2.5-preview-free',
+		'mimo-v2.6-flash-free',
+		'ling-3.1-flash-free',
+		'nemotron-3.5-lightning-free',
+	]) {
+		assert.equal(resolveProviderProtocol('opencode-zen', model), 'chat');
+	}
+	for (const model of ['unknown-model', 'qwen3.9-max', 'gpt-unknown', 'constructor']) {
+		assert.throws(
+			() => resolveProviderProtocol('opencode-zen', model),
+			(error) => error.code === 'PROTOCOL_REQUIRED' && /Advanced/.test(error.message)
+		);
+	}
+	assert.throws(() => resolveProviderProtocol('opencode-zen', ''), { code: 'MODEL_REQUIRED' });
+	assert.throws(() => resolveProviderProtocol('opencode-zen', 'gemini-3.8-flash'), {
+		code: 'UNSUPPORTED_PROTOCOL',
+	});
+	assert.throws(() => resolveProviderProtocol('opencode-zen', 'jev-1.13-free'), {
+		code: 'UNSUPPORTED_PROTOCOL',
+	});
+	assert.throws(() => resolveProviderProtocol('openai', 'model', 'messages'), {
+		code: 'UNSUPPORTED_PROTOCOL',
+	});
+	// An explicit supported format always wins; the user may be testing a new route.
+	assert.equal(resolveProviderProtocol('opencode-zen', 'unknown-model', 'chat'), 'chat');
+	assert.equal(
+		resolveProviderProtocol('opencode-zen', 'muse-spark-1.3-contributor-free', 'messages'),
+		'messages'
+	);
+});
+
+test('server resolves auto and rejects an unknown Zen format before model/key transfer', async () => {
+	assert.equal(validateRequest({ ...base, protocol: 'auto' }, definitions).protocol, 'responses');
+	assert.equal(
+		validateRequest(
+			{
+				...base,
+				provider: 'opencode-zen',
+				model: 'muse-spark-1.3-contributor-free',
+				protocol: 'auto',
+			},
+			definitions
+		).protocol,
+		'responses'
+	);
+	let modelCalls = 0;
+	await assert.rejects(
+		generateAgentStep(
+			{ ...base, provider: 'opencode-zen', model: 'unknown-model', protocol: 'auto' },
+			registry,
+			{
+				modelFactory: () => {
+					modelCalls++;
+					throw new Error('Should not create provider');
+				},
+			}
+		),
+		(error) => {
+			const safe = publicError(error);
+			assert.equal(safe.code, 'PROTOCOL_REQUIRED');
+			assert.match(safe.message, /Advanced/);
+			assert.equal(safe.message.includes(base.apiKey), false);
+			return true;
+		}
+	);
+	assert.equal(modelCalls, 0);
+});
+
+test('wire schema removes only undocumented uniqueness constraints without changing native schema', () => {
+	const schema = {
+		type: 'object',
+		properties: {
+			uniqueItems: { type: 'boolean' },
+			ids: {
+				type: 'array',
+				uniqueItems: true,
+				minItems: 1,
+				maxItems: 8,
+				items: { type: 'string' },
+			},
+			nested: {
+				anyOf: [{ type: 'array', uniqueItems: true, items: { type: 'integer' } }, { type: 'null' }],
+			},
+		},
+		required: ['uniqueItems', 'ids', 'nested'],
+		additionalProperties: false,
+	};
+	const wire = providerToolSchema(schema, 'openai', 'responses');
+	assert.equal(wire.properties.ids.uniqueItems, undefined);
+	assert.equal(wire.properties.nested.anyOf[0].uniqueItems, undefined);
+	assert.deepEqual(wire.properties.uniqueItems, { type: 'boolean' });
+	assert.equal(wire.properties.ids.minItems, 1);
+	assert.equal(wire.properties.ids.maxItems, 8);
+	assert.equal(schema.properties.ids.uniqueItems, true);
+	assert.equal(
+		providerToolSchema(schema, 'opencode-zen', 'responses').properties.ids.uniqueItems,
+		undefined
+	);
+	assert.equal(providerToolSchema(schema, 'opencode-zen', 'messages'), schema);
+});
 
 test('validates fixed provider, protocol, key, model and bounded messages before a model call', () => {
 	assert.equal(validateRequest(base, definitions).model, 'test-model');
@@ -230,6 +362,87 @@ function providerResponse(protocol, tool = true) {
 	};
 }
 
+test('Muse Spark Contributor Free automatic mode uses the real Responses adapter and retains native duplicate validation', async () => {
+	const readSchema = {
+		type: 'object',
+		properties: {
+			glyphIds: {
+				type: 'array',
+				items: { type: 'string' },
+				minItems: 1,
+				maxItems: 8,
+				uniqueItems: true,
+			},
+		},
+		required: ['glyphIds'],
+		additionalProperties: false,
+	};
+	const nativeRegistry = {
+		definitions: [
+			...definitions,
+			{ name: 'read_glyphs', description: 'Read unique glyph targets.', inputSchema: readSchema },
+		],
+		validateToolInput(name, input) {
+			if (name === 'get_context') return registry.validateToolInput(name, input);
+			return {
+				valid:
+					name === 'read_glyphs' &&
+					Array.isArray(input?.glyphIds) &&
+					new Set(input.glyphIds).size === input.glyphIds.length,
+			};
+		},
+	};
+	const requests = [];
+	let duplicateCall = false;
+	const modelFactory = (settings) =>
+		createProviderModel(settings, async (url, init) => {
+			requests.push({
+				url: String(url),
+				headers: new Headers(init.headers),
+				body: JSON.parse(init.body),
+			});
+			const response = providerResponse('responses');
+			if (duplicateCall)
+				response.output = [
+					{
+						type: 'function_call',
+						id: 'fc_dup',
+						call_id: 'call_dup',
+						name: 'read_glyphs',
+						arguments: JSON.stringify({ glyphIds: ['glyph-0x6E', 'glyph-0x6E'] }),
+					},
+				];
+			return new Response(JSON.stringify(response), {
+				headers: { 'Content-Type': 'application/json' },
+			});
+		});
+	const input = {
+		...base,
+		provider: 'opencode-zen',
+		model: 'muse-spark-1.3-contributor-free',
+		protocol: 'auto',
+	};
+	const result = await generateAgentStep(input, nativeRegistry, { modelFactory });
+	assert.equal(result.toolCalls[0].toolName, 'get_context');
+	assert.equal(requests[0].url, 'https://opencode.ai/zen/v1/responses');
+	assert.equal(requests[0].body.model, 'muse-spark-1.3-contributor-free');
+	assert.equal(requests[0].headers.get('authorization'), `Bearer ${base.apiKey}`);
+	assert.equal(requests[0].body.store, false);
+	assert.equal(
+		requests[0].body.tools.find((tool) => tool.name === 'read_glyphs').parameters.properties
+			.glyphIds.uniqueItems,
+		undefined
+	);
+	assert.equal(readSchema.properties.glyphIds.uniqueItems, true);
+	// The installed SDK currently sends strict:false unless explicitly requested.
+	assert.equal(requests[0].body.tools[0].strict, false);
+	duplicateCall = true;
+	await assert.rejects(generateAgentStep(input, nativeRegistry, { modelFactory }), {
+		code: 'INVALID_TOOL_CALL',
+	});
+	assert.equal(requests.length, 2, 'No billed retries or fallback protocol probes');
+});
+
 for (const [provider, protocol] of [
 	['openai', 'responses'],
 	['openai', 'chat'],
@@ -402,6 +615,17 @@ test('HTTP relay accepts same-origin JSON, no CORS and no cache; rejects origin/
 	const bad = await send({}, '/api/agent/step', { ...base, apiKey: 'secret\nvalue' });
 	assert.equal(bad.status, 400);
 	assert.doesNotMatch(await bad.text(), /secret/);
+	const unknown = await send({}, '/api/agent/step', {
+		...base,
+		provider: 'opencode-zen',
+		protocol: 'auto',
+		model: 'unknown-model',
+	});
+	assert.equal(unknown.status, 400);
+	const protocolError = await unknown.json();
+	assert.equal(protocolError.error.code, 'PROTOCOL_REQUIRED');
+	assert.match(protocolError.error.message, /Advanced/);
+	assert.equal(JSON.stringify(protocolError).includes(base.apiKey), false);
 });
 
 test('HTTP body limit prevents oversized data reaching generation', async () => {

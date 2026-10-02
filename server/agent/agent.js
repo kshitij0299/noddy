@@ -1,6 +1,7 @@
 import { ToolLoopAgent, isStepCount, jsonSchema, tool } from 'ai';
 import { createProviderModel } from './providers.js';
 import { LIMITS, RelayError, validateMessages, validateRequest } from './validation.js';
+import { providerToolSchema } from './tool-schema.js';
 
 // Provider warning strings may contain request data. This relay has no payload logging.
 globalThis.AI_SDK_LOG_WARNINGS = false;
@@ -44,14 +45,17 @@ export async function generateAgentStep(body, registry, options = {}) {
 			definition.name,
 			tool({
 				description: definition.description,
-				inputSchema: jsonSchema(definition.inputSchema, {
-					validate(value) {
-						const validation = registry.validateToolInput(definition.name, value);
-						return validation.valid
-							? { success: true, value }
-							: { success: false, error: new Error('Invalid native tool arguments') };
-					},
-				}),
+				inputSchema: jsonSchema(
+					providerToolSchema(definition.inputSchema, request.provider, request.protocol),
+					{
+						validate(value) {
+							const validation = registry.validateToolInput(definition.name, value);
+							return validation.valid
+								? { success: true, value }
+								: { success: false, error: new Error('Invalid native tool arguments') };
+						},
+					}
+				),
 			}),
 		])
 	);
