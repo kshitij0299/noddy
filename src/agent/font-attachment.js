@@ -32,12 +32,16 @@ export async function openFontAttachment(attachment) {
 		// It avoids the global import target and defers navigation until conversion succeeds.
 		const project = await ioFont_importFont(parsed, true, attachment.summary.format.toLowerCase());
 		project.resetSessionStateForAllItems();
+		const hadCapitalA = Object.hasOwn(project.glyphs, 'glyph-0x41');
+		const firstGlyphId = hadCapitalA ? 'glyph-0x41' : Object.keys(project.glyphs)[0];
+		if (!firstGlyphId) throw new Error('This font has no editable Unicode glyphs.');
 		editor = new ProjectEditor();
 		editor.project = project; // Existing setter initializes the new editor's history.
+		// The existing project setter always selects and creates A. Preserve the
+		// imported character coverage by removing only that newly generated glyph.
+		if (!hadCapitalA) delete project.glyphs['glyph-0x41'];
 		editor.nav.page = 'Characters';
-		editor.selectedGlyphID = project.glyphs['glyph-0x41']
-			? 'glyph-0x41'
-			: Object.keys(project.glyphs)[0];
+		editor.selectedGlyphID = firstGlyphId;
 		setCurrentProjectEditor(editor);
 		sortCharacterRanges();
 		updateWindowUnloadEvent();

@@ -4,10 +4,41 @@ import { getCurrentProjectEditor, getGlyphrStudioApp } from '../../app/main.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { openFontAttachment } from '../font-attachment.js';
 import { prepareAttachment } from '../attachments.js';
+import { FontFlux } from 'font-flux-js';
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('explicit font attachment import', () => {
+	it('preserves an icon font that has no capital A', async () => {
+		vi.spyOn(ProjectEditor.prototype, 'navigate').mockImplementation(() => {});
+		const font = FontFlux.create({
+			family: 'Only Icons',
+			unitsPerEm: 1000,
+			ascender: 800,
+			descender: -200,
+		});
+		font.addGlyph({
+			name: 'icon',
+			unicode: 0xe000,
+			advanceWidth: 600,
+			contours: [
+				[
+					{ x: 10, y: 10, onCurve: true },
+					{ x: 300, y: 600, onCurve: true },
+					{ x: 590, y: 10, onCurve: true },
+				],
+			],
+		});
+		const binary = font.export();
+		const attachment = await prepareAttachment(
+			new File([binary], 'icons.ttf', { type: 'font/ttf' })
+		);
+		const editor = await openFontAttachment(attachment);
+		expect(editor.project.glyphs['glyph-0x41']).toBeUndefined();
+		expect(editor.project.glyphs['glyph-0xE000']).toBeDefined();
+		expect(editor.project.glyphs[editor.selectedGlyphID]).toBeDefined();
+		expect(editor.selectedGlyphID).not.toBe('glyph-0x41');
+	});
 	it('converts a real TTF into a new editable project while preserving the current font', async () => {
 		const previous = getCurrentProjectEditor();
 		const before = JSON.stringify(previous.project.save());

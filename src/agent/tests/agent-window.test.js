@@ -27,6 +27,35 @@ afterEach(() => {
 });
 
 describe('additive Agent window', () => {
+	it('owns all control keystrokes without suppressing native text editing', () => {
+		const window = windowFixture();
+		const canvasKeyHandler = vi.fn();
+		document.addEventListener('keydown', canvasKeyHandler);
+		document.addEventListener('keyup', canvasKeyHandler);
+		window.show();
+		try {
+			for (const target of [
+				window.root.querySelector('button'),
+				window.root.querySelector('select'),
+				window.composer.input,
+			]) {
+				target.focus();
+				for (const key of ['Delete', 'Backspace', 'v', 'p', 'z']) {
+					for (const type of ['keydown', 'keyup']) {
+						const event = new KeyboardEvent(type, { key, bubbles: true, cancelable: true });
+						target.dispatchEvent(event);
+						expect(event.defaultPrevented).toBe(false);
+					}
+				}
+			}
+			expect(canvasKeyHandler).not.toHaveBeenCalled();
+			document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', bubbles: true }));
+			expect(canvasKeyHandler).toHaveBeenCalledOnce();
+		} finally {
+			document.removeEventListener('keydown', canvasKeyHandler);
+			document.removeEventListener('keyup', canvasKeyHandler);
+		}
+	});
 	it('keeps focus safe when the project closes or session creation fails', () => {
 		const dispose = vi.fn();
 		const createSession = vi
