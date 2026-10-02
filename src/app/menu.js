@@ -19,6 +19,7 @@ import { emailLink } from './app.js';
 import { makePage_CrossProjectActions } from './cross_project_actions/cross_project_actions.js';
 import { getCurrentProjectEditor, getGlyphrStudioApp } from './main.js';
 import { makePage_OpenProject } from './open_project.js';
+import { makeAgentToggle } from '../agent/agent-window.js';
 
 // --------------------------------------------------------------
 // Top bar for the App
@@ -65,7 +66,9 @@ export function makeAppTopBar() {
 		})
 	);
 
-	addAsChildren(topBar, [logo, menus, bugContact]);
+	const rightActions = makeElement({ className: 'top-bar__right-actions' });
+	addAsChildren(rightActions, [bugContact, makeAgentToggle()]);
+	addAsChildren(topBar, [logo, menus, rightActions]);
 
 	return topBar;
 }

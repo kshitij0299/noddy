@@ -43,8 +43,7 @@
 	margin-left: 2px;
 	min-height: 24px;
 	padding-left: 32px;
-	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat left center / 24px
-		24px;
+	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat left center / 24px 24px;
 }
 
 .top-bar__logo svg {
@@ -75,7 +74,7 @@
 /* Compact top bar: icon-only Noddy mark, menus take the remaining space */
 @media (max-width: 759px) {
 	#app__top-bar {
-		grid-template-columns: auto 1fr;
+		grid-template-columns: auto 1fr auto;
 		column-gap: 8px;
 	}
 
@@ -117,16 +116,22 @@
 }
 
 .top-bar__bug-contact {
-	position: absolute;
+	position: static;
 	opacity: 80%;
-	right: 10px;
-	top: 10px;
 	padding: 2px 4px;
 	background-color: var(--gray-l97);
 	border: 1px solid var(--gray-l90);
 	color: var(--gray-l10);
 	border-radius: 3px;
 	/* box-shadow: var(--l2-shadow); */
+}
+
+.top-bar__right-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 10px;
+	padding-right: 10px;
 }
 
 @media (min-width: 810px) {
