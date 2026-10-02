@@ -1,0 +1,450 @@
+import { getCurrentProjectEditor } from '../app/main.js';
+import { refreshPanel } from '../panels/panels.js';
+import { Glyph } from '../project_data/glyph.js';
+import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
+import { validateToolInput } from './tool-definitions.js';
+
+let nextSession = 0;
+const activeTransactions = new WeakSet();
+const copy = (value) => JSON.parse(JSON.stringify(value));
+const fail = (code, message) => {
+	throw Object.assign(new Error(message), { code });
+};
+const abortIfNeeded = (signal) => {
+	if (signal?.aborted) fail('CANCELLED', 'The request was stopped.');
+};
+
+/**
+ * One request, one captured editor and glyph. No global editor swapping, no
+ * arbitrary property writes, and no model-controlled permissions. The UI should
+ * create a new session per Send and retain the last one for its inline Undo.
+ */
+export function createNativeToolSession({ getEditor = getCurrentProjectEditor } = {}) {
+	const editor = getEditor();
+	const project = editor?.project;
+	if (!project) fail('NO_PROJECT', 'Open a project before asking the agent to edit.');
+	const glyphId = editor.nav?.page === 'Characters' ? editor.selectedItemID : null;
+	const sessionId = `agent-${++nextSession}`;
+	let revision = 0;
+	let lastState;
+	let lastHead;
+	let disposed = false;
+	let lastEdit;
+	const completedCalls = new Map();
+
+	function assertActive() {
+		if (disposed) fail('SESSION_CLOSED', 'Send a new request to start a session.');
+		if (getEditor() !== editor || editor.project !== project) {
+			fail('PROJECT_CHANGED', 'The project changed. Send a new request for the current project.');
+		}
+	}
+
+	function getContext() {
+		assertActive();
+		const glyph = project.glyphs[glyphId];
+		const selection = getSelection(editor, glyph);
+		// Data fingerprints catch manual mutations even when a UI handler omits
+		// publish(). History identity also catches an edit followed by undo.
+		const state = JSON.stringify([
+			project.save(),
+			editor.nav?.page,
+			editor.selectedItemID,
+			selection,
+		]);
+		if (state !== lastState || editor.history.queue[0] !== lastHead) {
+			revision++;
+			lastState = state;
+			lastHead = editor.history.queue[0];
+		}
+		return {
+			projectId: project.settings.project.id,
+			projectName: project.settings.project.name,
+			glyphId,
+			revision: `${sessionId}:${revision}`,
+			selection,
+			writable: Boolean(
+				glyph && editor.nav?.page === 'Characters' && editor.selectedItemID === glyphId
+			),
+			unitsPerEm: project.settings.font.upm,
+		};
+	}
+
+	function errorResult(error) {
+		let context;
+		try {
+			context = getContext();
+		} catch {
+			// A closed/replaced project has no usable context in this session.
+		}
+		return {
+			ok: false,
+			error: {
+				code: error.code || 'NATIVE_TOOL_FAILED',
+				message: error.message || 'The edit failed.',
+			},
+			...(context ? { context } : {}),
+		};
+	}
+
+	function execute(name, input, { callId, signal } = {}) {
+		try {
+			assertActive();
+			abortIfNeeded(signal);
+			const validation = validateToolInput(name, input);
+			if (!validation.valid) fail('INVALID_ARGUMENTS', validation.error);
+			const signature = JSON.stringify([name, input]);
+			if (callId !== undefined && (typeof callId !== 'string' || callId.length > 200)) {
+				fail('INVALID_CALL_ID', 'Call identity must be a short string.');
+			}
+			if (callId && completedCalls.has(callId)) {
+				const previous = completedCalls.get(callId);
+				if (previous.signature !== signature)
+					fail('CALL_ID_CONFLICT', 'A call ID was reused for a different request.');
+				return { ...copy(previous.result), duplicate: true };
+			}
+			if (completedCalls.size >= 64)
+				fail('SESSION_LIMIT', 'This session reached its tool-call limit.');
+			const context = getContext();
+			let result;
+			if (name === 'get_context') {
+				result = { ok: true, context };
+			} else if (name === 'read_glyphs') {
+				let remainingPoints = 512;
+				const glyphs = input.glyphIds.map((id) => {
+					const glyph = project.glyphs[id];
+					if (!glyph) return { glyphId: id, exists: false };
+					const includePaths = input.includePaths && glyph.pointCount <= remainingPoints;
+					if (includePaths) remainingPoints -= glyph.pointCount;
+					return describeGlyph(glyph, includePaths, Math.floor(112000 / input.glyphIds.length));
+				});
+				result = { ok: true, context, glyphs };
+			} else {
+				if (!context.writable || input.glyphId !== glyphId) {
+					fail(
+						'OUT_OF_SCOPE',
+						'Edits are limited to the glyph selected when you sent this request. Select the intended character and send again.'
+					);
+				}
+				if (input.expectedRevision !== context.revision) {
+					fail(
+						'STALE_REVISION',
+						'The font or selection changed. Read the glyph again before editing.'
+					);
+				}
+				if (lastState.length > 8_000_000)
+					fail(
+						'PROJECT_TOO_LARGE',
+						'This project exceeds the first version’s native history snapshot limit.'
+					);
+				if (activeTransactions.has(editor))
+					fail('EDITOR_BUSY', 'Another native command is editing this project.');
+				const before = project.glyphs[glyphId];
+				assertNoDependents(project, before);
+				const candidate = new Glyph(copy(before.save(true)));
+				// Component resolution is coupled to the active app. Do not claim
+				// isolated geometry edits on component-bearing glyphs in this slice.
+				if (candidate.shapes.some((shape) => shape.objType !== 'Path')) {
+					fail(
+						'UNSUPPORTED_COMPONENT',
+						'Agent edits to glyphs containing component instances are not supported yet.'
+					);
+				}
+				applyCommand(name, input, candidate);
+				assertGeometry(candidate);
+				abortIfNeeded(signal);
+				if (JSON.stringify(before.save()) === JSON.stringify(candidate.save())) {
+					result = { ok: true, changed: false, context, glyph: describeGlyph(before, false) };
+				} else {
+					commit(candidate, `Agent: ${commandTitle(name, input)}`, signal);
+					result = {
+						ok: true,
+						changed: true,
+						context: getContext(),
+						glyph: describeGlyph(candidate, false),
+						undoAvailable: true,
+					};
+					lastEdit = { entry: editor.history.queue[0], state: lastState };
+				}
+			}
+			if (callId) completedCalls.set(callId, { signature, result: copy(result) });
+			return result;
+		} catch (error) {
+			return errorResult(error);
+		}
+	}
+
+	function commit(candidate, title, signal) {
+		const history = editor.history;
+		const queue = [...history.queue];
+		const redoQueue = [...history.redoQueue];
+		const initialProject = history.initialProject;
+		const projectSaved = editor.projectSaved;
+		const documentTitle = document.title;
+		const historyButtons = ['actionButtonUndo', 'actionButtonRedo'].map((id) => {
+			const element = document.getElementById(id);
+			return { element, disabled: element?.hasAttribute('disabled') };
+		});
+		const originalGlyph = project.glyphs[glyphId];
+		const shapeSelection = [...editor.multiSelect.shapes.members];
+		const pointSelection = [...editor.multiSelect.points.members];
+		const detached = [];
+		activeTransactions.add(editor);
+		try {
+			if (history.initialProject === project) history.initialProject = snapshot(project);
+			// Native undo/redo may install a history snapshot as the live project.
+			// Detach that historical reference before a subsequent write; otherwise
+			// later redo would replay a mutated snapshot.
+			for (const entry of [...queue, ...redoQueue.flat()]) {
+				if (entry.itemState === project) {
+					detached.push(entry);
+					entry.itemState = snapshot(project);
+				}
+			}
+			history.addWholeProjectChangePreState(title);
+			history.queue[0].itemState = snapshot(project);
+			abortIfNeeded(signal);
+			candidate.parent = project;
+			project.glyphs[glyphId] = candidate;
+			candidate.changed();
+			// Rebind selection by index to the new native objects; no stale refs.
+			editor.multiSelect.shapes.members = shapeSelection
+				.map((shape) => candidate.shapes[originalGlyph.shapes.indexOf(shape)])
+				.filter(Boolean);
+			editor.multiSelect.points.members = pointSelection
+				.map((point) => {
+					const pathIndex = originalGlyph.shapes.indexOf(point.parent);
+					return candidate.shapes[pathIndex]?.pathPoints[point.parent.pathPoints.indexOf(point)];
+				})
+				.filter(Boolean);
+			history.addWholeProjectChangePostState();
+			history.queue[0].itemState = snapshot(project);
+			abortIfNeeded(signal);
+			editor.publish('currentItem', candidate);
+			// Inspector change handlers capture native object references. Rebuild
+			// the panel after replacing a glyph, not just its displayed values.
+			refreshPanel();
+			// The native pre-state hook autosaves the old state; run the same
+			// native hook after successful commit so autosave contains the edit.
+			history.updateAfterSaveState();
+		} catch (error) {
+			project.glyphs[glyphId] = originalGlyph;
+			history.queue = queue;
+			history.redoQueue = redoQueue;
+			history.initialProject = initialProject;
+			editor.projectSaved = projectSaved;
+			document.title = documentTitle;
+			for (const { element, disabled } of historyButtons) {
+				if (element) element.toggleAttribute('disabled', disabled);
+			}
+			editor.multiSelect.shapes.members = shapeSelection;
+			editor.multiSelect.points.members = pointSelection;
+			for (const entry of detached) entry.itemState = project;
+			try {
+				editor.publish('currentItem', originalGlyph);
+				refreshPanel();
+			} catch {
+				// Preserve the original failure if a UI subscriber also fails during rollback.
+			}
+			throw error;
+		} finally {
+			activeTransactions.delete(editor);
+		}
+	}
+
+	function undoLast() {
+		try {
+			getContext();
+			if (!lastEdit || editor.history.queue[0] !== lastEdit.entry || lastState !== lastEdit.state) {
+				fail(
+					'UNDO_NOT_LATEST',
+					'Other edits occurred after this command. Use the editor’s history to undo.'
+				);
+			}
+			editor.history.restoreState();
+			refreshPanel();
+			lastEdit = null;
+			disposed = true;
+			return { ok: true, undone: true };
+		} catch (error) {
+			return errorResult(error);
+		}
+	}
+
+	return {
+		getContext,
+		execute,
+		undoLast,
+		dispose: () => {
+			disposed = true;
+			completedCalls.clear();
+		},
+	};
+}
+
+function snapshot(project) {
+	const data = copy(project.save());
+	const result = new GlyphrStudioProject(data);
+	// Import hydration stamps version metadata and ignores boolean settings.
+	// History must preserve exact settings, retaining only the three native
+	// object collections that need their class methods after restoration.
+	const hydrated = result.settings;
+	result.settings = copy(data.settings);
+	result.settings.project.characterRanges = hydrated.project.characterRanges;
+	result.settings.app.guides.custom = hydrated.app.guides.custom;
+	result.settings.app.livePreviews = hydrated.app.livePreviews;
+	return result;
+}
+
+function getSelection(editor, glyph) {
+	const pathIndices = (editor.multiSelect?.shapes?.members || [])
+		.map((shape) => glyph?.shapes.indexOf(shape))
+		.filter((index) => index >= 0);
+	const pointIndices = (editor.multiSelect?.points?.members || [])
+		.map((point) => ({
+			pathIndex: glyph?.shapes.indexOf(point.parent),
+			pointIndex: point.parent?.pathPoints.indexOf(point),
+		}))
+		.filter((point) => point.pathIndex >= 0 && point.pointIndex >= 0);
+	return { pathIndices, pointIndices };
+}
+
+function describeGlyph(glyph, includePaths, maxChars = 112000) {
+	const bounds = glyph.maxes;
+	const description = {
+		glyphId: glyph.id,
+		exists: true,
+		name: glyph.name,
+		advanceWidth: glyph.advanceWidth,
+		leftSideBearing: glyph.leftSideBearing,
+		rightSideBearing: glyph.rightSideBearing,
+		bounds: { xMin: bounds.xMin, xMax: bounds.xMax, yMin: bounds.yMin, yMax: bounds.yMax },
+		pathCount: glyph.shapes.length,
+		pointCount: glyph.pointCount,
+		usedIn: glyph.usedIn.slice(0, 32),
+		dependentCount: glyph.usedIn.length,
+		pathsIncluded: includePaths,
+		paths: glyph.shapes.slice(0, 128).map((shape, index) => ({
+			index,
+			name: String(shape.name).slice(0, 80),
+			type: shape.objType,
+			locks: { x: shape.xLock, y: shape.yLock, width: shape.wLock, height: shape.hLock },
+			...(includePaths && shape.objType === 'Path'
+				? {
+						points: shape.pathPoints.map((point) => ({
+							x: point.p.x,
+							y: point.p.y,
+							h1: point.h1.use ? { x: point.h1.x, y: point.h1.y } : null,
+							h2: point.h2.use ? { x: point.h2.x, y: point.h2.y } : null,
+							locks: {
+								p: { x: point.p.xLock, y: point.p.yLock },
+								h1: { x: point.h1.xLock, y: point.h1.yLock },
+								h2: { x: point.h2.xLock, y: point.h2.yLock },
+							},
+						})),
+				  }
+				: {}),
+		})),
+	};
+	if (JSON.stringify(description).length > maxChars) {
+		for (const path of description.paths) delete path.points;
+		description.pathsIncluded = false;
+	}
+	while (JSON.stringify(description).length > maxChars && description.paths.length) {
+		description.paths.length = Math.floor(description.paths.length / 2);
+	}
+	description.pathsTruncated = description.paths.length < glyph.shapes.length;
+	return description;
+}
+
+function assertNoDependents(project, glyph) {
+	const collections = [project.glyphs, project.components, project.ligatures];
+	const linked = collections.some((collection) =>
+		Object.values(collection).some((item) => item.shapes.some((shape) => shape.link === glyph.id))
+	);
+	if (glyph.usedIn.length || linked)
+		fail(
+			'DEPENDENT_GLYPHS',
+			'This glyph is reused by other glyphs. Agent edits with dependent glyph effects are not supported yet.'
+		);
+}
+
+function assertMoveAllowed(shape, dx, dy) {
+	if (shape.objType !== 'Path')
+		fail('UNSUPPORTED_COMPONENT', 'Only ordinary paths can be translated.');
+	const controls = shape.pathPoints.flatMap((point) => [point.p, point.h1, point.h2]);
+	if (
+		(dx && shape.xLock) ||
+		(dy && shape.yLock) ||
+		controls.some((control) => (dx && control.xLock) || (dy && control.yLock))
+	) {
+		fail(
+			'LOCKED_GEOMETRY',
+			'A path or point coordinate is locked. Unlock it in the editor before requesting this edit.'
+		);
+	}
+}
+
+function applyCommand(name, input, glyph) {
+	if (name === 'set_spacing') {
+		if (input.metric === 'leftSideBearing') {
+			if (!glyph.shapes.length)
+				fail(
+					'EMPTY_GLYPH',
+					'An empty glyph has no left outline bearing. Set advanceWidth or add outlines first.'
+				);
+			const dx = input.value - glyph.leftSideBearing;
+			glyph.shapes.forEach((shape) => assertMoveAllowed(shape, dx, 0));
+		}
+		glyph[input.metric] = input.value;
+	} else if (name === 'transform_paths') {
+		for (const index of input.pathIndices) {
+			const shape = glyph.shapes[index];
+			if (!shape) fail('MISSING_PATH', `Path ${index} no longer exists. Read the glyph again.`);
+			assertMoveAllowed(shape, input.dx, input.dy);
+			shape.updateShapePosition(input.dx, input.dy);
+		}
+	} else if (name === 'add_paths') {
+		for (const path of input.paths) {
+			glyph.addOneShape({
+				name: path.name,
+				pathPoints: path.points.map((point) => ({
+					type: 'corner',
+					p: { coord: { x: point.x, y: point.y } },
+					h1: { coord: point.h1 || { x: point.x, y: point.y }, use: point.h1 !== null },
+					h2: { coord: point.h2 || { x: point.x, y: point.y }, use: point.h2 !== null },
+				})),
+			});
+		}
+	} else fail('UNKNOWN_TOOL', 'This tool has no native implementation.');
+}
+
+function assertGeometry(glyph) {
+	if (glyph.shapes.length > 128 || glyph.pointCount > 4096)
+		fail(
+			'GEOMETRY_LIMIT',
+			'This glyph exceeds the agent geometry limit (128 paths / 4096 points).'
+		);
+	if (glyph.advanceWidth < 0 || glyph.advanceWidth > 32767 || !Number.isFinite(glyph.advanceWidth))
+		fail('INVALID_ADVANCE', 'Advance width must stay between 0 and 32767 font units.');
+	for (const shape of glyph.shapes) {
+		for (const point of shape.pathPoints) {
+			for (const control of [point.p, point.h1, point.h2]) {
+				if (
+					![control.coord.x, control.coord.y].every(
+						(value) => Number.isFinite(value) && value >= -32768 && value <= 32767
+					)
+				)
+					fail(
+						'GEOMETRY_BOUNDS',
+						'The edit would move geometry outside supported font coordinates.'
+					);
+			}
+		}
+	}
+}
+
+function commandTitle(name, input) {
+	if (name === 'set_spacing') return `set ${input.metric} to ${input.value}`;
+	if (name === 'transform_paths') return `move ${input.pathIndices.length} paths`;
+	return `add ${input.paths.length} paths`;
+}
