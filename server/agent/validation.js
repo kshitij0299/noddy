@@ -1,4 +1,4 @@
-import { PROVIDERS } from './providers.js';
+import { resolveProviderProtocol } from '../../src/agent/provider-config.js';
 
 export const LIMITS = Object.freeze({
 	bodyBytes: 8 * 1024 * 1024,
@@ -188,14 +188,14 @@ export function validateMessages(
 
 export function validateRequest(body, definitions) {
 	keys(body, ['provider', 'protocol', 'model', 'apiKey', 'messages', 'context']);
-	if (
-		!Object.hasOwn(PROVIDERS, body.provider) ||
-		!PROVIDERS[body.provider].protocols.includes(body.protocol)
-	) {
-		invalid('Choose a supported provider and API format.');
-	}
 	if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,159}$/.test(shortString(body.model)))
 		invalid('Enter a valid model ID.');
+	let protocol;
+	try {
+		protocol = resolveProviderProtocol(body.provider, body.model, body.protocol);
+	} catch (error) {
+		throw new RelayError(error.code, error.message);
+	}
 	if (!/^[\x21-\x7e]{1,512}$/.test(shortString(body.apiKey, 512)))
 		invalid('Enter a valid provider API key.');
 	if (body.context !== undefined) {
@@ -219,7 +219,7 @@ export function validateRequest(body, definitions) {
 	}
 	return {
 		provider: body.provider,
-		protocol: body.protocol,
+		protocol,
 		model: body.model,
 		apiKey: body.apiKey,
 		messages: validateMessages(body.messages, new Set(definitions.map((tool) => tool.name))),
