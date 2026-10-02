@@ -27,6 +27,45 @@ afterEach(() => {
 });
 
 describe('additive Agent window', () => {
+	it('keeps focus safe when the project closes or session creation fails', () => {
+		const dispose = vi.fn();
+		const createSession = vi
+			.fn()
+			.mockImplementationOnce(() => {
+				throw new Error('No editor');
+			})
+			.mockReturnValue({
+				getContext: () => {
+					throw new Error('Project closed');
+				},
+				dispose,
+			});
+		const window = createAgentWindow({ createSession });
+		windows.push(window);
+		window.show();
+		expect(window.root.querySelector('.agent-window__context').textContent).toContain(
+			'Open a project'
+		);
+		window.composer.input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		expect(dispose).toHaveBeenCalledOnce();
+		expect(window.root.hidden).toBe(false);
+	});
+
+	it('offers Messages only for Zen and resets protocol when switching providers', () => {
+		const window = windowFixture();
+		const [provider, protocol] = window.root.querySelectorAll('select');
+		const messagesOption = protocol.querySelector('[value="messages"]');
+		expect(messagesOption.disabled).toBe(true);
+		expect(protocol.value).toBe('responses');
+		provider.value = 'opencode-zen';
+		provider.dispatchEvent(new Event('change'));
+		expect(messagesOption.disabled).toBe(false);
+		protocol.value = 'messages';
+		provider.value = 'openai';
+		provider.dispatchEvent(new Event('change'));
+		expect(messagesOption.disabled).toBe(true);
+		expect(protocol.value).toBe('responses');
+	});
 	it('welcome action reveals a composer before creating a project', () => {
 		const tabs = makeOpenProjectTabs();
 		document.body.append(tabs);

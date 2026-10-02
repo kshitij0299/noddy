@@ -73,8 +73,13 @@ export function createAgentWindow({
 		['messages', 'Anthropic Messages API'],
 	]);
 	advanced.append(field('API protocol', protocol));
-	provider.addEventListener('change', () => {
+	const updateProtocols = () => {
+		protocol.querySelector('[value="messages"]').disabled = provider.value === 'openai';
 		protocol.value = provider.value === 'openai' ? 'responses' : 'chat';
+	};
+	updateProtocols();
+	provider.addEventListener('change', () => {
+		updateProtocols();
 	});
 	const connectionStatus = element('p', 'agent-connection__status');
 	connectionStatus.setAttribute('role', 'status');
@@ -337,11 +342,14 @@ export function createAgentWindow({
 	});
 	root.addEventListener('focusin', () => {
 		if (!controller.running) {
-			const session = createSession();
+			let session;
 			try {
+				session = createSession();
 				updateContext(session.getContext());
+			} catch {
+				contextLabel.textContent = 'Open a project to continue with the agent.';
 			} finally {
-				session.dispose();
+				session?.dispose();
 			}
 		}
 	});
