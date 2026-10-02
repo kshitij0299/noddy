@@ -1,0 +1,106 @@
+{
+  "fileKey": "XQHz0qOrTAmZhWw7h71a2S",
+  "createdNodeIds": [
+    "3:2",
+    "3:32",
+    "3:33",
+    "3:34",
+    "3:35",
+    "3:36",
+    "3:37"
+  ],
+  "pageId": "3:2",
+  "collectionId": "VariableCollectionId:3:3",
+  "variables": {
+    "background": "VariableID:3:5",
+    "foreground": "VariableID:3:7",
+    "primary": "VariableID:3:9",
+    "secondary": "VariableID:3:11",
+    "muted": "VariableID:3:13",
+    "muted-foreground": "VariableID:3:15",
+    "border": "VariableID:3:17",
+    "destructive": "VariableID:3:19",
+    "space-2": "VariableID:3:20",
+    "space-3": "VariableID:3:21",
+    "space-4": "VariableID:3:22",
+    "space-6": "VariableID:3:23",
+    "radius": "VariableID:3:24"
+  },
+  "styles": {
+    "Body": "S:81cab61e09289b7f43d2de5344d1825c8aabe370,",
+    "Label": "S:6e212d58328ce30691e154261a5afb87b90a1166,",
+    "Button": "S:bc62be6b7fc0ab2777de68df1394b722882a0711,",
+    "Section": "S:5ad812e537148393665d52ba4387a408b5a62cb3,",
+    "Title": "S:7d1caedf7081c50c0acb2038d4ed3cfd9746d3c6,",
+    "Display": "S:11f8c5d720b74bc82c2090b7d15bc4a6312099df,",
+    "Small": "S:11b2c0b7b6ac475ff11f016e3c8366b1ce29e3e2,"
+  },
+  "buttons": {
+    "Primary": {
+      "id": "3:32",
+      "label": "Label#3:0"
+    },
+    "Secondary": {
+      "id": "3:34",
+      "label": "Label#3:1"
+    },
+    "Quiet": {
+      "id": "3:36",
+      "label": "Label#3:2"
+    }
+  },
+  "colors": {
+    "background": {
+      "r": 0.9999999999999999,
+      "g": 0.9999999999999999,
+      "b": 0.9999999999999999
+    },
+    "foreground": {
+      "r": 0.23529945943055314,
+      "g": 0.11366284232688967,
+      "b": 0.058721971097756155
+    },
+    "primary": {
+      "r": 0.9999867375245236,
+      "g": 0.6784284935193885,
+      "b": 0.42353592811096097
+    },
+    "secondary": {
+      "r": 0.9606422430336966,
+      "g": 0.9411350562358514,
+      "b": 0.9333321852669849
+    },
+    "muted": {
+      "r": 0.9608487428892177,
+      "g": 0.9608487428892177,
+      "b": 0.9608487428892177
+    },
+    "muted-foreground": {
+      "r": 0.5568977085023153,
+      "g": 0.47456709743795494,
+      "b": 0.43928272535204277
+    },
+    "border": {
+      "r": 0.9019147022550328,
+      "g": 0.8705563102387601,
+      "b": 0.8509572933568348
+    },
+    "destructive": {
+      "r": 0.8980099433257235,
+      "g": 0.24314310544477474,
+      "b": 0.24313886496628423
+    }
+  },
+  "revision": 2,
+  "screens": {
+    "welcome": "12:18",
+    "editor": "12:40",
+    "agentWindow": "12:297"
+  },
+  "supersededNodesRemoved": [
+    "4:2",
+    "4:52",
+    "4:144",
+    "7:18"
+  ]
+}

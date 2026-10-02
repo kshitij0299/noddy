@@ -1,0 +1,893 @@
+{
+  "contract_version": 2,
+  "status": "proposal_only_not_executable",
+  "model_tools": [
+    {
+      "name": "get_context",
+      "stage": "first",
+      "description": "Read current project and bound selection, revision, units and permitted actions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "No implicit creation or mutation.",
+        "Return compact context, not the whole project."
+      ]
+    },
+    {
+      "name": "read_glyphs",
+      "stage": "first",
+      "description": "Read explicit glyph IDs and return actual metrics, revision-scoped handles and optional geometry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "glyph_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "minItems": 1,
+            "maxItems": 32
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "metrics",
+              "geometry"
+            ]
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "glyph_ids",
+          "detail",
+          "cursor"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Page geometry output; hard byte/point limits.",
+        "Absent glyph returns not_found, never creates a glyph."
+      ]
+    },
+    {
+      "name": "set_spacing",
+      "stage": "first",
+      "description": "Set one spacing measurement per glyph in font units.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "glyph_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "measurement": {
+                  "type": "string",
+                  "enum": [
+                    "left_bearing",
+                    "right_bearing",
+                    "advance_width"
+                  ]
+                },
+                "value": {
+                  "type": "number",
+                  "minimum": -65536,
+                  "maximum": 65536
+                }
+              },
+              "required": [
+                "glyph_id",
+                "measurement",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 32
+          }
+        },
+        "required": [
+          "expected_revision",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Honor request scope and locks; reject duplicate glyph IDs.",
+        "LSB shifts outline and advance together, RSB changes advance only.",
+        "Reject invalid advance; validate project-relative engineering limits.",
+        "Commit batch atomically with one history entry."
+      ]
+    },
+    {
+      "name": "transform_paths",
+      "stage": "next",
+      "description": "Transform explicit revision-scoped paths using a typed operation and explicit origin.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "path_handles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "minItems": 1,
+            "maxItems": 32
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "translate"
+                    ]
+                  },
+                  "delta": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "operation",
+                  "delta"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "scale"
+                    ]
+                  },
+                  "factor_x": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 100
+                  },
+                  "factor_y": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 100
+                  },
+                  "origin": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "operation",
+                  "factor_x",
+                  "factor_y",
+                  "origin"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "rotate"
+                    ]
+                  },
+                  "angle_degrees": {
+                    "type": "number",
+                    "minimum": -360,
+                    "maximum": 360
+                  },
+                  "origin": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "operation",
+                  "angle_degrees",
+                  "origin"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "skew"
+                    ]
+                  },
+                  "angle_degrees": {
+                    "type": "number",
+                    "minimum": -80,
+                    "maximum": 80
+                  },
+                  "origin": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "operation",
+                  "angle_degrees",
+                  "origin"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "flip_horizontal",
+                      "flip_vertical"
+                    ]
+                  },
+                  "origin": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -65536,
+                        "maximum": 65536
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "operation",
+                  "origin"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_revision",
+          "path_handles",
+          "transform"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Enforce path/point locks.",
+        "Convert degree/radian conventions and preserve explicit origin.",
+        "Reject component transforms until supported; never silently skip instances."
+      ]
+    },
+    {
+      "name": "edit_points",
+      "stage": "next",
+      "description": "Set explicit anchor or handle coordinates.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "point_handle": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "part": {
+                  "type": "string",
+                  "enum": [
+                    "anchor",
+                    "handle_1",
+                    "handle_2"
+                  ]
+                },
+                "position": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": -65536,
+                      "maximum": 65536
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": -65536,
+                      "maximum": 65536
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                },
+                "point_type": {
+                  "type": "string",
+                  "enum": [
+                    "corner",
+                    "flat",
+                    "symmetric"
+                  ]
+                }
+              },
+              "required": [
+                "point_handle",
+                "part",
+                "position",
+                "point_type"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 128
+          }
+        },
+        "required": [
+          "expected_revision",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Resolve handles only at matching revision.",
+        "Respect locks and handle constraints; anchor moves translate its handles."
+      ]
+    },
+    {
+      "name": "create_glyph",
+      "stage": "next",
+      "description": "Create an empty glyph for one Unicode scalar.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "unicode_scalar": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1114111
+          },
+          "advance_width": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 65536
+          }
+        },
+        "required": [
+          "expected_revision",
+          "unicode_scalar",
+          "advance_width"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Reject surrogate code points and existing glyphs.",
+        "New glyph must be in requested character set; never overwrite."
+      ]
+    },
+    {
+      "name": "add_paths",
+      "stage": "next",
+      "description": "Add bounded closed cubic paths to an explicit glyph.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "glyph_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "anchor": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": -65536,
+                            "maximum": 65536
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": -65536,
+                            "maximum": 65536
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "handle_1": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": -65536,
+                            "maximum": 65536
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": -65536,
+                            "maximum": 65536
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "handle_2": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": -65536,
+                            "maximum": 65536
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": -65536,
+                            "maximum": 65536
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "point_type": {
+                        "type": "string",
+                        "enum": [
+                          "corner",
+                          "flat",
+                          "symmetric"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "anchor",
+                      "handle_1",
+                      "handle_2",
+                      "point_type"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 128
+                }
+              },
+              "required": [
+                "points"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 16
+          }
+        },
+        "required": [
+          "expected_revision",
+          "glyph_id",
+          "paths"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Reject non-finite, excessive or degenerate geometry.",
+        "Validate contour closure and report intersections/winding concerns.",
+        "Host generates path/point handles; input cannot choose object properties."
+      ]
+    },
+    {
+      "name": "set_kerning",
+      "stage": "later",
+      "description": "Set one exact pair adjustment in font units.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "left_glyph_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "right_glyph_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "adjustment": {
+            "type": "number",
+            "minimum": -65536,
+            "maximum": 65536
+          }
+        },
+        "required": [
+          "expected_revision",
+          "left_glyph_id",
+          "right_glyph_id",
+          "adjustment"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Negative tightens.",
+        "Detect overlap with existing groups; no silent group precedence changes."
+      ]
+    },
+    {
+      "name": "place_component",
+      "stage": "later",
+      "description": "Insert an existing reusable glyph/component at a translation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "target_glyph_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "translation": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "minimum": -65536,
+                "maximum": 65536
+              },
+              "y": {
+                "type": "number",
+                "minimum": -65536,
+                "maximum": 65536
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "expected_revision",
+          "target_glyph_id",
+          "source_id",
+          "translation"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Reject cycles and unauthorized dependent effects.",
+        "Maintain usedIn and invalidate dependent bounds/caches.",
+        "Limit first implementation to translation; do not guess resize delta semantics."
+      ]
+    },
+    {
+      "name": "set_font_properties",
+      "stage": "later",
+      "description": "Set explicit naming/export metadata; never imply geometry has changed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "family_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "style_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weight_class": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "width_class": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "italic_angle": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_revision",
+          "family_name",
+          "style_name",
+          "weight_class",
+          "width_class",
+          "italic_angle"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Null means unchanged; at least one actual change required.",
+        "Validate naming/export conventions; preserve copyright/license unless explicitly requested through a separate policy.",
+        "Weight and italic metadata do not transform outlines."
+      ]
+    },
+    {
+      "name": "inspect_font",
+      "stage": "later",
+      "description": "Return bounded structural findings for requested glyphs.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "glyph_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "minItems": 1,
+            "maxItems": 32
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "geometry",
+                "spacing",
+                "components",
+                "coverage"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 4
+          }
+        },
+        "required": [
+          "glyph_ids",
+          "checks"
+        ],
+        "additionalProperties": false
+      },
+      "host_checks": [
+        "Read only; separate warnings from errors.",
+        "No claim of complete typographic quality or export validity without actual checks."
+      ]
+    }
+  ],
+  "host_context": [
+    "project_id",
+    "authorized_target_ids",
+    "request_id",
+    "idempotency_key",
+    "cancellation",
+    "permission_state"
+  ],
+  "execution_rules": [
+    "Deny unknown tools and unknown fields.",
+    "Schema limits are proposed resource limits, not OpenType limits; validate against project policy too.",
+    "All writes use compare-and-swap revision checks, deep rollback snapshots, atomic history and existing refresh events.",
+    "No model-visible eval, shell, browser automation, generic patch, arbitrary file IO or permission escalation.",
+    "Stop cancels pending work; committed edits remain in normal history."
+  ],
+  "result_contract": {
+    "success": [
+      "new_revision",
+      "affected_ids",
+      "measured_changes",
+      "warnings",
+      "history_entry_id"
+    ],
+    "failure": [
+      "code",
+      "message",
+      "retryable",
+      "current_revision"
+    ],
+    "failure_codes": [
+      "invalid_arguments",
+      "not_found",
+      "out_of_scope",
+      "locked",
+      "stale_revision",
+      "dependency_conflict",
+      "invalid_geometry",
+      "cancelled",
+      "limit_exceeded"
+    ]
+  }
+}
