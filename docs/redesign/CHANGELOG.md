@@ -1,5 +1,13 @@
 # Changelog (Noddy redesign)
 
+## [Unreleased] — Native agent integration — 2026-10-03
+
+- Added a right-side Agent toggle and floating window, welcome composer, and shared image/OTF/TTF attachment flow without replacing the editor UI.
+- Added five scoped native tools and an AI SDK local relay for OpenAI and OpenCode Zen. Automatic protocol routing covers Muse Contributor Free → Responses. Overview requests preserve drafts and require a selected character.
+- Integrated three isolated implementation branches with independent review. Fixed history snapshot isolation/export flags/inspector rebinding, icon-font character coverage, and agent keyboard ownership. No protected source files or serialization contracts changed.
+- Verification: 687 editor tests and 22 relay tests pass; lint 0 errors/2 existing warnings; scoped typecheck, version check and production build pass. Actual browser native edits, attachments, responsive composer, production sample load and overview guard checked. Live provider call and full manual regression matrix remain unverified.
+- Browser checks exposed an existing numeric-inspector history gap. A separate exact repair is proposed but not applied pending explicit approval. See [verification packet](../agent/MILESTONE-1.md) and [undo proposal](../agent/INSPECTOR-UNDO-PROPOSAL.md). This is not an unconditional release sign-off.
+
 ## [Unreleased] — Phase 1: Contracts (proposed) — 2026-09-07
 
 - Added `10-design-system-contract.md` (tokens/values, type roles, spacing, elevation, states, icons/logos, hierarchy, diff guardrail).

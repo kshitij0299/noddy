@@ -91,16 +91,21 @@
       "b": 0.24313886496628423
     }
   },
-  "revision": 2,
+  "revision": 3,
   "screens": {
     "welcome": "12:18",
     "editor": "12:40",
-    "agentWindow": "12:297"
+    "agentWindow": "12:297",
+    "visibilityToggle": "16:27",
+    "attachmentAction": "16:31"
   },
   "supersededNodesRemoved": [
     "4:2",
     "4:52",
     "4:144",
     "7:18"
-  ]
+  ],
+  "components": {
+    "visibilityToggle": "16:26"
+  }
 }

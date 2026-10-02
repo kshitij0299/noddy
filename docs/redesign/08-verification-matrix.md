@@ -1,5 +1,25 @@
 # 08 — Verification Matrix (regression)
 
+## Agent checkpoint — 2026-10-03
+
+Branch `codex/native-agent-plan`; [full packet](../agent/MILESTONE-1.md). 687 Vitest tests + 22 relay tests pass; lint 0 errors/2 unchanged warnings; scoped typecheck, versions and production build pass. No live provider request. The earlier redesign results below remain historical.
+
+| Rows | Agent checkpoint evidence |
+| --- | --- |
+| V1, V2 | Production Oblegg load; isolated fixture creates native outlines and changes spacing on existing canvas |
+| V3 | Automated geometry/lock/scope regressions pass; full pointer/handle smoke not repeated |
+| V4 | Agent Undo/Redo and inspector rebinding pass; existing manual numeric edit omits history, exact repair pending explicit approval |
+| V5, V11–V13 | Complete automated import/export/roundtrip suite passes; manual download/reload/file-picker permutations not all repeated |
+| V6 | Welcome → Characters and overview/agent flows checked; all legacy pages not resurveyed |
+| V7–V10 | Relevant existing automated coverage passes; complete manual components/ligatures/kerning/live-preview smoke remains pending |
+| V14, V19 | Typography guards, branding/version check and attribution review pass; no global glyph/font CSS changes |
+| V15–V17 | Agent composer visible at 1440×900, 760×520 and 390×620; existing intermediate-width Panel wrapping noted |
+| V18 | Agent keyboard isolation/focus tested automatically and typing checked in browser; full legacy shortcut matrix not repeated |
+
+Evidence and precise limitations are in the packet. Awaiting the shared numeric-inspector undo decision and milestone approval; no claim that all manual rows are complete.
+
+## Earlier redesign checkpoints
+
 CURRENT STATE (2026-09-11): branch `noddy/phase3-leftside`, tag `noddy/completion-baseline` — all rows below verified to the extent headless automation allows; drag/file-picker/keyboard rows need a human with a mouse (list in the completion packet). New sessions: read `15-session-handoff.md` first.
 
 Baseline: `noddy/phase0-discovery` @ `b84c54db` — lint 0 err/2 warn, 612/612 pass, build passes.

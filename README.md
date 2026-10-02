@@ -4,6 +4,12 @@ Noddy is an independent fork of Glyphr Studio 2 (GPL-3.0-or-later) by Matt LaGra
 
 Noddy is a web-based font editor, optimized for typeface design beginners or hobbyists.
 
+## Native agent (development branch)
+
+Use the **Agent** toggle at the right of the header to edit the current character through fixed native tools. The welcome screen also has an agent composer. Connect your own OpenAI or OpenCode Zen key; both inputs accept pictures and OTF/TTF references.
+
+See [agent setup and capabilities](docs/agent/README.md), [provider configuration](docs/agent/PROVIDERS.md), and [verification](docs/agent/MILESTONE-1.md). The normal editor still works as a static app; agent requests require the local Node relay.
+
 ## Links
 
 | Website     | [glyphrstudio.com](https://www.glyphrstudio.com)                    |

@@ -1,19 +1,21 @@
 # Noddy: an agent inside the existing editor
 
-Revised proposal · 2 October 2026 · `noddy/main` at `f2bb1bc9`. Planning and Figma only; no application implementation.
+Historical design proposal · 2 October 2026 · `noddy/main` at `f2bb1bc9`. Implementation followed on `codex/native-agent-plan`; see [current behavior and the five executable tools](README.md). This retains the broader proposal, not a claim that every planned capability shipped. The runtime schemas are in [tool-definitions.js](../../src/agent/tool-definitions.js); the JSON catalog below remains proposal-only.
 
-The change is a **Start from scratch with an agent** button in the existing New tab, and one small **Agent** window in the editor. A small Agent menu button opens that window for an existing project. The current canvas, inspector, tools, navigation, rendering and file flows remain the working interface.
+The change is a **Start from scratch with an agent** button in the existing New tab, and one small **Agent** window in the editor. An Agent visibility toggle at the right of the application header opens that window for an existing project. The current canvas, inspector, tools, navigation, rendering and file flows remain the working interface.
 
 ## Interaction
 
 - **Existing font:** open Agent, describe an edit, watch the current glyph and attributes update. The window shows brief tool activity and the result. Ordinary edits apply directly through validated native commands. No separate review screen.
-- **New font:** the added button uses the current project-name field and existing project creation path, then opens the same Agent window. It asks what to draw and starts with a small set of glyphs. No second onboarding flow.
+- **New font:** the added button reveals an agent-style prompt composer with attachments. Submitting uses the current project-name field and existing project creation path, then opens the same Agent window. It asks what to draw and starts with a small set of glyphs. No second onboarding flow.
 - **Context:** show current project and glyph/selection. Bind each request to those IDs when sent. Switching glyphs during a run must not silently retarget pending edits.
 - **Control:** Send becomes Stop while running. The window is movable, resizable and non-modal. Its input owns typing shortcuts only while focused. Closing an active window offers Stop or Keep running; no invisible work by accident.
 - **Undo:** each completed tool edit enters existing history. Inline Undo invokes that history only when the agent edit is still the latest entry. After intervening manual edits, use normal history rather than overwriting newer work. Stop cancels queued calls and rolls back an unfinished transaction; completed edits remain undoable.
 - **Confirmation:** ask inline only for scope expansion, unexpected dependent-glyph effects, deletion/replacement, or file overwrite. Ordinary edits within the request need no approval. The host enforces the decision.
 
 The [two Figma screens](https://www.figma.com/design/XQHz0qOrTAmZhWw7h71a2S/noddy?node-id=12-40) show the added welcome action and floating window. Existing editor chrome is reproduced as placement context, with some action icons represented by labels; those are not proposed UI changes. The outline is actual Oblegg data. The conversation is illustrative, not an implemented agent.
+
+Images and OTF/TTF fonts can be attached in both composers. An attached font starts as a reference; an explicit Open as project action makes it the working font in a new project.
 
 ## Native execution
 

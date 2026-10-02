@@ -46,3 +46,7 @@ Images are explicit chat input and sent when the user submits the message. Fonts
 Before application edits: lint passed with zero errors and two existing warnings (`colors.js` unused eslint-enable and `boolean_combine.js` unused catch variable). Baseline tests: 31 files, 618 tests passed. Baseline production build passed with existing font-flux-js node:zlib externalization and bundle-size warnings. The first symlink-based test attempt failed in dependency setup; an APFS-cloned local node_modules resolved it. Build-generated tracked dist and version-date changes were restored after checking them.
 
 Provider tests use controlled mock responses. A live provider call requires a key deliberately supplied through the new connection UI; passing transport tests is not evidence that a real account/model was exercised.
+
+## Integrated checkpoint — 3 October 2026
+
+Provider, native and UI worker commits were reviewed and cherry-picked separately. Shared automatic routing now sends Muse Spark Contributor Free to Zen's Responses endpoint; unknown formats require an explicit choice. Requests without a selected character keep their draft and do not contact a provider. Browser verification exposed an existing manual numeric-inspector history gap, independently reproduced with the real control; its exact repair is documented and awaits explicit approval before changing undo behavior. See [MILESTONE-1.md](MILESTONE-1.md) for evidence and the current completion boundary.
