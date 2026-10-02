@@ -1,7 +1,8 @@
-import { createAgentController } from './agent-controller.js';
+import { createAgentController, requireSelectedGlyph } from './agent-controller.js';
 import { button, createAgentComposer, element } from './agent-composer.js';
 import { createNativeToolSession } from './native-tools.js';
 import { openFontAttachment } from './font-attachment.js';
+import { PROTOCOL_LABELS, resolveProviderProtocol } from './provider-config.js';
 import './agent-window.css';
 
 let singleton;
@@ -46,7 +47,11 @@ export function createAgentWindow({
 	const close = button('×', () => hide());
 	close.setAttribute('aria-label', 'Hide Agent and stop any running request');
 	header.append(drag, title, connectionToggle, close);
-	const contextLabel = element('p', 'agent-window__context', 'Works on the current glyph.');
+	const contextLabel = element(
+		'p',
+		'agent-window__context',
+		'Current glyph only · Select a glyph in Characters.'
+	);
 	const connectionPanel = element('form', 'agent-connection');
 	connectionPanel.hidden = true;
 	const provider = select([
@@ -68,19 +73,39 @@ export function createAgentWindow({
 	const advanced = element('details');
 	advanced.append(element('summary', '', 'Advanced'));
 	const protocol = select([
+		['auto', 'Automatic'],
 		['responses', 'Responses API'],
 		['chat', 'Chat Completions API'],
 		['messages', 'Anthropic Messages API'],
 	]);
+	const protocolHint = element('p', 'agent-connection__note');
+	protocolHint.setAttribute('role', 'status');
+	const updateProtocolHint = () => {
+		if (!model.value.trim()) {
+			protocolHint.textContent = 'Enter a model ID to see its API protocol.';
+			return;
+		}
+		try {
+			const resolved = resolveProviderProtocol(provider.value, model.value.trim(), protocol.value);
+			protocolHint.textContent = `${protocol.value === 'auto' ? 'Automatic' : 'Selected'} API: ${
+				PROTOCOL_LABELS[resolved]
+			}.`;
+		} catch (error) {
+			protocolHint.textContent = error.message;
+		}
+	};
 	advanced.append(field('API protocol', protocol));
 	const updateProtocols = () => {
 		protocol.querySelector('[value="messages"]').disabled = provider.value === 'openai';
-		protocol.value = provider.value === 'openai' ? 'responses' : 'chat';
+		protocol.value = 'auto';
+		updateProtocolHint();
 	};
 	updateProtocols();
 	provider.addEventListener('change', () => {
 		updateProtocols();
 	});
+	model.addEventListener('input', updateProtocolHint);
+	protocol.addEventListener('change', updateProtocolHint);
 	const connectionStatus = element('p', 'agent-connection__status');
 	connectionStatus.setAttribute('role', 'status');
 	const connect = element('button', 'agent-button agent-button--primary', 'Connect');
@@ -97,6 +122,7 @@ export function createAgentWindow({
 	connectionPanel.append(
 		field('Provider', provider),
 		field('Model', model),
+		protocolHint,
 		field('API key', apiKey),
 		advanced,
 		element(
@@ -116,7 +142,7 @@ export function createAgentWindow({
 			element(
 				'p',
 				'agent-messages__empty',
-				'Ask for a spacing change, move selected paths, or draw a simple outline. The existing canvas shows the result.'
+				'Edit the current glyph: change spacing, move selected paths, or draw a simple outline. The existing canvas shows the result.'
 			)
 		);
 	};
@@ -135,6 +161,7 @@ export function createAgentWindow({
 	footer.append(undo, clear);
 	let pending = false;
 	let importing = false;
+	let disposed = false;
 	let lastToggle;
 	const appendMessage = (text, className = '') => {
 		messages.querySelector('.agent-messages__empty')?.remove();
@@ -144,8 +171,8 @@ export function createAgentWindow({
 		return message;
 	};
 	const updateContext = (context) => {
-		contextLabel.textContent = `${context?.projectName || 'Current font'} · ${
-			context?.glyphId || 'Choose a glyph in the editor'
+		contextLabel.textContent = `Current glyph only · ${context?.projectName || 'Current font'} · ${
+			context?.writable && context?.glyphId ? context.glyphId : 'Select a glyph in Characters'
 		}`;
 	};
 	const syncToggles = () => {
@@ -210,7 +237,9 @@ export function createAgentWindow({
 			if (event.type === 'connection') {
 				connectionToggle.textContent = event.connected ? event.model : 'Connect model';
 				connectionToggle.title = event.connected
-					? `${event.provider} · configured for this tab; change connection`
+					? `${event.provider} · ${
+							PROTOCOL_LABELS[event.effectiveProtocol]
+					  } · configured for this tab; change connection`
 					: 'Connect your own model';
 				disconnect.hidden = !event.connected;
 			}
@@ -218,6 +247,15 @@ export function createAgentWindow({
 	});
 	const submit = async ({ prompt, attachments }) => {
 		if (importing) throw new Error('Wait for the font to finish opening before sending.');
+		let selectionSession;
+		try {
+			selectionSession = createSession();
+			const context = selectionSession.getContext();
+			updateContext(context);
+			requireSelectedGlyph(context);
+		} finally {
+			selectionSession?.dispose();
+		}
 		if (!controller.connected) {
 			pending = true;
 			connectionPanel.hidden = false;
@@ -240,17 +278,20 @@ export function createAgentWindow({
 			return;
 		}
 		importing = true;
+		composer.cancelPreparing();
+		const draftRevision = composer.revision;
 		const draft = composer.getDraft();
 		const files = [...controller.references, ...draft.attachments];
 		composer.setStatus('Opening the font locally as a new project…');
 		try {
 			await openFont(attachment);
+			if (disposed) return;
 			controller.clear();
-			composer.setValue(draft.prompt, files);
+			if (composer.revision === draftRevision) composer.setValue(draft.prompt, files);
 			composer.setStatus('Opened as a new project. The previous project is available in Projects.');
 			composer.input.focus();
 		} catch (error) {
-			composer.setStatus(error.message);
+			if (!disposed) composer.setStatus(error.message);
 		} finally {
 			importing = false;
 		}
@@ -382,6 +423,8 @@ export function createAgentWindow({
 			composer.root.requestSubmit();
 		},
 		dispose() {
+			disposed = true;
+			composer.dispose();
 			controller.disconnect();
 			root.remove();
 			window.removeEventListener('resize', onResize);

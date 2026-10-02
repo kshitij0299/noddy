@@ -1,4 +1,14 @@
 import { attachmentParts, validateAttachmentSet } from './attachments.js';
+import { resolveProviderProtocol } from './provider-config.js';
+
+export function requireSelectedGlyph(context) {
+	if (!context?.glyphId || !context.writable) {
+		throw new Error(
+			'Select a glyph in Characters before sending. This agent edits the current glyph only. Your message and attachments are still here.'
+		);
+	}
+	return context;
+}
 
 export async function requestAgentStep(payload, signal) {
 	const body = JSON.stringify(payload);
@@ -71,17 +81,21 @@ export function createAgentController({
 			if (active) throw new Error('Stop the request before changing models.');
 			if (
 				!['openai', 'opencode-zen'].includes(value.provider) ||
-				!['responses', 'chat', 'messages'].includes(value.protocol) ||
+				!['auto', 'responses', 'chat', 'messages'].includes(value.protocol || 'auto') ||
 				!value.model?.trim() ||
 				!value.apiKey?.trim()
 			) {
 				throw new Error('Choose a provider and enter a model ID and API key.');
 			}
-			if (value.provider === 'openai' && value.protocol === 'messages')
-				throw new Error('OpenAI supports the Responses or Chat Completions protocol.');
+			const protocol = value.protocol || 'auto';
+			const effectiveProtocol = resolveProviderProtocol(
+				value.provider,
+				value.model.trim(),
+				protocol
+			);
 			connection = {
 				provider: value.provider,
-				protocol: value.protocol,
+				protocol,
 				model: value.model.trim(),
 				apiKey: value.apiKey.trim(),
 			};
@@ -89,6 +103,7 @@ export function createAgentController({
 				connected: true,
 				provider: connection.provider,
 				model: connection.model,
+				effectiveProtocol,
 			});
 		},
 		disconnect() {
@@ -120,6 +135,7 @@ export function createAgentController({
 			let context;
 			try {
 				context = session.getContext();
+				requireSelectedGlyph(context);
 			} catch (error) {
 				session.dispose();
 				throw error;
