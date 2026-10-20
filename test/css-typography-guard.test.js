@@ -42,6 +42,8 @@ const GLOBAL_STYLESHEETS = [
 	'src/controls/fancy-slider/fancy-slider.css',
 	'src/controls/tabs/tab-control.css',
 	'src/controls/progress-indicator/progress-indicator.css',
+	// Side-effect import (document-wide) from src/controls/glyph-grid/glyph-grid.js
+	'src/controls/glyph-grid/glyph-grid.css',
 ];
 
 // Allowlisted: component-scoped stylesheets (matched by path substring).
