@@ -17,6 +17,7 @@ import {
 	resolveItemLinks,
 } from './cross_item_actions.js';
 import { saveTextFile } from './file_io.js';
+import { GlyphStatusStore } from './glyph-status.js';
 import { History } from './history.js';
 import { MultiSelectPoints, MultiSelectShapes } from './multiselect.js';
 import { Navigator } from './navigator.js';
@@ -131,6 +132,13 @@ export class ProjectEditor {
 		// Dialogs
 		this.closeAllDialogsOverride = false;
 
+		// Glyph status (Noddy). Kept outside the project, so undo/redo does
+		// not revert it; see glyph-status.js.
+		this.glyphStatus = new GlyphStatusStore({
+			getProject: () => this.project,
+			publish: (topic, data) => this.publish(topic, data),
+		});
+
 		// Project (set last, after PubSub and selection defaults are
 		// initialized, since the project setter publishes selection changes)
 		if (newProjectEditor && newProjectEditor.project) this.project = newProjectEditor.project;
@@ -183,6 +191,7 @@ export class ProjectEditor {
 			this._project = gsp;
 			this.initializeHistory(gsp);
 			this.selectedGlyphID = 'glyph-0x41';
+			this.glyphStatus?.reload();
 		} else {
 			// log(`Setting to false`);
 			// this._project = false;
@@ -649,6 +658,8 @@ export class ProjectEditor {
 			}
 			resolveItemLinks(item, unlinkComponentInstances);
 			delete projectGroup[itemID];
+			// Drop the glyph's status record (undo restores the item, not its status)
+			this.glyphStatus?.clear(itemID);
 			if (item?.usedIn?.length) this.history.addWholeProjectChangePostState();
 		}
 	}
