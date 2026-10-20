@@ -82,10 +82,14 @@ describe('Top bar: controls', () => {
 		expect(status).not.toBeNull();
 		expect(status.childElementCount).toBe(0);
 
-		const order = [...bar.querySelectorAll('input, button')].map(
-			(element) => element.getAttribute('aria-label') || element.textContent.trim()
-		);
+		// The pre-existing compact-tier "Panel" drawer toggle (panels.js) mounts
+		// into .top-bar__menus and is hidden at >=1100px; it is not part of the bar.
+		const order = [...bar.querySelectorAll('input, button')]
+			.filter((element) => !element.classList.contains('noddy-panel-toggle'))
+			.map((element) => element.getAttribute('aria-label') || element.textContent.trim());
 		expect(order).toEqual(['Font name', 'Undo', 'Redo', 'Theme', 'downloadExport']);
+		const toggle = bar.querySelector('.noddy-panel-toggle');
+		if (toggle) expect(toggle.closest('.top-bar__menus')).not.toBeNull();
 
 		const icons = [...bar.querySelectorAll('.material-symbols-rounded')].map((i) => i.textContent);
 		expect(icons).toEqual(expect.arrayContaining(['undo', 'redo', 'dark_mode', 'download']));

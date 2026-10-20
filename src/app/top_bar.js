@@ -145,8 +145,10 @@ export function makeAppTopBar() {
 	const name = makeNameField(editor);
 	const progress = makeProgressRing();
 	const status = makeElement({ tag: 'div', className: 'top-bar__status', id: 'top-bar-status' });
+	// The existing compact-tier panel drawer toggle (panels.js) mounts here.
+	const menus = makeElement({ tag: 'div', className: 'top-bar__menus' });
 
-	left.append(mark, name, progress, status);
+	left.append(mark, name, progress, status, menus);
 
 	const undo = iconButton({
 		id: 'top-bar-undo',
