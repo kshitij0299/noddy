@@ -1,6 +1,7 @@
 import { closeAllNotations } from '../controls/dialogs/dialogs.js';
 import { checkForFirstShapeAutoRSB } from '../edit_canvas/tools/tools.js';
 import { glyphChanged } from './cross_item_actions.js';
+import { noteItemEdit } from './item_changed.js';
 
 // --------------------------------------------------------------
 // PubSub
@@ -25,6 +26,10 @@ import { glyphChanged } from './cross_item_actions.js';
 		* - 		'currentVirtualShape' - edits to the current multi-selected path points.
 		* - 		'currentComponentInstance' - edits to the current instance
 		* - 		'currentPathPoint' - edits to the current point.
+		* - 'itemChanged' - { id } of an item whose data changed (manual edit, agent commit,
+		* - 		undo/redo). Emitted automatically, once per id per synchronous action,
+		* - 		from any item-edit topic above. See item_changed.js.
+		* - 		Not part of the '*' wildcard.
 */
 const allTopics = [
 	'editCanvasView',
@@ -63,6 +68,9 @@ export function publish(topic, data) {
 	// log(data);
 
 	let subscribers = this.subscribers;
+
+	// Item-edit topics also announce 'itemChanged' { id } (deferred, de-duplicated).
+	noteItemEdit(this, topic, data);
 	// log(`\n⮟subscribers[topic]⮟`);
 	// log(subscribers[topic]);
 
