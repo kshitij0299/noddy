@@ -177,6 +177,12 @@ export function makeSingleInput(item, property, thisTopic, tagName, additionalLi
 		// log(`thisTopic: ${thisTopic}`);
 
 		const editor = getCurrentProjectEditor();
+		const recordsNumericHistory =
+			tagName === 'input-number' && topics.some((topic) => topic.startsWith('current'));
+		const beforeState = recordsNumericHistory
+			? JSON.stringify(editor.selectedItem.save())
+			: undefined;
+		const historyHead = editor.history.queue[0];
 		// Update the view so that the glyph stays put
 		// and the LSB moves to the left or right
 		if (property === 'leftSideBearing') {
@@ -214,6 +220,13 @@ export function makeSingleInput(item, property, thisTopic, tagName, additionalLi
 			topics.forEach((topic) => editor.publish(topic, editor.selectedItem));
 		} else {
 			topics.forEach((topic) => editor.publish(topic, item));
+		}
+		if (
+			recordsNumericHistory &&
+			editor.history.queue[0] === historyHead &&
+			JSON.stringify(editor.selectedItem.save()) !== beforeState
+		) {
+			editor.history.addState(`Updated ${property}`);
 		}
 		// log(`makeSingleInput.changeHappened event`, 'end');
 	}
