@@ -1,5 +1,30 @@
+/* --------------------------------------------------------
+	Noddy app shell (M2, Figma TopBar 50:78 / flow-02).
+	Loaded before colors.css, so the Figma-named token bridge
+	below yields to the real definitions once #7 lands.
+-------------------------------------------------------- */
+:root {
+	--color-bg-canvas: var(--secondary);
+	--color-bg-surface: var(--card);
+	--color-bg-subtle: var(--muted);
+	--color-bg-accent: var(--primary);
+	--color-text-primary: var(--foreground);
+	--color-text-secondary: var(--muted-foreground);
+	--color-text-on-accent: var(--primary-foreground);
+	--color-border-default: var(--border);
+	--color-border-strong: oklch(0.83 0.02 55);
+	--color-focus-ring: var(--ring);
+	--radius-md: var(--radius);
+}
+
+[data-theme='dark'] {
+	--color-bg-canvas: var(--background);
+	--color-border-strong: oklch(0.45 0.03 50);
+}
+
 #app__wrapper {
-	background-color: var(--blue-l97);
+	background-color: var(--color-bg-canvas);
+	color: var(--color-text-primary);
 	height: 100%;
 	width: 100%;
 	min-height: 100%;
@@ -9,21 +34,262 @@
 	left: 0px;
 	overflow: hidden;
 	display: grid;
-	grid-template-rows: 40px calc(100vh - 40px);
+	grid-template-rows: 56px minmax(0, 1fr);
 }
 
+/* ---- Top bar: 56px on bg/canvas, no border, no shadow ---- */
 #app__top-bar {
 	grid-row: 1;
-	padding: 6px 0px 6px 11px;
-	z-index: 2000 !important;
+	box-sizing: border-box;
+	height: 56px;
+	padding: 0 var(--space-6);
+	background-color: var(--color-bg-canvas);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-4);
+	min-width: 0;
+	z-index: 2000;
+}
+
+.top-bar__left,
+.top-bar__right {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.top-bar__left {
+	gap: var(--space-3);
+	flex: 1 1 auto;
+}
+
+.top-bar__right {
+	gap: var(--space-2);
+	flex: 0 0 auto;
+}
+
+.top-bar__mark {
+	flex: 0 0 auto;
+	width: 28px;
+	height: 28px;
+	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat center / 28px 28px;
+}
+
+/* Font name: Subheading; idle looks like text, hover is paint only */
+.top-bar__name {
+	box-sizing: border-box;
+	min-width: 4ch;
+	max-width: min(40ch, 100%);
+	height: 36px;
+	margin: 0;
+	padding: 0 var(--space-2);
+	border: 1px solid transparent;
+	border-radius: var(--radius-md);
+	background-color: transparent;
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: -0.025em;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.top-bar__name:hover:not([data-editing]):not(:read-only) {
+	background-color: var(--color-bg-subtle);
+}
+
+.top-bar__name[data-editing] {
+	border-color: var(--color-border-strong);
+	background-color: var(--color-bg-surface);
+}
+
+.top-bar__name:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.top-bar__name:read-only {
+	cursor: default;
+}
+
+/* Set progress ring: 16px ring + n/116 in Mono small */
+.top-bar__progress {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	flex: 0 0 auto;
+	color: var(--color-text-secondary);
+}
+
+.top-bar__ring {
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+}
+
+.top-bar__ring-track,
+.top-bar__ring-fill {
+	fill: none;
+	stroke-width: 2;
+}
+
+.top-bar__ring-track {
+	stroke: var(--color-border-default);
+}
+
+.top-bar__ring-fill {
+	stroke: var(--color-bg-accent);
+	stroke-linecap: round;
+}
+
+.top-bar__ring-check {
+	display: none;
+	font-size: 16px;
+	color: var(--color-bg-accent);
+}
+
+.top-bar__progress[data-complete] .top-bar__ring {
+	display: none;
+}
+
+.top-bar__progress[data-complete] .top-bar__ring-check {
+	display: inline-block;
+}
+
+.top-bar__count {
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 1.3;
+	font-variant-ligatures: none;
+}
+
+/* Status slot (M1.4 "Not autosaving" chip mounts here); nothing by default */
+.top-bar__status {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.top-bar__status:empty {
+	display: none;
+}
+
+/* IconButton Md 36 */
+.icon-button {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	margin: 0;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-primary);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+	background-color: var(--color-bg-subtle);
+}
+
+.icon-button:active:not(:disabled) {
+	background-color: var(--color-border-default);
+}
+
+.icon-button:disabled {
+	color: var(--color-text-secondary);
+	cursor: default;
+}
+
+.icon-button:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+/* Button Secondary Md: surface fill, border, pill */
+.button--secondary {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	height: 36px;
+	margin: 0;
+	padding: 0 var(--space-4) 0 var(--space-3);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.5;
+	letter-spacing: 0.01em;
+	white-space: nowrap;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.button--secondary:hover {
+	background-color: var(--color-bg-subtle);
+}
+
+.button--secondary:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.button--secondary .material-symbols-rounded {
+	font-size: 18px;
+}
+
+/* ---- Workspace: left column + persistent agent panel slot ---- */
+#app__workspace {
+	grid-row: 2;
+	box-sizing: border-box;
 	display: grid;
-	grid-template-columns: 150px 150px 1fr;
+	grid-template-columns: minmax(0, 1fr);
+	column-gap: var(--space-6);
+	padding: 0 var(--space-6) var(--space-6);
+	min-height: 0;
+	min-width: 0;
+	height: 100%;
+}
+
+#app__workspace[data-agent-panel='open'] {
+	grid-template-columns: minmax(0, 1fr) 384px;
 }
 
 #app__main-content {
-	grid-row: 2;
-	width: 100%;
 	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	overflow: auto;
+}
+
+/* The workspace owns the 24px gutters; existing pages drop their own. */
+#app__workspace > #app__main-content > .content__page,
+#app__workspace > #app__main-content > .editor__page {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+.agent-panel-slot {
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+}
+
+.agent-panel-slot[hidden] {
+	display: none;
 }
 
 #app__page {
@@ -37,27 +303,33 @@
 	animation: var(--animate-fade-in);
 }
 
-.top-bar__logo {
-	display: inline-flex;
-	align-items: center;
-	margin-left: 2px;
-	min-height: 24px;
-	padding-left: 32px;
-	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat left center / 24px 24px;
+/* Responsive tiers (documented in PR #11):
+   ≥1200: two columns. ≤1199: the slot collapses and the panel becomes a
+   drawer (#19); the column is full width. <760: monitor mode — undo/redo
+   hidden, name read-only (top_bar.js), Export stays. */
+@media (max-width: 1199px) {
+	#app__workspace[data-agent-panel='open'] {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.agent-panel-slot {
+		display: none;
+	}
 }
 
-.top-bar__logo svg {
-	display: none;
-}
+@media (max-width: 759px) {
+	.top-bar__undo,
+	.top-bar__redo {
+		display: none;
+	}
 
-/* Noddy wordmark text fallback next to the icon mark */
-.top-bar__logo::after {
-	content: 'Noddy';
-	font-size: 1.05rem;
-	font-weight: 700;
-	letter-spacing: var(--tracking-tight, -0.01em);
-	color: var(--foreground, var(--blue-l10));
-	white-space: nowrap;
+	#app__top-bar {
+		padding: 0 var(--space-4);
+	}
+
+	#app__workspace {
+		padding: 0 var(--space-4) var(--space-4);
+	}
 }
 
 /* Panel drawer toggle (wired by panels.js). Visible only at compact tiers. */
@@ -69,29 +341,6 @@
 	.noddy-panel-toggle {
 		display: inline-block;
 	}
-}
-
-/* Compact top bar: icon-only Noddy mark, menus take the remaining space */
-@media (max-width: 759px) {
-	#app__top-bar {
-		grid-template-columns: auto 1fr auto;
-		column-gap: 8px;
-	}
-
-	.top-bar__logo {
-		padding-left: 28px;
-	}
-
-	.top-bar__logo::after {
-		display: none;
-	}
-}
-
-.top-bar__menus {
-	margin-left: 20px;
-	margin-top: 8px;
-	display: inline-block;
-	height: 28px;
 }
 
 .menu-entry-point,
@@ -113,82 +362,6 @@
 .menu-entry-point:hover {
 	color: var(--enabled-active-lightText);
 	background-color: var(--enabled-active-background);
-}
-
-.top-bar__bug-contact {
-	position: static;
-	opacity: 80%;
-	padding: 2px 4px;
-	background-color: var(--gray-l97);
-	border: 1px solid var(--gray-l90);
-	color: var(--gray-l10);
-	border-radius: 3px;
-	/* box-shadow: var(--l2-shadow); */
-}
-
-.top-bar__right-actions {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 10px;
-	padding-right: 10px;
-}
-
-@media (min-width: 810px) {
-	.top-bar__bug-blurb {
-		display: inline-block !important;
-	}
-	.top-bar__bug-icon {
-		position: relative;
-		top: 1px;
-	}
-	.top-bar__bug-link {
-		display: inline-block !important;
-	}
-}
-.top-bar__bug-blurb {
-	display: none;
-}
-
-.top-bar__bug-link {
-	display: none;
-}
-
-.top-bar__bug-icon {
-	position: relative;
-	left: -2px;
-}
-
-.top-bar__bug-contact span {
-	font-size: 0.8em;
-	margin: 0;
-	padding: 0;
-}
-
-.top-bar__bug-contact svg {
-	height: 9px;
-	fill: var(--gray-l40);
-	margin-left: 4px;
-}
-
-.top-bar__bug-icon:hover svg {
-	fill: var(--gray-l10);
-}
-
-.top-bar__bug-link a {
-	font-size: 1em;
-	color: var(--gray-l10);
-}
-
-.top-bar__bug-link a:hover,
-.top-bar__bug-link a:focus,
-.top-bar__bug-link a:visited {
-	font-size: 1em;
-	color: black !important;
-}
-
-.top-bar__bug-link a:active {
-	color: black;
 }
 
 /*

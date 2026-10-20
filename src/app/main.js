@@ -16,6 +16,7 @@ import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
 import { closeAllNavMenus } from '../project_editor/navigator.js';
 import { ProjectEditor } from '../project_editor/project_editor.js';
 import { GlyphrStudioApp, showAppErrorPage } from './app.js';
+import { applyStoredTheme } from './top_bar.js';
 
 /**
  * First function to run when the browser starts
@@ -23,6 +24,7 @@ import { GlyphrStudioApp, showAppErrorPage } from './app.js';
 export function glyphrStudioOnLoad() {
 	console.info(`%c${asciiLogo}\n`, 'color: hsl(200, 100%, 41%);');
 	try {
+		applyStoredTheme();
 		const app = getGlyphrStudioApp();
 		if (app.version) {
 			console.info(
