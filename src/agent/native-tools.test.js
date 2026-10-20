@@ -6,6 +6,13 @@ import { ProjectEditor } from '../project_editor/project_editor.js';
 import { shouldExportItem } from '../formats_io/otf/font_export.js';
 import { createNativeToolSession } from './native-tools.js';
 import { TOOL_DEFINITIONS, validateToolInput } from './tool-definitions.js';
+import { InputNumber } from '../controls/input-number/input_number.js';
+import { makeSingleInput } from '../panels/cards.js';
+import { Guide } from '../project_editor/guide.js';
+
+if (!customElements.get('input-number')) {
+	customElements.define('input-number', InputNumber);
+}
 
 const ID = 'glyph-0x6E';
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -169,9 +176,6 @@ describe('native agent tool boundary', () => {
 		editor.history.restoreState();
 		const inputAfterUndo = document.querySelector('.singleInput-rightSideBearing');
 		expect(inputAfterUndo).not.toBe(inputAfterAgent);
-		inputAfterUndo.value = 45;
-		inputAfterUndo.dispatchEvent(new Event('change'));
-		expect(selected().rightSideBearing).toBe(45);
 		editor.history.redoState();
 		const inputAfterRedo = document.querySelector('.singleInput-rightSideBearing');
 		expect(inputAfterRedo).not.toBe(inputAfterUndo);
@@ -179,6 +183,15 @@ describe('native agent tool boundary', () => {
 		inputAfterRedo.value = 75;
 		inputAfterRedo.dispatchEvent(new Event('change'));
 		expect(selected().rightSideBearing).toBe(75);
+		// The manual edit is its own native undo step, so Undo returns to the agent value
+		// and re-renders the inspector with a freshly bound input.
+		editor.history.restoreState();
+		expect(selected().rightSideBearing).toBe(60);
+		const inputAfterManualUndo = document.querySelector('.singleInput-rightSideBearing');
+		expect(inputAfterManualUndo).not.toBe(inputAfterRedo);
+		inputAfterManualUndo.value = 45;
+		inputAfterManualUndo.dispatchEvent(new Event('change'));
+		expect(selected().rightSideBearing).toBe(45);
 	});
 
 	it('preserves transient export eligibility for glyphs, components, and ligatures across history', () => {
@@ -467,5 +480,86 @@ describe('native agent tool boundary', () => {
 		expect(spacing(60).ok).toBe(true);
 		expect(saved.at(-1)).toBe(1108);
 		app.settings.dev.mode = previousDev;
+	});
+});
+
+describe('inspector numeric edits and native history', () => {
+	const commit = (input, value) => {
+		input.numberInput.value = String(value);
+		input.numberInput.dispatchEvent(new Event('change', { bubbles: true }));
+	};
+
+	it('records a real numeric inspector edit after agent redo as its own native undo step', () => {
+		document.body.insertAdjacentHTML('beforeend', '<div id="editor-page__panel"></div>');
+		editor.nav.panel = 'Attributes';
+		selected().shapes = [];
+		selected().advanceWidth = 0;
+		const rectangle = points.map((point) => ({
+			...point,
+			x: point.x === 40 ? 50 : 590,
+		}));
+		expect(
+			session.execute('add_paths', args({ paths: [{ name: 'Outline', points: rectangle }] })).ok
+		).toBe(true);
+		expect(session.execute('set_spacing', args({ metric: 'advanceWidth', value: 720 })).ok).toBe(
+			true
+		);
+		expect(session.undoLast().ok).toBe(true);
+		editor.history.redoState();
+		expect(selected().rightSideBearing).toBe(130);
+		const input = document.querySelector('.singleInput-rightSideBearing');
+		commit(input, 150);
+		expect(selected().advanceWidth).toBe(740);
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(720);
+		editor.history.redoState();
+		expect(selected().advanceWidth).toBe(740);
+	});
+
+	it('records nothing when the committed value is unchanged', () => {
+		const input = makeSingleInput(selected(), 'advanceWidth', 'currentItem', 'input-number');
+		document.body.appendChild(input);
+		const before = editor.history.queue.length;
+		commit(input, selected().advanceWidth);
+		expect(editor.history.queue.length).toBe(before);
+	});
+
+	it('records exactly one entry per increment and per repeated edit', () => {
+		const input = makeSingleInput(selected(), 'advanceWidth', 'currentItem', 'input-number');
+		document.body.appendChild(input);
+		const before = editor.history.queue.length;
+		input.upArrow.dispatchEvent(new MouseEvent('click'));
+		expect(selected().advanceWidth).toBe(1089);
+		expect(editor.history.queue.length).toBe(before + 1);
+		expect(editor.history.queue[0].title).toBe('Updated advanceWidth');
+		commit(input, 1100);
+		commit(input, 1120);
+		expect(editor.history.queue.length).toBe(before + 3);
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(1100);
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(1089);
+	});
+
+	it('records nothing for a locked value', () => {
+		const path = selected().shapes[0];
+		path.lock('x');
+		const input = makeSingleInput(path, 'x', 'currentPath', 'input-number');
+		document.body.appendChild(input);
+		const before = editor.history.queue.length;
+		const x = path.x;
+		commit(input, x + 50);
+		expect(path.x).toBe(x);
+		expect(editor.history.queue.length).toBe(before);
+	});
+
+	it('does not add selected-item history for guide location changes', () => {
+		const guide = new Guide({ name: 'Test guide', location: 100 });
+		const input = makeSingleInput(guide, 'location', 'editCanvasView', 'input-number');
+		document.body.appendChild(input);
+		const before = editor.history.queue.length;
+		commit(input, 250);
+		expect(guide.location).toBe(250);
+		expect(editor.history.queue.length).toBe(before);
 	});
 });
