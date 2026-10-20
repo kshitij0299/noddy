@@ -6,6 +6,8 @@ Read these before doing anything:
 1. `AGENTS.md`: repo rules, protected areas, and what must never break.
 2. `docs/agentic/README.md`: index of the product, design, build plan, team workflow and architecture docs.
 
+Usage budget: `docs/agentic/BUDGET.md` is binding — read it first and stop when it says.
+
 Key rules:
 - Work on feature branches off `dev` and open PRs into `dev`. Never commit to `main`.
 - Follow `docs/agentic/WORKFLOW.md`: roles, git conventions, protected-area process and definition of done.
