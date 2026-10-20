@@ -3,8 +3,131 @@
 	Legacy hsl() ramps below are FROZEN for backward-compat; do not
 	change their values. New work uses the tokens in this block.
 -------------------------------------------------------------- */
+/* --------------------------------------------------------------
+	Figma design system (file XQHz0qOrTAmZhWw7h71a2S, page "claude",
+	section "Design system" 50:2). Names match the Figma WEB code syntax
+	1:1 so Dev Mode maps directly:
+		Noddy/Primitives  → --<ramp>-<step>        (one mode)
+		Noddy/Color       → --color-<group>-<name> (Light / Dark)
+		Noddy/Space       → --space-N              (px)
+		Noddy/Radius      → --radius-<size>
+		Noddy/shadow-*    → --shadow-<size>
+	Primitives are the hex form of the OKLCH values below (identical to
+	8-bit precision), so aliasing the legacy tokens to them is lossless.
+	Source: docs/agentic/FIGMA-SPEC.md §1 + docs/agentic/figma/ledger.json.
+-------------------------------------------------------------- */
 :root {
-	/* Light theme (default) — exact values per Contract 1 §1 */
+	/* Primitives (Noddy/Primitives, one mode) */
+	--peach-50: #fff4ea;
+	--peach-100: #ffe6cf;
+	--peach-200: #ffcfa3;
+	--peach-300: #ffad6c; /* brand primary */
+	--peach-400: #e69654;
+	--peach-600: #bd712d;
+	--peach-800: #904700;
+	--peach-950: #3a2a20;
+
+	--warm-0: #ffffff;
+	--warm-25: #fefaf8;
+	--warm-50: #f7f2f0;
+	--warm-75: #f5f0ee;
+	--warm-100: #ebe7e4;
+	--warm-200: #e6ded9;
+	--warm-300: #d4c6be;
+	--warm-500: #8e7970;
+	--warm-550: #75625a;
+	--warm-600: #a6968e;
+	--warm-700: #615149;
+	--warm-850: #3a2e29;
+	--warm-875: #352b27;
+	--warm-900: #3c1d0f;
+	--warm-925: #2a211e;
+	--warm-950: #261d1a;
+	--warm-975: #1a1412;
+	--warm-990: #fdf7f4;
+
+	--green-50: #dcf7e1;
+	--green-500: #62bb78;
+	--green-950: #323d2d;
+	--blue-50: #dff1ff;
+	--blue-300: #9cc7ec;
+	--blue-500: #5fa5de;
+	--blue-800: #2d4a63;
+	--blue-950: #313841;
+	--amber-50: #fff0cc;
+	--amber-500: #ebbd57;
+	--amber-950: #4d3d26; /* derived: 20% amber/500 over warm/950, like the other *-950 tints */
+	--red-50: #ffe7e4;
+	--red-400: #ff5a5a;
+	--red-500: #e53e3e;
+	--red-950: #4c2421;
+
+	/* Semantic colour (Noddy/Color) — Light mode */
+	--color-bg-canvas: var(--warm-50); /* app background */
+	--color-bg-surface: var(--warm-0);
+	--color-bg-surface-raised: var(--warm-0); /* floating window */
+	--color-bg-subtle: var(--warm-75); /* hover, wells */
+	--color-bg-accent: var(--peach-300);
+	--color-bg-accent-hover: var(--peach-400);
+	--color-bg-accent-subtle: var(--peach-50); /* selected */
+	--color-bg-scrim: var(--warm-975);
+	--color-bg-track: var(--warm-200);
+	--color-text-primary: var(--warm-900);
+	--color-text-secondary: var(--warm-550); /* Figma deviation (AA): warm/550, not warm/500 */
+	--color-text-on-accent: var(--warm-900);
+	--color-border-default: var(--warm-200);
+	--color-border-strong: var(--warm-300);
+	--color-border-accent: var(--peach-300);
+	--color-focus-ring: var(--peach-300);
+	--color-glyph-ink: var(--warm-900);
+	--color-glyph-ghost: var(--warm-300); /* missing glyph outline */
+	--color-glyph-guide: var(--blue-300); /* metric lines */
+	--color-status-draft: var(--peach-400);
+	--color-status-kept: var(--green-500);
+	--color-status-yours: var(--blue-500);
+	--color-status-failed: var(--red-500);
+	--color-status-warning: var(--amber-500);
+	--color-status-draft-subtle: var(--peach-50);
+	--color-status-kept-subtle: var(--green-50);
+	--color-status-yours-subtle: var(--blue-50);
+	--color-status-failed-subtle: var(--red-50);
+	--color-status-warning-subtle: var(--amber-50);
+
+	/* Space (Noddy/Space) — 4px grid */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+	--space-8: 32px;
+	--space-10: 40px;
+	--space-12: 48px;
+
+	/* Radius (Noddy/Radius) */
+	--radius-sm: 4px;
+	--radius-md: 8px;
+	--radius-lg: 12px; /* inspector card */
+	--radius-xl: 20px; /* floating window, specimen card */
+	--radius-full: 999px; /* pills */
+
+	/* Effects (Noddy/shadow-*) — soft shadows only on floating things */
+	--shadow-xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.03);
+	--shadow-sm: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 1px 2px -1px hsl(0 0% 0% / 0.06);
+	--shadow-md: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.06);
+	--shadow-float: 0px 16px 40px -8px rgb(60 29 15 / 0.18), 0px 2px 6px 0px rgb(60 29 15 / 0.06);
+
+	/* Focus ring: 2px peach, 2px offset (FIGMA-SPEC §1 "Shapes and feel") */
+	--focus-ring-width: 2px;
+	--focus-ring-offset: 2px;
+	--focus-ring: var(--focus-ring-width) solid var(--color-focus-ring);
+
+	/* Legacy Contract 1 §1 tokens — values FROZEN (exact OKLCH, guarded by
+	test/css-typography-guard.test.js). Each equals a primitive above to 8-bit
+	precision: --background = warm/0, --foreground = warm/900,
+	--primary/--ring = peach/300, --secondary = warm/75,
+	--muted-foreground = warm/500, --border = warm/200. New work uses the
+	--color-* tokens; --radius stays 0.45rem for existing surfaces. */
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.2707 0.054 44.1725);
 	--card: oklch(1 0 0);
@@ -19,21 +142,6 @@
 	--radius: 0.45rem;
 	--tracking-normal: 0em;
 	--tracking-tight: calc(var(--tracking-normal) - 0.025em);
-	--shadow-xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.03);
-	--shadow-sm: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 1px 2px -1px hsl(0 0% 0% / 0.06);
-	--shadow-md: 0px 4px 10px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.06);
-
-	/* Elevation & radii — Contract 1 §4 */
-	--radius-sm: calc(var(--radius) * 0.6);
-	--radius-full: 999px;
-
-	/* Spacing — Contract 1 §3 (new/changed surfaces only; base 4px) */
-	--space-1: 4px;
-	--space-2: 8px;
-	--space-3: 12px;
-	--space-4: 16px;
-	--space-6: 24px;
-	--space-8: 32px;
 
 	/* UI type stacks — Contract 1 §2 / Contract 2 §4.
 	UI chrome only; never applied to project/font content surfaces. */
@@ -47,6 +155,39 @@
 UNCHANGED from light (peach passes on both); only neutrals invert. */
 .dark,
 [data-theme='dark'] {
+	/* Semantic colour (Noddy/Color) — Dark mode */
+	--color-bg-canvas: var(--warm-975);
+	--color-bg-surface: var(--warm-950);
+	--color-bg-surface-raised: var(--warm-925);
+	--color-bg-subtle: var(--warm-875); /* Figma deviation: warm/875, not warm/925 */
+	--color-bg-accent: var(--peach-300);
+	--color-bg-accent-hover: var(--peach-200);
+	--color-bg-accent-subtle: var(--peach-950);
+	--color-bg-scrim: var(--warm-975);
+	--color-bg-track: var(--warm-850);
+	--color-text-primary: var(--warm-990);
+	--color-text-secondary: var(--warm-600);
+	--color-text-on-accent: var(--warm-900);
+	--color-border-default: var(--warm-850); /* Figma deviation: warm/850, not warm/950 */
+	--color-border-strong: var(--warm-700);
+	--color-border-accent: var(--peach-300);
+	--color-focus-ring: var(--peach-300);
+	--color-glyph-ink: var(--warm-990);
+	--color-glyph-ghost: var(--warm-700);
+	--color-glyph-guide: var(--blue-800);
+	--color-status-draft: var(--peach-300);
+	--color-status-kept: var(--green-500);
+	--color-status-yours: var(--blue-500);
+	--color-status-failed: var(--red-400);
+	--color-status-warning: var(--amber-500);
+	--color-status-draft-subtle: var(--peach-950);
+	--color-status-kept-subtle: var(--green-950);
+	--color-status-yours-subtle: var(--blue-950);
+	--color-status-failed-subtle: var(--red-950);
+	--color-status-warning-subtle: var(--amber-950);
+
+	/* Legacy Contract 1 §1 tokens — FROZEN (= warm/975, warm/990, warm/950,
+	warm/925, warm/600, warm/950 respectively) */
 	--background: oklch(0.1979 0.0107 39.2759);
 	--foreground: oklch(0.9799 0.0076 48.6561);
 	--card: oklch(0.1979 0.0107 39.2759);
