@@ -1,27 +1,7 @@
 /* --------------------------------------------------------
 	Noddy app shell (M2, Figma TopBar 50:78 / flow-02).
-	Loaded before colors.css, so the Figma-named token bridge
-	below yields to the real definitions once #7 lands.
+	Tokens come from src/common/colors.css (Figma names).
 -------------------------------------------------------- */
-:root {
-	--color-bg-canvas: var(--secondary);
-	--color-bg-surface: var(--card);
-	--color-bg-subtle: var(--muted);
-	--color-bg-accent: var(--primary);
-	--color-text-primary: var(--foreground);
-	--color-text-secondary: var(--muted-foreground);
-	--color-text-on-accent: var(--primary-foreground);
-	--color-border-default: var(--border);
-	--color-border-strong: oklch(0.83 0.02 55);
-	--color-focus-ring: var(--ring);
-	--radius-md: var(--radius);
-}
-
-[data-theme='dark'] {
-	--color-bg-canvas: var(--background);
-	--color-border-strong: oklch(0.45 0.03 50);
-}
-
 #app__wrapper {
 	background-color: var(--color-bg-canvas);
 	color: var(--color-text-primary);
