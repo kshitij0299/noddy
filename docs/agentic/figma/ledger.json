@@ -1,0 +1,1146 @@
+{
+ "fileKey": "XQHz0qOrTAmZhWw7h71a2S",
+ "page": {
+  "claude": "0:1"
+ },
+ "notes": [
+  "Color variables in Noddy/Color are named without a 'color/' prefix (e.g. 'glyph/ink' = spec's color/glyph/ink). WEB code syntax is var(--color-<group>-<name>).",
+  "Primitives code syntax var(--<family>-<step>), Space var(--space-N), Radius var(--radius-X).",
+  "Design system section 50:2 holds an auto-layout frame 'Design system / Layout' (50:3). Glyphs (50:68) and Components (50:78) boards are FIXED-height placeholders (placeholder=true) with an empty wrap auto-layout 'Content' child; set board primaryAxisSizingMode='AUTO' and placeholder=false when filling, then resize the SECTION (sections do not auto-grow): section.resizeWithoutConstraints(layout.width+240, layout.height+240).",
+  "Column A (Color, Effects, Logos) is FILL-height and Logos has layoutGrow=1 so both foundation columns end flush (2743px).",
+  "Added primitives beyond the spec list: peach/950 #3A2A20 (spec-sanctioned), blue/300 #9CC7EC (glyph/guide light), blue/800 #2D4A63 (glyph/guide dark), green/950 #323D2D, blue/950 #313841, red/950 #4C2421 (dark status tints, 20% mix over warm/950).",
+  "Glyphs board 50:68 is now HUG height (2631) with placeholder=false; section 50:2 resized to 2848x8223.33. Glyph components (117 incl. Glyph/ghost) live inside Cell/<name> frames in the board; map is ledger.glyphs (name -> component id). Component = em box adv*0.05 x 123.95, one VECTOR Outline (y pre-flipped in path data, viewBox 0 0 adv 2479, NONZERO), fill bound to glyph/ink, constraints SCALE; baseline at 99.2px. Space/uni00A0 are empty components wrapped in a dashed glyph/guide Advance frame (doc only). Glyph/ghost = 55x123.95 with dashed 2px glyph/ghost rect (cap box, radius/md).",
+  "Components board 50:78 is HUG height, placeholder=false; content 50:85 is a VERTICAL stack of groups (Icons, Controls, Glyphs & tools, Editor, Workspace, Agent, States). Each group = Eyebrow + Row of cards (bg/subtle, radius/xl); a card holds a non-auto-layout Variants frame with Mono-small row/col labels + the component set. Cards in a row share a FIXED height; last card FILL. After adding content resize section 50:2 to layout+240.",
+  "Added foundations for components: text style Noddy/Icon 16 (status marks) and semantic color bg/accent-hover (peach/400 light, peach/200 dark) used by Button Primary Hover. A paint with opacity<1 bound to a variable rendered as opaque black, so the state-layer approach was dropped.",
+  "Shared TEXT properties force one value across variants: AgentMessage uses Message (Agent) + Reply (User); AgentWindow pill uses Idle/Running/Needs you/Paused line props; Composer uses Placeholder/Message.",
+  "GlyphTile: only Draft/Kept/Yours variants contain the swappable Glyph instance (property Glyph); Empty/Queued/Drafting/Failed show Glyph/ghost. Showcase tiles kept at 1x because rescaling instances detaches text styles.",
+  "FLOW: AgentWindow Expanded variants: Messages frames converted to SLOT named Body (same ids 66:178, 66:224, 66:261, 66:313) bound to SLOT property Body#70:0 so flow screens can fill the window body per screen.",
+  "FLOW: GlyphTile Glyph INSTANCE_SWAP (Glyph#62:0) REMOVED: swapping kept the nested instance at a fixed 23.1px width (nested instance size cannot be overridden), squashing every glyph but a. Replaced by SLOT property Glyph#79:0 bound to a 56x49.58 centered frame named Glyph in the 6 real variants (Draft/Kept/Yours x Selected; slot frames 79:2588-79:2593). Fill an instance by clearing the slot and appending Glyph/<name> instance resized to (comp.width*0.4, comp.height*0.4). All 109 existing real tiles (showcase + flow) were refilled this way.",
+  "REVIEW FIX PASS (20 Oct): new primitives warm/550 #75625A (text/secondary Light, AA), warm/850 #3A2E29 (border/default Dark), warm/875 #352B27 (bg/subtle Dark); new semantic bg/scrim, bg/track, border/accent. text/secondary scope TEXT_FILL+SHAPE_FILL, bg/surface-raised +STROKE_COLOR, glyph/guide +FRAME_FILL. GlyphTile: Queued hides its mark on tiles (legend keeps the ring), Drafting = solid 2px status/draft border + 270deg arc mark (StatusMark Drafting ellipse 62:16 is now an arc), Selected = 2px outer focus ring via DROP_SHADOW spread 2 bound to focus/ring while keeping the status border. Dead hidden Ghost layers and Chip Dot ellipses deleted. Nodes appended into instance SLOTs get composite IDs (I<inst>;<slot>;<id>), not the id returned at creation.",
+  "VERIFIER FIX PASS (20 Oct, final): Glyph/ghost is now COMPONENT_SET 110:2672 (Height=Cap 57:384 [also ascender letters], x-height 110:2668, Descender 110:2670); specimen ghosts a/m/u/r use x-height, g Descender. StatusMark Queued = mini dashed ghost rect (glyph/ghost) instead of the hollow ring, so legends match Queued tiles. GlyphTile Draft/Drafting variants strokesIncludedInLayout=false (content at 8/8,62 like other tiles). SpecimenCard slider: Value+Knob live in auto-layout Fill 110:2642 (gap -6); knob position = paddingRight override = 80 - value*0.3 - 6 (160 -> 26, 232 -> 4.4). Approval card well: glyphs at 0.9 scale (cap ~67px), padding top/bottom space/1, gap space/2. Ring progress: TopBar Progress ellipse 63:160 arcData override = -90deg + 360deg*n/116 (opacity 0 at n=0; setting visible on that instance sublayer throws). Pill ring 66:340 likewise n/62. Instance sublayer x/y cannot be overridden (relative-transform).",
+  "OWNER FIX (20 Oct, panel layout): AgentWindow close (x) IconButton deleted from all 4 Expanded variants (66:176, 66:220, 66:259, 66:311); header keeps only minimize (remove). 08 Export modal close and 06 editor Close (Esc) kept. Expanded agent windows (02/03/04/07) = full-height right column 384x820 at x1032,y56 (top = specimen card top, bottom 24px from screen bottom). SpecimenCard instances 240px tall (slot 148): 984 wide (FIXED, x24 to grid right edge 1008) on 02/03/04/07, FILL 1392 on 05/08; slot glyphs scaled by 148/220. 04 Style frame paddingTop space/4, gap space/10, guides cap y25 / x-height y54 / baseline y139 (labels -18). 05 Drafting g mark at 867,83. Shelf now at workspace y264.",
+  "VERIFIER-3 FIX (20 Oct): 03 agent 72:1138 swapped to Status=NeedsYou (slot content preserved) for the orange dot. 07 body got sketch.png Attachment (I76:2263;66:261;121:2806) above the brief; 07 summary chip now 22 new \u00b7 1 failed. AgentMessage Approval main 65:195 Actions 65:208 gap space/2, ghost Edit by hand 65:218 padding L/R space/3. 04 shelf header 75:1097 now SPACE_BETWEEN with Legend 121:2814 (Draft 4 = 121:2818, Queued 58 = 121:2824). SpecimenCard main 64:107 resized 1392x240 (slot 148), default glyphs scaled by 1.6*148/220. Not changed: Paused variant pause glyph 66:308 (status TEXT, not a button; flagged for owner), 06 pill position (inset in editor card, owner asked no 06 layout change), 04 specimen glyph spacing, size labels."
+ ],
+ "collections": {
+  "Noddy/Primitives": "VariableCollectionId:48:2",
+  "Noddy/Color": "VariableCollectionId:48:40",
+  "Noddy/Space": "VariableCollectionId:48:64",
+  "Noddy/Radius": "VariableCollectionId:48:74"
+ },
+ "modes": {
+  "Noddy/Primitives": {
+   "Value": "48:0"
+  },
+  "Noddy/Color": {
+   "Light": "48:1",
+   "Dark": "48:2"
+  },
+  "Noddy/Space": {
+   "Value": "48:3"
+  },
+  "Noddy/Radius": {
+   "Value": "48:4"
+  }
+ },
+ "variables": {
+  "Noddy/Primitives": {
+   "peach/50": "VariableID:48:3",
+   "peach/100": "VariableID:48:4",
+   "peach/200": "VariableID:48:5",
+   "peach/300": "VariableID:48:6",
+   "peach/400": "VariableID:48:7",
+   "peach/600": "VariableID:48:8",
+   "peach/800": "VariableID:48:9",
+   "peach/950": "VariableID:48:10",
+   "warm/0": "VariableID:48:11",
+   "warm/25": "VariableID:48:12",
+   "warm/50": "VariableID:48:13",
+   "warm/75": "VariableID:48:14",
+   "warm/100": "VariableID:48:15",
+   "warm/200": "VariableID:48:16",
+   "warm/300": "VariableID:48:17",
+   "warm/500": "VariableID:48:18",
+   "warm/600": "VariableID:48:19",
+   "warm/700": "VariableID:48:20",
+   "warm/900": "VariableID:48:21",
+   "warm/925": "VariableID:48:22",
+   "warm/950": "VariableID:48:23",
+   "warm/975": "VariableID:48:24",
+   "warm/990": "VariableID:48:25",
+   "green/50": "VariableID:48:26",
+   "green/500": "VariableID:48:27",
+   "green/950": "VariableID:48:28",
+   "blue/50": "VariableID:48:29",
+   "blue/300": "VariableID:48:30",
+   "blue/500": "VariableID:48:31",
+   "blue/800": "VariableID:48:32",
+   "blue/950": "VariableID:48:33",
+   "amber/50": "VariableID:48:34",
+   "amber/500": "VariableID:48:35",
+   "red/50": "VariableID:48:36",
+   "red/400": "VariableID:48:37",
+   "red/500": "VariableID:48:38",
+   "red/950": "VariableID:48:39",
+   "warm/550": "VariableID:99:2778",
+   "warm/850": "VariableID:99:2779",
+   "warm/875": "VariableID:99:2780",
+   "amber/950": "VariableID:126:2628"
+  },
+  "Noddy/Color": {
+   "bg/canvas": "VariableID:48:41",
+   "bg/surface": "VariableID:48:42",
+   "bg/surface-raised": "VariableID:48:43",
+   "bg/subtle": "VariableID:48:44",
+   "bg/accent": "VariableID:48:45",
+   "bg/accent-subtle": "VariableID:48:46",
+   "text/primary": "VariableID:48:47",
+   "text/secondary": "VariableID:48:48",
+   "text/on-accent": "VariableID:48:49",
+   "border/default": "VariableID:48:50",
+   "border/strong": "VariableID:48:51",
+   "focus/ring": "VariableID:48:52",
+   "glyph/ink": "VariableID:48:53",
+   "glyph/ghost": "VariableID:48:54",
+   "glyph/guide": "VariableID:48:55",
+   "status/draft": "VariableID:48:56",
+   "status/kept": "VariableID:48:57",
+   "status/yours": "VariableID:48:58",
+   "status/failed": "VariableID:48:59",
+   "status/draft-subtle": "VariableID:48:60",
+   "status/kept-subtle": "VariableID:48:61",
+   "status/yours-subtle": "VariableID:48:62",
+   "status/failed-subtle": "VariableID:48:63",
+   "bg/accent-hover": "VariableID:68:687",
+   "bg/scrim": "VariableID:99:2781",
+   "bg/track": "VariableID:99:2782",
+   "border/accent": "VariableID:99:2783",
+   "status/warning": "VariableID:126:2629",
+   "status/warning-subtle": "VariableID:126:2630"
+  },
+  "Noddy/Space": {
+   "space/1": "VariableID:48:65",
+   "space/2": "VariableID:48:66",
+   "space/3": "VariableID:48:67",
+   "space/4": "VariableID:48:68",
+   "space/5": "VariableID:48:69",
+   "space/6": "VariableID:48:70",
+   "space/8": "VariableID:48:71",
+   "space/10": "VariableID:48:72",
+   "space/12": "VariableID:48:73"
+  },
+  "Noddy/Radius": {
+   "radius/sm": "VariableID:48:75",
+   "radius/md": "VariableID:48:76",
+   "radius/lg": "VariableID:48:77",
+   "radius/xl": "VariableID:48:78",
+   "radius/full": "VariableID:48:79"
+  }
+ },
+ "completedSteps": [
+  "inspect",
+  "variables",
+  "textStyles",
+  "effectStyles",
+  "logos",
+  "sectionSkeleton",
+  "board:Overview",
+  "board:Color",
+  "board:Typography",
+  "board:Spacing & radius",
+  "board:Effects",
+  "board:Iconography",
+  "board:Logos",
+  "placeholders:Glyphs,Components",
+  "audit",
+  "glyphs:skeleton",
+  "glyphs:Uppercase",
+  "glyphs:Lowercase",
+  "glyphs:Figures,Punctuation,Symbols,Spaces,ghost",
+  "glyphs:finalize",
+  "glyphs:screenshot",
+  "components:setup",
+  "components:icons",
+  "components:controls",
+  "components:glyphs-tools",
+  "components:editor",
+  "components:workspace",
+  "components:agent",
+  "components:states",
+  "components:finalize",
+  "components:screenshot",
+  "flow:skeleton",
+  "flow:02",
+  "flow:03",
+  "flow:04",
+  "flow:05",
+  "flow:07",
+  "flow:08",
+  "flow:glyphtile-slot-fix",
+  "flow:01",
+  "flow:06",
+  "flow:fixes",
+  "flow:audit",
+  "review-fix:tokens",
+  "review-fix:components",
+  "review-fix:flow",
+  "review-fix:ds-boards",
+  "review-fix:audit",
+  "verifier-fix:final",
+  "owner-fix:panel-layout",
+  "verifier3-fix",
+  "ripple:tokens-icons",
+  "ripple:RippleGlyph",
+  "ripple:marks-tiles-chips-menu",
+  "ripple:diffglyph-ripplecard-agentwindow",
+  "ripple:section-skeleton",
+  "ripple:screens",
+  "ripple:insets",
+  "ripple:audit"
+ ],
+ "textStyles": {
+  "Noddy/Display": "S:af1f5f130478547847b66b46d5018ce72d24bc8d,",
+  "Noddy/Title": "S:552ae9b394035c4da633416f7dd1172feae619f1,",
+  "Noddy/Heading": "S:5efe6196b9ef4e5ae4774383c11496b058b09c8f,",
+  "Noddy/Subheading": "S:1806503c9f22aefe6e8d4f5848789f1eecfc5fcb,",
+  "Noddy/Body": "S:9462aedf6ded51e1b66a305f2c901630d37bc648,",
+  "Noddy/Body small": "S:d50b970757713771e31a14efea9817ebf3914042,",
+  "Noddy/Label": "S:bd56123be45da0a222c4c9632d8c4e1190e1313e,",
+  "Noddy/Meta": "S:44ea540b5f2093f616c54f849f5cf2d30cab7894,",
+  "Noddy/Mono": "S:a1305d7657cfe25580f639db0ef19f6eaffd10da,",
+  "Noddy/Mono small": "S:d48f9eb377c7b199dbea3ab1eb8ef7ba9205f4c1,",
+  "Noddy/Icon 20": "S:9fa0c522a21a43dc31ad9c5e4d76e27a9b030484,",
+  "Noddy/Icon 24": "S:cf8e37628f1e033db03b321db4c2a5f1fa6e3889,",
+  "Noddy/Icon 16": "S:bc0440acec71d1ff47ea21d28d134de93024a9b4,",
+  "Noddy/Glyph ref": "S:1b033d550569a237b7a04f7587dbbc5f24cca0a4,",
+  "Noddy/Glyph ref small": "S:df61ffae224389430f7eb8a83e21e49c604d5a64,"
+ },
+ "effectStyles": {
+  "Noddy/shadow-xs": "S:cffb125c79f95dd118581fdeec3c9521bde91d9e,",
+  "Noddy/shadow-sm": "S:5e3502bb8a4302e9d96eda54b543028b852df2a8,",
+  "Noddy/shadow-md": "S:d4a934d46a844d39576f12d9e67f05676d41785e,",
+  "Noddy/shadow-float": "S:8a952ffa5417d877509127c416a0c3b3aee64b9a,"
+ },
+ "images": {
+  "noddy-icon-0.png": "0229098fe167e7deba7907044a75c741e2ba06c2",
+  "noddy-logo-big-0.png": "2b8a5882d6ba3e787dbc0d8f3fa80c9e03345685"
+ },
+ "components": {
+  "Logo/Mark": "50:92",
+  "Logo/Wordmark": "50:98",
+  "Glyph/ghost": "57:384",
+  "Icon": {
+   "arrow_selector_tool": "60:15",
+   "ink_pen": "60:19",
+   "add_circle": "60:23",
+   "crop_square": "60:27",
+   "circle": "60:31",
+   "pan_tool": "60:35",
+   "undo": "60:39",
+   "redo": "60:43",
+   "close": "60:47",
+   "remove": "60:51",
+   "open_in_full": "60:55",
+   "close_fullscreen": "60:59",
+   "send": "60:63",
+   "arrow_upward": "60:67",
+   "attach_file": "60:71",
+   "check": "60:75",
+   "check_circle": "60:79",
+   "edit": "60:83",
+   "error": "60:87",
+   "pause": "60:91",
+   "stop": "60:95",
+   "download": "60:99",
+   "upload_file": "60:103",
+   "dark_mode": "60:107",
+   "tune": "60:111",
+   "refresh": "60:115",
+   "image": "60:119",
+   "grid_view": "60:123",
+   "text_fields": "60:127",
+   "view_week": "60:131",
+   "format_size": "60:135",
+   "chevron_left": "60:139",
+   "chevron_right": "60:143",
+   "expand_more": "60:147",
+   "lock": "126:2632",
+   "waves": "126:2636",
+   "gesture": "126:2640",
+   "space_bar": "126:2644",
+   "notifications": "126:2648",
+   "notifications_paused": "126:2652",
+   "notifications_off": "126:2656",
+   "warning": "126:2660"
+  },
+  "Button": "61:85",
+  "IconButton": "61:113",
+  "SegmentedPill": "61:187",
+  "Chip": "61:261",
+  "StatusMark": "62:25",
+  "GlyphTile": "62:146",
+  "ToolPill": "62:256",
+  "_ToolButton": "62:174",
+  "MetricField": "63:83",
+  "InspectorCard": "63:146",
+  "TopBar": "63:153",
+  "SpecimenCard": "64:107",
+  "Composer": "64:164",
+  "AgentMessage": "65:225",
+  "AgentWindow": "66:359",
+  "AgentWindowBodySlot": "Body#70:0",
+  "Glyph/ghost set": "110:2672",
+  "Glyph/ghost variants": {
+   "Cap": "57:384",
+   "x-height": "110:2668",
+   "Descender": "110:2670"
+  },
+  "SpecimenCardSliderFill": "110:2642",
+  "StatusMarkQueuedGhost": "110:2697",
+  "RippleGlyph": "128:2772",
+  "RippleGlyphVariants": {
+   "Letter=a, Look=Ink": "128:2637",
+   "Letter=a, Look=Diff": "128:2641",
+   "Letter=a, Look=Proposed": "128:2650",
+   "Letter=d, Look=Ink": "128:2659",
+   "Letter=d, Look=Diff": "128:2663",
+   "Letter=d, Look=Proposed": "128:2672",
+   "Letter=u, Look=Ink": "128:2681",
+   "Letter=u, Look=Diff": "128:2685",
+   "Letter=u, Look=Proposed": "128:2694",
+   "Letter=i, Look=Ink": "128:2703",
+   "Letter=i, Look=Diff": "128:2707",
+   "Letter=i, Look=Proposed": "128:2716",
+   "Letter=l, Look=Ink": "128:2725",
+   "Letter=l, Look=Diff": "128:2729",
+   "Letter=l, Look=Proposed": "128:2738",
+   "Letter=n, Look=Ink": "128:2747",
+   "Letter=n, Look=Diff": "128:2751",
+   "Letter=n, Look=Proposed": "128:2760"
+  },
+  "StatusMarkRipple": {
+   "Noticed": "129:2628",
+   "Locked": "129:2631",
+   "Amber": "129:2633"
+  },
+  "TierMark": "129:2647",
+  "TierMarkProbably": "129:2644",
+  "GlyphTileRipple": {
+   "Noticed": "130:2662",
+   "InRipple": "130:2674",
+   "Proposed": "130:2684",
+   "Loading": "130:2694",
+   "Locked": "130:2707",
+   "Amber": "130:2717"
+  },
+  "MeasureChip": "132:2750",
+  "MeasureChipVariants": {
+   "Default": "132:2736",
+   "Hover": "132:2740"
+  },
+  "KinChip": "132:2767",
+  "KinChipVariants": {
+   "On": "132:2753",
+   "Off": "132:2756",
+   "Has locked": "132:2758"
+  },
+  "Tooltip": "132:2771",
+  "NoticesMenu": "132:2838",
+  "NoticesMenuVariants": {
+   "On": "132:2781",
+   "Quiet": "132:2798",
+   "Off": "132:2815"
+  },
+  "DiffGlyph": "133:2767",
+  "DiffGlyphVariants": {
+   "Default": "133:2736",
+   "Region hover": "133:2744",
+   "Pointing": "133:2753"
+  },
+  "RippleCard": "134:2883",
+  "RippleCardVariants": {
+   "Reading": "134:2742",
+   "Ambiguous": "134:2778",
+   "Pick": "134:2809",
+   "Applied": "134:2842",
+   "Logged": "134:2874"
+  },
+  "AgentWindowNoticed": "135:2804",
+  "EdgeCard": "141:5335",
+  "InspectorCardRippleDraft": "144:5609",
+  "RippleGlyphO": {
+   "Ink": "137:3918",
+   "Diff": "137:3922",
+   "Proposed": "137:3926"
+  }
+ },
+ "designSystem": {
+  "section": "50:2",
+  "layout": "50:3",
+  "foundationsRow": "50:11",
+  "columnA": "50:12",
+  "columnB": "50:13",
+  "boards": {
+   "Overview": "50:4",
+   "Color": "50:14",
+   "Effects": "50:23",
+   "Logos": "50:32",
+   "Typography": "50:41",
+   "Spacing & radius": "50:50",
+   "Iconography": "50:59",
+   "Glyphs": "50:68",
+   "Components": "50:78"
+  },
+  "placeholders": {
+   "Glyphs": {
+    "board": "50:68",
+    "content": "50:77"
+   },
+   "Components": {
+    "board": "50:78",
+    "content": "50:85"
+   }
+  },
+  "boardParts": {
+   "Overview": {
+    "cover": "51:2",
+    "wordmarkInstance": "51:4",
+    "stats": "51:13"
+   },
+   "Color": {
+    "primitives": "51:26",
+    "semantic": "51:232",
+    "lightPanel": "51:235",
+    "darkPanel": "51:355"
+   },
+   "Typography": {
+    "specimens": "52:2",
+    "stylesTable": "52:23"
+   },
+   "Spacing & radius": {
+    "spacing": "52:72",
+    "radius": "52:129"
+   },
+   "Effects": {
+    "well": "52:162"
+   },
+   "Iconography": {
+    "grid": "53:2"
+   },
+   "Logos": {
+    "tiles": [
+     "50:87",
+     "50:93",
+     "50:99"
+    ],
+    "darkTile": "50:99",
+    "instances": [
+     "50:104",
+     "50:106",
+     "50:107"
+    ]
+   },
+   "Glyphs": {
+    "content": "50:77",
+    "groups": {
+     "Uppercase": "55:2",
+     "Lowercase": "55:7",
+     "Figures": "55:12",
+     "Punctuation": "55:17",
+     "Symbols": "55:22",
+     "Spaces": "55:28",
+     "Ghost": "55:33"
+    },
+    "spacesGhostRow": "Spaces & ghost",
+    "cell": {
+     "size": [
+      178.46,
+      176
+     ],
+     "note": "Cell/<name> frames: bg/subtle, radius/lg, padding space/3; main component centered; absolute Baseline rect (glyph/guide) at y=111.2; Label (Noddy/Mono small). 13 columns, gap space/4."
+    }
+   }
+  },
+  "geometry": {
+   "section": [
+    0,
+    0,
+    2848,
+    6792,
+    8223.33
+   ],
+   "layoutOffsetInSection": [
+    120,
+    120
+   ],
+   "boardWidths": {
+    "full": 2608,
+    "column": 1280
+   },
+   "placeholders": {
+    "Glyphs": {
+     "yInLayout": 3304,
+     "size": [
+      2608,
+      1200
+     ]
+    },
+    "Components": {
+     "yInLayout": 4552,
+     "size": [
+      2608,
+      2000
+     ]
+    }
+   },
+   "glyphsBoard": [
+    2608,
+    2631
+   ]
+  }
+ },
+ "iconography": [
+  "arrow_selector_tool",
+  "ink_pen",
+  "add_circle",
+  "crop_square",
+  "circle",
+  "pan_tool",
+  "undo",
+  "redo",
+  "close",
+  "remove",
+  "open_in_full",
+  "close_fullscreen",
+  "send",
+  "arrow_upward",
+  "attach_file",
+  "check",
+  "check_circle",
+  "edit",
+  "error",
+  "pause",
+  "stop",
+  "download",
+  "upload_file",
+  "dark_mode",
+  "tune",
+  "refresh",
+  "image",
+  "grid_view",
+  "text_fields",
+  "view_week",
+  "format_size",
+  "chevron_left",
+  "chevron_right",
+  "expand_more",
+  "agent=Logo/Mark (replaces auto_awesome)"
+ ],
+ "glyphs": {
+  "A": "55:40",
+  "B": "55:46",
+  "C": "55:52",
+  "D": "55:58",
+  "E": "55:64",
+  "F": "55:70",
+  "G": "55:76",
+  "H": "55:82",
+  "I": "55:88",
+  "J": "55:94",
+  "K": "55:100",
+  "L": "55:106",
+  "M": "55:112",
+  "N": "55:118",
+  "O": "55:124",
+  "P": "55:130",
+  "Q": "55:136",
+  "R": "55:142",
+  "S": "55:148",
+  "T": "55:154",
+  "U": "55:160",
+  "V": "55:166",
+  "W": "55:172",
+  "X": "55:178",
+  "Y": "55:184",
+  "Z": "55:190",
+  "a": "56:4",
+  "b": "56:10",
+  "c": "56:16",
+  "d": "56:22",
+  "e": "56:28",
+  "f": "56:34",
+  "g": "56:40",
+  "h": "56:46",
+  "i": "56:52",
+  "j": "56:58",
+  "k": "56:64",
+  "l": "56:70",
+  "m": "56:76",
+  "n": "56:82",
+  "o": "56:88",
+  "p": "56:94",
+  "q": "56:100",
+  "r": "56:106",
+  "s": "56:112",
+  "t": "56:118",
+  "u": "56:124",
+  "v": "56:130",
+  "w": "56:136",
+  "x": "56:142",
+  "y": "56:148",
+  "z": "56:154",
+  "zero": "57:4",
+  "one": "57:10",
+  "two": "57:16",
+  "three": "57:22",
+  "four": "57:28",
+  "five": "57:34",
+  "six": "57:40",
+  "seven": "57:46",
+  "eight": "57:52",
+  "nine": "57:58",
+  "period": "57:64",
+  "comma": "57:70",
+  "colon": "57:76",
+  "semicolon": "57:82",
+  "ellipsis": "57:88",
+  "exclam": "57:94",
+  "question": "57:100",
+  "quotesingle": "57:106",
+  "quotedbl": "57:112",
+  "quoteleft": "57:118",
+  "quoteright": "57:124",
+  "quotedblleft": "57:130",
+  "quotedblright": "57:136",
+  "periodcentered": "57:142",
+  "bullet": "57:148",
+  "hyphen": "57:154",
+  "endash": "57:160",
+  "emdash": "57:166",
+  "underscore": "57:172",
+  "parenleft": "57:178",
+  "parenright": "57:184",
+  "bracketleft": "57:190",
+  "bracketright": "57:196",
+  "braceleft": "57:202",
+  "braceright": "57:208",
+  "slash": "57:214",
+  "backslash": "57:220",
+  "asterisk": "57:226",
+  "numbersign": "57:232",
+  "percent": "57:238",
+  "ampersand": "57:244",
+  "at": "57:250",
+  "plus": "57:256",
+  "minus": "57:262",
+  "multiply": "57:268",
+  "divide": "57:274",
+  "equal": "57:280",
+  "less": "57:286",
+  "greater": "57:292",
+  "asciitilde": "57:298",
+  "asciicircum": "57:304",
+  "grave": "57:310",
+  "bar": "57:316",
+  "dollar": "57:322",
+  "cent": "57:328",
+  "sterling": "57:334",
+  "yen": "57:340",
+  "Euro": "57:346",
+  "copyright": "57:352",
+  "registered": "57:358",
+  "trademark": "57:364",
+  "degree": "57:370",
+  "space": "57:374",
+  "uni00A0": "57:379",
+  "ghost": "57:384"
+ },
+ "componentsBoard": {
+  "content": "50:85",
+  "groups": {
+   "Icons": {
+    "group": "60:3",
+    "row": "60:7",
+    "cards": {
+     "Icon": "60:8"
+    },
+    "iconWrap": "60:13"
+   },
+   "Controls": {
+    "group": "61:2",
+    "row": "61:6",
+    "cards": {
+     "Button": "61:7",
+     "IconButton": "61:95",
+     "SegmentedPill": "61:119",
+     "Chip": "61:195"
+    }
+   },
+   "Glyphs & tools": {
+    "group": "62:2",
+    "row": "62:6",
+    "cards": {
+     "StatusMark": "62:7",
+     "GlyphTile": "62:32",
+     "ToolPill": "62:156",
+     "_ToolButton": "62:162"
+    }
+   },
+   "Editor": {
+    "group": "63:64",
+    "row": "63:68",
+    "cards": {
+     "MetricField": "63:69",
+     "InspectorCard": "63:86",
+     "TopBar": "63:149"
+    }
+   },
+   "Workspace": {
+    "group": "64:98",
+    "row": "64:102",
+    "cards": {
+     "SpecimenCard": "64:103",
+     "Composer": "64:137"
+    },
+    "specimenSlot": "64:122"
+   },
+   "Agent": {
+    "group": "65:118",
+    "row": "65:122",
+    "cards": {
+     "AgentMessage": "65:123",
+     "AgentWindow": "66:156"
+    }
+   },
+   "States": {
+    "group": "67:253",
+    "row": "67:257",
+    "cards": {
+     "Agent window states": "67:258",
+     "Glyph tile states": "67:356"
+    },
+    "agentStateInstances": [
+     "67:266",
+     "67:319",
+     "67:327",
+     "67:338",
+     "67:347"
+    ],
+    "tileTable": "68:566",
+    "tileInstances": [
+     "68:439",
+     "68:443",
+     "68:449",
+     "68:455",
+     "68:465",
+     "68:475",
+     "68:485",
+     "68:494",
+     "68:498",
+     "68:504",
+     "68:510",
+     "68:520",
+     "68:530",
+     "68:540",
+     "68:586",
+     "68:590",
+     "68:596",
+     "68:602",
+     "68:611",
+     "68:620",
+     "68:629",
+     "68:638",
+     "68:642",
+     "68:648",
+     "68:654",
+     "68:663",
+     "68:672",
+     "68:681"
+    ],
+    "stages": {
+     "Agent window states": "68:546",
+     "Glyph tile states": "68:418"
+    }
+   },
+   "Ripple": {
+    "group": "128:2628",
+    "rows": [
+     "128:2632",
+     "128:2633"
+    ],
+    "cards": {
+     "RippleGlyph": "128:2766",
+     "TierMark": "129:2638",
+     "MeasureChip": "132:2744",
+     "KinChip": "132:2761",
+     "Tooltip": "132:2775",
+     "NoticesMenu": "132:2832",
+     "DiffGlyph": "133:2761",
+     "RippleCard": "134:2877",
+     "EdgeCard": "141:5342"
+    }
+   }
+  },
+  "board": "50:78",
+  "header": "50:79",
+  "geometry": {
+   "board": [
+    2608,
+    4595
+   ],
+   "section": [
+    2848,
+    10818.33
+   ]
+  }
+ },
+ "componentProps": {
+  "Button": {
+   "Label": "Label#61:0",
+   "Leading icon": "Leading icon#61:19",
+   "Icon": "Icon#61:38"
+  },
+  "IconButton": {
+   "Icon": "Icon#61:57"
+  },
+  "SegmentedPill": {
+   "Label 1": "Label 1#61:64",
+   "Icon 1": "Icon 1#61:75",
+   "Label 2": "Label 2#61:86",
+   "Icon 2": "Icon 2#61:97",
+   "Label 3": "Label 3#61:108",
+   "Icon 3": "Icon 3#61:119"
+  },
+  "Chip": {
+   "Label": "Label#61:130",
+   "Leading icon": "Leading icon#61:143",
+   "Icon": "Icon#61:156"
+  },
+  "GlyphTile": {
+   "Glyph": "REMOVED (was Glyph#62:0) - use Glyph (SLOT) Glyph#79:0",
+   "Char": "Char#62:15",
+   "Glyph (SLOT)": "Glyph#79:0",
+   "Mark": "Mark#130:20"
+  },
+  "_ToolButton": {
+   "Icon": "Icon#62:30"
+  },
+  "MetricField": {
+   "Label": "Label#63:0",
+   "Value": "Value#63:3"
+  },
+  "InspectorCard": {
+   "Glyph": "Glyph#63:6",
+   "Codepoint": "Codepoint#63:9"
+  },
+  "TopBar": {
+   "Font name": "Font name#63:12",
+   "Progress": "Progress#63:13"
+  },
+  "SpecimenCard": {
+   "Glyphs (SLOT)": "Glyphs#64:0",
+   "Size": "Size#64:1"
+  },
+  "Composer": {
+   "Placeholder": "Placeholder#64:2",
+   "Message": "Message#64:5"
+  },
+  "AgentMessage": {
+   "Message": "Message#65:0",
+   "Receipt": "Receipt#65:6",
+   "Reply": "Reply#66:0"
+  },
+  "AgentWindow": {
+   "Title": "Title#66:6",
+   "Idle line": "Idle line#66:15",
+   "Running line": "Running line#66:24",
+   "Needs you line": "Needs you line#66:33",
+   "Paused line": "Paused line#66:42",
+   "Body (SLOT)": "Body#70:0",
+   "Noticed line": "Noticed line#135:0",
+   "Notices menu": "Notices menu#135:9"
+  },
+  "MeasureChip": {
+   "Label": "Label#132:0",
+   "Region": "Region#132:3",
+   "No": "No#132:6"
+  },
+  "KinChip": {
+   "Label": "Label#132:9"
+  },
+  "Tooltip": {
+   "Label": "Label#132:13",
+   "Shortcut": "Shortcut#132:14"
+  },
+  "EdgeCard": {
+   "Title": "Title#141:2",
+   "Behaviour": "Behaviour#141:3",
+   "Copy": "Copy#141:4"
+  }
+ },
+ "componentVariantCounts": {
+  "Button": 18,
+  "IconButton": 6,
+  "SegmentedPill": 10,
+  "Chip": 12,
+  "StatusMark": 6,
+  "GlyphTile": 14,
+  "_ToolButton": 3,
+  "ToolPill": 6,
+  "MetricField": 2,
+  "InspectorCard": 2,
+  "Composer": 2,
+  "AgentMessage": 5,
+  "AgentWindow": 8
+ },
+ "flow": {
+  "section": "71:402",
+  "layout": "71:403",
+  "header": "71:404",
+  "row": "71:407",
+  "screens": {
+   "01 New font": "71:412",
+   "02 Brief": "71:417",
+   "03 Plan": "71:422",
+   "04 Approve the style": "71:427",
+   "05 Drafting": "71:432",
+   "06 Edit by hand": "71:437",
+   "07 Review": "71:442",
+   "08 Export": "71:447"
+  },
+  "columns": {
+   "01": "71:408",
+   "02": "71:413",
+   "03": "71:418",
+   "04": "71:423",
+   "05": "71:428",
+   "06": "71:433",
+   "07": "71:438",
+   "08": "71:443"
+  },
+  "titles": {
+   "01": "71:409",
+   "02": "71:414",
+   "03": "71:419",
+   "04": "71:424",
+   "05": "71:429",
+   "06": "71:434",
+   "07": "71:439",
+   "08": "71:444"
+  },
+  "screenParts": {
+   "02": {
+    "topBar": "72:402",
+    "workspace": "72:423",
+    "specimen": "72:424",
+    "shelf": "72:482",
+    "grid": "72:491",
+    "agent": "72:740",
+    "emptyState": "I72:740;66:178;101:2541"
+   },
+   "03": {
+    "topBar": "72:792",
+    "workspace": "72:813",
+    "specimen": "72:814",
+    "shelf": "72:872",
+    "grid": "72:881",
+    "agent": "72:1138",
+    "attachment": "I72:1138;66:178;102:2536",
+    "threadAdded": [
+     "118:2590",
+     "118:2594"
+    ]
+   },
+   "04": {
+    "topBar": "75:1011",
+    "workspace": "75:1032",
+    "specimen": "75:1033",
+    "style": "75:1070",
+    "glyphs": [
+     "75:1084",
+     "75:1087",
+     "75:1090",
+     "75:1093"
+    ],
+    "shelf": "75:1096",
+    "grid": "75:1105",
+    "agent": "75:1375",
+    "attachment": "110:2690",
+    "threadAdded": [
+     "118:2598",
+     "118:2602",
+     "118:2606"
+    ],
+    "legend": "121:2814"
+   },
+   "05": {
+    "topBar": "75:1433",
+    "workspace": "75:1454",
+    "specimen": "75:1455",
+    "shelf": "75:1513",
+    "grid": "75:1539",
+    "agent": "75:1943",
+    "pill": "75:1943",
+    "draftingMark": "110:2687"
+   },
+   "07": {
+    "topBar": "76:1701",
+    "workspace": "76:1722",
+    "specimen": "76:1723",
+    "shelf": "76:1781",
+    "grid": "76:1807",
+    "agent": "76:2263",
+    "receipts": "I76:2263;66:261;103:2557",
+    "receiptRows": [
+     "I76:2263;66:261;103:2559",
+     "I76:2263;66:261;103:2600"
+    ],
+    "legend": "76:1790",
+    "legendYours": "103:2551",
+    "tileA": "76:1971",
+    "failedChip": "110:2661",
+    "threadAdded": [
+     "118:2610",
+     "118:2614",
+     "118:2618",
+     "118:2622",
+     "118:2626"
+    ],
+    "attachment": "I76:2263;66:261;121:2806"
+   },
+   "08": {
+    "topBar": "76:2348",
+    "workspace": "76:2369",
+    "specimen": "76:2370",
+    "shelf": "76:2428",
+    "grid": "76:2437",
+    "scrim": "76:2996",
+    "modal": "76:2997",
+    "ring": "76:3002",
+    "checks": "76:3009",
+    "actions": "76:3034",
+    "idlePill": "102:2542",
+    "ringKept": "76:3004",
+    "ringYours": "110:2622",
+    "ringDraft": "76:3005"
+   },
+   "01": {
+    "stack": "80:2686",
+    "wordmark": "80:2687",
+    "focusRing": "80:2689",
+    "field": "80:2690",
+    "chip": "80:2693",
+    "cardsRow": "80:2699",
+    "cards": [
+     "80:2700",
+     "80:2706",
+     "80:2713"
+    ],
+    "theme": "80:2720"
+   },
+   "06": {
+    "topBar": "81:2693",
+    "editor": "81:2715",
+    "header": "81:2716",
+    "tools": "81:2727",
+    "inspector": "81:2740",
+    "canvas": "81:2774",
+    "glyph": "81:2790",
+    "contour": "81:2793",
+    "handles": [
+     "81:2795",
+     "81:2796",
+     "81:2797",
+     "81:2798"
+    ],
+    "penPreview": "81:2800",
+    "contextStrip": "81:2816",
+    "agent": "81:2838",
+    "glyphNav": "102:2569",
+    "close": "81:2717",
+    "pillPos": [
+     1092,
+     800
+    ]
+   }
+  },
+  "layoutNotes": "Screens 02-05,07,08: vertical auto-layout screen = TopBar + Workspace (pad 0/24/24/24, gap 24): SpecimenCard 1392x312 (slot cleared, glyph instances resized by k: 1.6 Hamburg, 2.28 noHO) + Shelf (header row + 13-col wrap grid 984 wide, gap space/1, 62 GlyphTiles A-Z a-z 0-9 in 5 rows). Agent window absolute bottom-right 16px inset. 08 = scrim (text/primary @32% layer opacity) + Export sheet 440 wide centered. 06 = TopBar + Glyph editor card (bg/surface, radius/xl) with absolute children; canvas u=0.22px/unit (font size 450).",
+  "audit": "Flow section: 2863 nodes, 0 unbound solid paints, all text styled (Noddy/*), fonts Google Sans Flex/Code + Material Symbols Rounded only.",
+  "reviewFixLayout": "SUPERSEDED by owner fix: Agent window expanded = 384x820 at x1032,y56; specimen 984x240 on expanded screens, 1392x240 on 05/08; shelf y264 (workspace). Minimized pill unchanged 300x52 at x1116,y824."
+ },
+ "ripple": {
+  "section": "136:2810",
+  "layout": "136:2811",
+  "header": "136:2812",
+  "row": "136:2815",
+  "columns": {
+   "R1": "136:2816",
+   "R2": "136:2820",
+   "R3": "136:2824",
+   "R4": "136:2828",
+   "R5": "136:2832",
+   "R6": "136:2836",
+   "R7": "136:2840",
+   "R8": "136:2844"
+  },
+  "titles": {
+   "R1": "136:2817",
+   "R2": "136:2821",
+   "R3": "136:2825",
+   "R4": "136:2829",
+   "R5": "136:2833",
+   "R6": "136:2837",
+   "R7": "136:2841",
+   "R8": "136:2845"
+  },
+  "screens": {
+   "R1 Draw": "140:5264",
+   "R2 Noticed": "136:5057",
+   "R3 What I see": "136:2848",
+   "R4 Not quite": "136:4460",
+   "R5 Pick": "138:3915",
+   "R6 Drafts landed": "139:4368",
+   "R7 Kept": "139:5200",
+   "R8 Edge board": "142:5335"
+  },
+  "insets": {
+   "R2 several edits": "144:5670",
+   "R6 inspector + pill": "144:5724"
+  },
+  "parts": {
+   "R1canvas": "140:5277",
+   "R3agent": "136:2936",
+   "R5agent": "138:3997",
+   "R6agent": "139:4450",
+   "R6inspectorInset": "144:5728",
+   "R1onionSkin": "140:5424",
+   "R1contour": "140:5429",
+   "R1penCursor": "140:5464",
+   "R5popover": "138:4521",
+   "R5popoverCaret": "151:5731",
+   "R6wave": "139:5040",
+   "R6waveMidRing": "153:5708",
+   "R6hoverU": "139:5044",
+   "R6tileA": "139:4414",
+   "R7tileL": "139:5261",
+   "RippleCardHeaderReading": "152:5724",
+   "RippleCardHeaderAmbiguous": "152:5726",
+   "LoadingShimmer": "130:2704",
+   "R8bendArt": "I142:5433;141:5336;157:5700",
+   "R8noKinArt": "I142:5392;141:5336;158:5701",
+   "R8everyFailsArt": [
+    "I142:5539;141:5336;158:5708",
+    "I142:5539;141:5336;158:5716",
+    "I142:5539;141:5336;158:5724",
+    "I142:5539;141:5336;158:5732"
+   ],
+   "R8busyChip": "I142:5588;141:5336;158:5742"
+  },
+  "notes": [
+   "Screens R3-R7 cloned from Flow 07 (expanded agent, left column 984); R2 cloned from R3 then minimized (pill Status=Noticed at 1116,824, specimen/shelf/grid FILL, tiles 103.38 wide); R1 cloned from 06.",
+   "Glyph scale: tiles x0.4; specimen Hamburg k=1.0762, handle mutual build k=0.9 (Size 134, slider Fill paddingRight 33.8).",
+   "Tail geometry: CCW spiral off the last stem foot, font units: straight 172u stem extension from y112 to y-40, spiral centre (cx+205,-40), r 210->105 over 180->455 deg, width 172->84, overhang ~158u past advance. Stem centres a912 d1008 u947 i243 l243 n955.5. Generator: scratchpad/figma/ripple/tail.py",
+   "Draft dot kept in base GlyphTile (pending owner confirm, spec 7.2); Ripple drafts use Mark=false. Queued variants keep their hidden mark (unbound).",
+   "Verifier round 2 fixes: R1 contour filled ink@12% (union) + onion-skin as dashed outline above it, Pen tool active, specimen a peach; Proposed ghost = draft-subtle fill + dashed status/draft stroke (true size); Loading = full-tile skeleton sweep; glyph names in copy use Noddy/Glyph ref(+small) = Google Sans Code Medium Italic; RippleCard Reading/Ambiguous got header 'Noticed \u00b7 a' + confidence; R6 a = Yours, wave under grid clipped to grid (gutters only), hover pill inside u tile top; R7 kept l keeps Amber mark; R8 Bend/No kin/Every fails/Busy art rebuilt, Target-fails tile Mark=false; R5 Include popover above m with caret."
+  ]
+ }
+}
