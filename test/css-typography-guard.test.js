@@ -38,6 +38,8 @@ const GLOBAL_STYLESHEETS = [
 	'src/project_editor/pop-out-window.css',
 	'src/pages/editor-pages.css',
 	'src/pages/content-pages.css',
+	'src/pages/workspace.css',
+	'src/controls/specimen-card/specimen-card.css',
 	'src/controls/dialogs/dialogs.css',
 	'src/controls/fancy-slider/fancy-slider.css',
 	'src/controls/tabs/tab-control.css',
