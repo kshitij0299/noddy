@@ -20,7 +20,7 @@ Binding rules live elsewhere: [AGENTS.md](../../AGENTS.md) (protected areas, nev
 | Lint | `npm run lint` | `eslint src`. Baseline: 0 errors and 2 known warnings (`src/common/colors.js` unused eslint-enable, `src/project_editor/boolean_combine.js` unused `e`). |
 | Unit tests | `npx vitest run` | jsdom plus `vi-canvas-mock` (`vitest.config.js`, `vitest-setup.js`). |
 | Relay tests | `npm run test:agent-relay` and `npm run typecheck:agent-relay` | Required when `src/agent/` or `server/agent/` changes. They use `node --test server/agent/*.checks.js` and `tsc -p server/agent/tsconfig.json`. |
-| Build | `npm run build` | Runs `scripts.js build` and then `vite build ./src/ --base=/app/` into `dist/`. |
+| Build | `npm run build` | Runs `scripts.js build` and then `vite build ./src/ --emptyOutDir --base=/app/` into `dist/`. |
 | Versions | `npm run ci:versions` | `scripts/check-versions.mjs` |
 
 **Gotchas**
@@ -28,7 +28,7 @@ Binding rules live elsewhere: [AGENTS.md](../../AGENTS.md) (protected areas, nev
 - **Port 5187 is the owner's preview. Never use it**, not even for fixtures. Docs and agents use ports 5300–5399.
 - **Linux is case-sensitive; macOS is not.** `src/formats_io/svg_outlines/tests/svg_outline.test.js` imports `./path_A.svg` but the file is `Path_A.svg`, so on Linux that one file fails to load (the other 625 tests pass). PR #4 fixes it. Match file-name case exactly in new imports.
 - **Imports outside `src/`.** `vite.config.js` lives in `src/` and imports `../server/agent/vite-plugin.js`. Keep server code free of DOM imports, because the relay runs in Node.
-- **Custom elements are defined once.** In tests, guard with `if (!customElements.get('x')) customElements.define(...)`. `src/agent/native-tools.test.js` shows the pattern.
+- **Custom elements are defined once.** In tests, guard with `if (!customElements.get('x')) customElements.define(...)`.
 
 ## 2. Source map
 
@@ -170,7 +170,7 @@ Notes: `cross_item_actions.js` publishes `whatShapeIsSelected`, a typo with no s
 | Canvas events and interaction | `src/edit_canvas/events.js`, `events_keyboard.js`, `events_mouse.js`, `events_drag_drop_paste.js`, plus behaviour in `src/edit_canvas/tools/*`, `detect_edit_affordances.js`, the `edit_canvas.js` geometry helpers |
 | Undo/redo | `src/project_editor/history.js`, and any change to *when* `addState` is called (`src/panels/cards.js`, `actions.js`, tools), plus the agent adapter in `native-tools.js` `commit()` |
 | Selection, pan/zoom | `src/project_editor/multiselect.js`, `ProjectEditor.view` / `autoFitView` / `getEditCanvasWrapperBounds` |
-| Keyboard shortcuts | `src/edit_canvas/events_keyboard.js`, `src/panels/panels.js` (`handlePanelsKeyPress`) |
+| Keyboard shortcuts | `src/edit_canvas/events_keyboard.js`, `src/panels/panel_events.js` (`handlePanelsKeyPress`, imported by `src/panels/panels.js`) |
 
 Changes here go in their own PR labelled `protected-area`, with regression tests. `.gs2` format changes need the owner (WORKFLOW.md).
 
