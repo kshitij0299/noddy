@@ -135,9 +135,19 @@ glyph-grid-tile:hover {
 	background: var(--color-bg-subtle);
 }
 
-/* Selected: 2px ring drawn INSIDE the tile, never clipped at the grid edge */
-glyph-grid-tile[selected] {
+/* Selected: 2px ring drawn INSIDE the tile, never clipped at the grid edge.
+   The attribute selectors also beat the global `[aria-selected='true']`
+   fill in resets.css, so the tile keeps its surface and ink. */
+glyph-grid-tile[selected],
+glyph-grid-tile[aria-selected='true'] {
+	background: var(--color-bg-surface);
+	color: var(--color-glyph-ink);
 	box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+}
+
+glyph-grid-tile[selected]:hover,
+glyph-grid-tile[aria-selected='true']:hover {
+	background: var(--color-bg-subtle);
 }
 
 glyph-grid-tile:focus-visible {
