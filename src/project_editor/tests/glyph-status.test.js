@@ -39,7 +39,11 @@ function fakeProject(id) {
 	};
 }
 
-function makeStore({ project = fakeProject('p1'), storage = new MemoryStorage(), publish = vi.fn() } = {}) {
+function makeStore({
+	project = fakeProject('p1'),
+	storage = new MemoryStorage(),
+	publish = vi.fn(),
+} = {}) {
 	const ref = { project };
 	const store = new GlyphStatusStore({
 		getProject: () => ref.project,
@@ -53,7 +57,12 @@ function makeStore({ project = fakeProject('p1'), storage = new MemoryStorage(),
 describe('GlyphStatusStore: defaults', () => {
 	it('derives empty for missing or blank items and kept for drawn ones', () => {
 		const { store } = makeStore();
-		expect(store.get('glyph-0x41')).toEqual({ status: 'kept', owner: 'user', updatedAt: null, derived: true });
+		expect(store.get('glyph-0x41')).toEqual({
+			status: 'kept',
+			owner: 'user',
+			updatedAt: null,
+			derived: true,
+		});
 		expect(store.getStatus('glyph-0x42')).toBe('empty');
 		expect(store.getStatus('glyph-0x43')).toBe('empty');
 		expect(store.isYours('glyph-0x41')).toBe(false);
@@ -71,7 +80,12 @@ describe('GlyphStatusStore: set / get', () => {
 	it('stores status, owner and timestamp; a record wins over the derived default', () => {
 		const { store } = makeStore();
 		store.set('glyph-0x41', 'draft', 'agent');
-		expect(store.get('glyph-0x41')).toEqual({ status: 'draft', owner: 'agent', updatedAt: 1000, derived: false });
+		expect(store.get('glyph-0x41')).toEqual({
+			status: 'draft',
+			owner: 'agent',
+			updatedAt: 1000,
+			derived: false,
+		});
 		store.set('glyph-0x42', 'failed', 'agent');
 		expect(store.getStatus('glyph-0x42')).toBe('failed');
 	});
@@ -111,7 +125,15 @@ describe('GlyphStatusStore: counts and lists', () => {
 		store.set('glyph-0x43', 'queued', 'agent');
 		const counts = store.counts();
 		expect(Object.keys(counts)).toEqual([...GLYPH_STATUSES]);
-		expect(counts).toEqual({ empty: 1, queued: 1, drafting: 0, draft: 0, kept: 1, yours: 0, failed: 0 });
+		expect(counts).toEqual({
+			empty: 1,
+			queued: 1,
+			drafting: 0,
+			draft: 0,
+			kept: 1,
+			yours: 0,
+			failed: 0,
+		});
 	});
 
 	it('counts and lists over an explicit ID list', () => {
@@ -171,7 +193,11 @@ describe('GlyphStatusStore: persistence', () => {
 		expect(storage.getItem(GLYPH_STATUS_STORAGE_PREFIX + 'p1')).toBeTruthy();
 
 		const { store: reloaded } = makeStore({ storage });
-		expect(reloaded.get('glyph-0x41')).toMatchObject({ status: 'yours', owner: 'user', updatedAt: 1000 });
+		expect(reloaded.get('glyph-0x41')).toMatchObject({
+			status: 'yours',
+			owner: 'user',
+			updatedAt: 1000,
+		});
 		expect(reloaded.get('glyph-0x42')).toMatchObject({ status: 'failed', owner: 'agent' });
 		expect(reloaded.getStatus('glyph-0x43')).toBe('draft');
 		expect(reloaded.get('glyph-0x44')).toMatchObject({ status: 'kept', owner: 'agent' });
@@ -274,5 +300,63 @@ describe('GlyphStatusStore: project switch isolation', () => {
 		editor.project = projectA;
 		expect(editor.glyphStatus.getStatus('glyph-0x41')).toBe('failed');
 		storage.clear();
+	});
+});
+
+describe('GlyphStatusStore: yours lock', () => {
+	it('rejects agent changes to a yours glyph without consent', () => {
+		const { store, publish } = makeStore();
+		store.set('glyph-0x41', 'yours', 'user');
+		publish.mockClear();
+		expect(() => store.set('glyph-0x41', 'draft', 'agent')).toThrow(/consent/);
+		expect(() => store.set('glyph-0x41', 'queued', 'agent', { consent: false })).toThrow(/consent/);
+		expect(() => store.set('glyph-0x41', 'empty', 'agent')).toThrow(/consent/);
+		expect(store.isYours('glyph-0x41')).toBe(true);
+		expect(publish).not.toHaveBeenCalled();
+	});
+
+	it('allows agent changes with explicit consent, and user changes always', () => {
+		const { store } = makeStore();
+		store.set('glyph-0x41', 'yours', 'user');
+		expect(store.set('glyph-0x41', 'draft', 'agent', { consent: true })).toBe(true);
+		expect(store.getStatus('glyph-0x41')).toBe('draft');
+
+		store.set('glyph-0x42', 'yours', 'user');
+		expect(store.set('glyph-0x42', 'kept', 'user')).toBe(true);
+		store.set('glyph-0x42', 'yours', 'user');
+		expect(store.clear('glyph-0x42')).toBe(true);
+	});
+
+	it('keeps the lock after a reload from storage', () => {
+		const storage = new MemoryStorage();
+		makeStore({ storage }).store.set('glyph-0x41', 'yours', 'user');
+		const { store } = makeStore({ storage });
+		expect(() => store.set('glyph-0x41', 'draft', 'agent')).toThrow(/consent/);
+	});
+});
+
+describe('GlyphStatusStore: deleted items', () => {
+	it('ProjectEditor.deleteItem clears the status record', () => {
+		globalThis.localStorage.clear();
+		const project = new GlyphrStudioProject({ settings: { project: { id: 'noddy-test-del' } } });
+		const editor = new ProjectEditor({ project });
+		expect(editor.project.getItem('glyph-0x5A', true)).toBeTruthy();
+		// History reads the app-global editor; stub it, this test is about status
+		editor.history = {
+			addState: vi.fn(),
+			addWholeProjectChangePreState: vi.fn(),
+			addWholeProjectChangePostState: vi.fn(),
+		};
+		editor.glyphStatus.set('glyph-0x5A', 'yours', 'user');
+		const callback = vi.fn();
+		editor.subscribe({ topic: GLYPH_STATUS_TOPIC, subscriberID: 'test-del', callback });
+
+		editor.deleteItem('glyph-0x5A', editor.project.glyphs);
+		expect(editor.glyphStatus.get('glyph-0x5A')).toMatchObject({ status: 'empty', derived: true });
+		expect(callback).toHaveBeenCalledTimes(1);
+		expect(
+			globalThis.localStorage.getItem(GLYPH_STATUS_STORAGE_PREFIX + 'noddy-test-del')
+		).toBeNull();
+		globalThis.localStorage.clear();
 	});
 });

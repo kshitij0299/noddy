@@ -658,6 +658,8 @@ export class ProjectEditor {
 			}
 			resolveItemLinks(item, unlinkComponentInstances);
 			delete projectGroup[itemID];
+			// Drop the glyph's status record (undo restores the item, not its status)
+			this.glyphStatus?.clear(itemID);
 			if (item?.usedIn?.length) this.history.addWholeProjectChangePostState();
 		}
 	}

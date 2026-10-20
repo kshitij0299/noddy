@@ -29,6 +29,9 @@
 	Known limitation: undo/redo does NOT revert status. Whole-project undo
 	snapshots come from project.save(), and status lives outside the project.
 
+	Yours lock: set(id, status, 'agent') throws when the glyph is currently
+	'yours', unless the caller passes { consent: true } (explicit user consent).
+
 	Changes publish GLYPH_STATUS_TOPIC ('glyphStatusChanged') with
 	{ id, status, owner, previousStatus } once per actual change. The topic is
 	intentionally not in pub_sub.js `allTopics`, so '*' subscribers (the edit
@@ -234,18 +237,27 @@ export class GlyphStatusStore {
 	 * @param {String} id
 	 * @param {String} status - one of GLYPH_STATUSES
 	 * @param {String} owner - 'agent' | 'user'
+	 * @param {Object=} options
+	 * @param {Boolean=} options.consent - the user explicitly allowed the agent
+	 * to change a 'yours' glyph. Without it, an agent-owned change to a glyph
+	 * whose current status is 'yours' throws (like every other rejected input).
+	 * User-owned changes are always allowed.
 	 * @returns {Boolean} whether anything changed
 	 */
-	set(id, status, owner) {
+	set(id, status, owner, { consent = false } = {}) {
 		if (!id || typeof id !== 'string') throw new Error('Glyph status needs an item ID');
 		if (!GLYPH_STATUSES.includes(status)) throw new Error(`Unknown glyph status: ${status}`);
-		if (!GLYPH_STATUS_OWNERS.includes(owner)) throw new Error(`Unknown glyph status owner: ${owner}`);
+		if (!GLYPH_STATUS_OWNERS.includes(owner))
+			throw new Error(`Unknown glyph status owner: ${owner}`);
 		if (status === 'yours' && owner !== 'user') {
 			throw new Error(`Only the user can mark a glyph as 'yours'`);
 		}
 
 		this._sync();
 		const before = this.get(id);
+		if (owner === 'agent' && before.status === 'yours' && consent !== true) {
+			throw new Error(`Glyph ${id} is 'yours': the agent needs the user's consent to change it`);
+		}
 
 		if (status === 'empty') {
 			if (!this._records[id]) return false;
