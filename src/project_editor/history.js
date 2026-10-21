@@ -120,6 +120,42 @@ export class History {
 	 * steps back and restore queue index 1.
 	 */
 	restoreState() {
+		const entry = this.queue[0];
+		return this.withRecordedItem(entry, (offPage) => this.restoreStateForItem(offPage));
+	}
+
+	/**
+	 * Off the editing pages (e.g. Workspace) no item is "selected" for the
+	 * page, so `editor.selectedItem` resolves to nothing and an undo / redo
+	 * would drop the history entry without restoring anything (#52).
+	 * There, point the editor at the entry's own page and item while the
+	 * change is applied, then put the page back. On editing pages this is
+	 * a pass-through, so behaviour there is unchanged.
+	 * @param {Object} entry - history entry about to be undone / redone
+	 * @param {Function} apply - called with `true` when off an editing page
+	 * @returns {any} - whatever apply returns
+	 */
+	withRecordedItem(entry, apply) {
+		const editor = getCurrentProjectEditor();
+		const offPage =
+			!editor.nav.isOnEditCanvasPage && !!entry?.page && !entry.wholeProjectSave && !!entry.itemID;
+		if (!offPage) return apply(false);
+
+		const page = editor.nav.page;
+		editor.nav.page = entry.page;
+		editor.selectedItemID = entry.itemID;
+		try {
+			return apply(true);
+		} finally {
+			editor.nav.page = page;
+		}
+	}
+
+	/**
+	 * restoreState body
+	 * @param {Boolean} offPage - applying from outside the editing pages
+	 */
+	restoreStateForItem(offPage = false) {
 		// log(`History.restoreState`, 'start');
 		const editor = getCurrentProjectEditor();
 
@@ -143,7 +179,14 @@ export class History {
 		// Check if next item is different than current item
 		// --------------------------------------------------------------
 
-		if (q[0] && q[1]) {
+		// Off an editing page there is no item on screen to navigate to, so
+		// undo the latest entry itself, from that item's own previous entry.
+		let offPageEntry;
+		if (offPage && q[1] && q[0].itemID !== q[1].itemID) {
+			offPageEntry = q.slice(2).find((e) => e.itemID === q[0].itemID) || 'initial';
+		}
+
+		if (q[0] && q[1] && !offPage) {
 			if (q[0].itemID !== q[1].itemID) {
 				// Assumes navigate adds an entry to the queue
 				if (q[1].page) editor.nav.page = q[1].page;
@@ -167,7 +210,9 @@ export class History {
 		// --------------------------------------------------------------
 
 		let nextEntry;
-		if (q.length === 1) {
+		if (offPageEntry && offPageEntry !== 'initial') {
+			nextEntry = offPageEntry;
+		} else if (q.length === 1 || offPageEntry === 'initial') {
 			// With only one change in the queue, undo falls back to the initial project state
 			// log(this.initialProject);
 			let baseItemState;
@@ -293,6 +338,14 @@ export class History {
 	 * Re-apply the most recently undone change. Reverses restoreState.
 	 */
 	redoState() {
+		const entry = this.redoQueue[0]?.[0];
+		return this.withRecordedItem(entry, () => this.redoStateForItem());
+	}
+
+	/**
+	 * redoState body
+	 */
+	redoStateForItem() {
 		const editor = getCurrentProjectEditor();
 
 		if (this.redoQueue.length === 0) {
