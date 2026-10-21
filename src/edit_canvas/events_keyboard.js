@@ -90,6 +90,16 @@ export function handleKeyPress(event) {
 	// Only the following stuff on Edit Canvas pages
 	// --------------------------------------------------------------
 
+	// Workspace page (#49): undo / redo only, the same history actions as the
+	// top bar buttons. Text inputs (the font name) returned above, so native
+	// text undo still wins there.
+	if (editor.nav.page === 'Workspace') {
+		const isCtrl = ehd.isCtrlDown || event.ctrlKey || event.metaKey;
+		const isShift = ehd.isShiftDown || event.shiftKey;
+		handleUndoRedoKeys(event, key, isCtrl, isShift);
+		return;
+	}
+
 	if (!editor.nav.isOnEditCanvasPage) return;
 	let editMode = getEditMode();
 	// log(`editMode: ${editMode}`);
@@ -114,20 +124,7 @@ export function handleKeyPress(event) {
 		closeEveryTypeOfDialog();
 	}
 
-	// Ctrl+Shift+Z or Ctrl+Y - Redo (must come before plain Ctrl+Z check)
-	if (
-		key === 'Redo' ||
-		(ehd.isCtrlDown && key === 'y') ||
-		(ehd.isCtrlDown && ehd.isShiftDown && key === 'z') ||
-		(ehd.isCtrlDown && ehd.isShiftDown && key === 'Z')
-	) {
-		cancelDefaultEventActions(event);
-		editor.history.redoState();
-	} else if (key === 'Undo' || (ehd.isCtrlDown && key === 'z')) {
-		// Ctrl+Z - Undo
-		cancelDefaultEventActions(event);
-		editor.history.restoreState();
-	}
+	handleUndoRedoKeys(event, key, ehd.isCtrlDown, ehd.isShiftDown);
 
 	// Ctrl+Plus - Zoom in
 	if (ehd.isCtrlDown && key === 'Plus') {
@@ -391,6 +388,31 @@ export function handleKeyPress(event) {
  * @param {KeyboardEvent} event - key press event
  * @returns {String} - character equivalent for the key ID
  */
+/**
+ * Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redoes.
+ * @param {KeyboardEvent} event - key press event
+ * @param {String} key - normalized key from getKeyFromEvent
+ * @param {Boolean} isCtrlDown - Ctrl or Cmd is held
+ * @param {Boolean} isShiftDown - Shift is held
+ */
+function handleUndoRedoKeys(event, key, isCtrlDown, isShiftDown) {
+	const editor = getCurrentProjectEditor();
+	// Ctrl+Shift+Z or Ctrl+Y - Redo (must come before plain Ctrl+Z check)
+	if (
+		key === 'Redo' ||
+		(isCtrlDown && key === 'y') ||
+		(isCtrlDown && isShiftDown && key === 'z') ||
+		(isCtrlDown && isShiftDown && key === 'Z')
+	) {
+		cancelDefaultEventActions(event);
+		editor.history.redoState();
+	} else if (key === 'Undo' || (isCtrlDown && key === 'z')) {
+		// Ctrl+Z - Undo
+		cancelDefaultEventActions(event);
+		editor.history.restoreState();
+	}
+}
+
 export function getKeyFromEvent(event) {
 	// log(`getKeyFromEvent`, 'start');
 	// log(event);
