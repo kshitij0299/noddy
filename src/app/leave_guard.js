@@ -6,11 +6,11 @@
  * Read-only: nothing here saves, serializes or changes agent behaviour.
  */
 
-import { isAgentRunning } from '../agent/agent-window.js';
+import { isAgentRunning } from '../agent/ui/agent-panel.js';
 import { getCurrentProject, getGlyphrStudioApp } from './main.js';
 
 /**
- * Read at call time so tests can stand in for the Agent window.
+ * Read at call time so tests can stand in for the agent panel.
  */
 export const leaveGuardProbes = {
 	agentRunning: () => isAgentRunning(),

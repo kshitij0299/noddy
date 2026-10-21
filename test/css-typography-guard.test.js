@@ -48,6 +48,7 @@ const GLOBAL_STYLESHEETS = [
 	'src/controls/glyph-grid/glyph-grid.css',
 	'src/pages/focus-mode.css',
 	'src/agent/ui/cards/agent-cards.css',
+	'src/agent/ui/agent-panel.css',
 ];
 
 // Allowlisted: component-scoped stylesheets (matched by path substring).

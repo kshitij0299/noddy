@@ -19,6 +19,9 @@ export const WORKSPACE_ID = 'app__workspace';
 /** @type {HTMLElement | null} */
 let slot = null;
 
+/** 'open' (panel column or drawer) or 'minimized' (pill only). */
+let panelMode = 'open';
+
 /**
  * The singleton slot element (created on first use).
  * @returns {HTMLElement}
@@ -66,12 +69,29 @@ export function unmountAgentPanel() {
 }
 
 /**
- * Reflects the mounted state on the workspace so CSS can pick the columns.
+ * Minimizing keeps the panel mounted (its thread and run live on); the
+ * workspace drops to one column and only the pill shows.
+ * @param {'open' | 'minimized'} mode
+ */
+export function setAgentPanelMode(mode) {
+	panelMode = mode === 'minimized' ? 'minimized' : 'open';
+	syncWorkspaceColumns();
+}
+
+/** @returns {'open' | 'minimized'} */
+export function getAgentPanelMode() {
+	return /** @type {'open' | 'minimized'} */ (panelMode);
+}
+
+/**
+ * Reflects the mounted state on the workspace so CSS can pick the columns:
+ * `data-agent-panel` is 'open' or 'minimized' while a panel is mounted.
  * @param {Element | null =} workspace - defaults to the live `#app__workspace`
  */
 export function syncWorkspaceColumns(workspace = document.getElementById(WORKSPACE_ID)) {
+	if (slot) slot.setAttribute('data-mode', panelMode);
 	if (!workspace) return;
-	if (isAgentPanelMounted()) workspace.setAttribute('data-agent-panel', 'open');
+	if (isAgentPanelMounted()) workspace.setAttribute('data-agent-panel', panelMode);
 	else workspace.removeAttribute('data-agent-panel');
 }
 
@@ -92,4 +112,5 @@ export function makeWorkspace(pageContent) {
 /** Test helper: forgets the singleton so a fresh slot is built. */
 export function resetAgentPanelSlotForTests() {
 	slot = null;
+	panelMode = 'open';
 }
