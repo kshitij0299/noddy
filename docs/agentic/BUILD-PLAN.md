@@ -2,7 +2,7 @@
 
 ## How to use this plan
 
-- Build **one milestone at a time, in order**. Each bullet is one GitHub issue and one PR (small, reviewable, revertable).
+- Build **one milestone at a time, in order**. Each bullet is one GitHub issue; **one PR per milestone** (WORKFLOW.md "PR size"), with one commit per bullet so it stays reviewable and revertable. Protected-area (P) changes still get their own PR.
 - The integration branch is `dev`. `main` stays the stable pre-agent app.
 - The design source is the Figma screens (see [FIGMA.md](FIGMA.md)): `figma/screens/flow-NN.png` and `ripple-NN.png`.
 - Every UI issue names the screen it implements.
@@ -61,7 +61,9 @@
 
 ## M5 Start (Flow 01)
 
-1. **New font screen:** wordmark, name field, set chip, three starts (Start with agent / Draw myself / From a font file).
+_Read [UI-RESET.md](UI-RESET.md) first: every start lands on the Workspace, there is no page menu, and the old pages are hidden behind `?legacy`._
+
+1. **New font screen:** wordmark, name field, set chip, three starts (Start with agent / Draw myself / From a font file). "Draw myself" opens the Workspace with the empty set.
 2. **From a font file:** import, then subset to Latin Kernel with a licence note. This reuses the existing import.
 
 ## M6 Agent tools v2 (see research/synthesis.md §5)

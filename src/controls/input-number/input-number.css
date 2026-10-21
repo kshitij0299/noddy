@@ -40,6 +40,16 @@
 	max-width: 100%;
 }
 
+/* [hide-arrows]: a plain field (focus-mode inspector, Figma flow-06). The
+   arrow keys and the wheel still step the value. */
+:host([hide-arrows]) {
+	grid-template-columns: 1fr min-content;
+}
+
+:host([hide-arrows]) .arrowWrapper {
+	display: none;
+}
+
 :host([data-error]) {
 	--border-resting: var(--destructive, oklch(0.6137 0.2039 25.5645));
 	--border-focus: var(--destructive, oklch(0.6137 0.2039 25.5645));
@@ -110,7 +120,9 @@
 	fill: var(--fill-disabled);
 }
 
-/* Arrows — two EQUAL halves filling the 32px column */
+/* Arrows — two EQUAL halves filling the host's height (32px by default;
+   hosts that set another height, like the focus inspector, keep the arrows
+   flush with the field) */
 .arrowWrapper {
 	grid-column-start: 2;
 	display: grid;
@@ -120,11 +132,10 @@
 	width: 24px;
 	min-width: 24px;
 	max-width: 24px;
-	height: 32px;
-	min-height: 32px;
-	max-height: 32px;
+	height: 100%;
+	min-height: 0;
 	padding: 0;
-	align-self: start;
+	align-self: stretch;
 }
 
 .arrowWrapper:hover .arrowSeparator,

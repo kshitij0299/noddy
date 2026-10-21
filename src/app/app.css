@@ -176,43 +176,6 @@
 	font-variant-ligatures: none;
 }
 
-/* Mount point for the existing compact-tier "Panel" drawer toggle
-   (panels.js looks for `#app__top-bar .top-bar__menus`). Empty otherwise;
-   the toggle is styled as a secondary pill so it reads as a bar control. */
-.top-bar__menus {
-	display: inline-flex;
-	align-items: center;
-	min-width: 0;
-}
-
-.top-bar__menus:empty {
-	display: none;
-}
-
-#app__top-bar .top-bar__menus .noddy-panel-toggle,
-#app__top-bar .top-bar__menus .noddy-panel-toggle:hover,
-#app__top-bar .top-bar__menus .noddy-panel-toggle:active,
-#app__top-bar .top-bar__menus .noddy-panel-toggle:focus {
-	position: static;
-	box-sizing: border-box;
-	height: 36px;
-	margin: 0;
-	padding: 0 var(--space-3);
-	border: 1px solid var(--color-border-default);
-	border-radius: var(--radius-full);
-	background-color: var(--color-bg-surface);
-	color: var(--color-text-primary);
-	font-family: var(--font-sans);
-	font-size: 13px;
-	font-weight: 500;
-	line-height: 34px;
-	box-shadow: none;
-}
-
-#app__top-bar .top-bar__menus .noddy-panel-toggle:hover {
-	background-color: var(--color-bg-subtle);
-}
-
 /* Status slot (M1.4 "Not autosaving" chip mounts here); nothing by default */
 .top-bar__status {
 	display: inline-flex;
@@ -447,6 +410,13 @@
 	overflow: auto;
 }
 
+/* The Workspace page scrolls itself (.workspace__page owns the bottom
+   padding that keeps the grid clear of the minimized pill), so the column
+   must not add a second scroll container around it. */
+#app__main-content:has(> #app__page[data-page='workspace']) {
+	overflow: hidden;
+}
+
 /* The workspace owns the 24px gutters; existing pages (wrapped in
    #app__page) drop their own side padding. */
 #app__workspace .content__page,
@@ -560,30 +530,12 @@ body:has(.focus-mode) .agent-panel-slot[data-mode='minimized'] {
 		min-width: 7ch;
 	}
 
-	#app__top-bar .top-bar__menus .noddy-panel-toggle,
-	#app__top-bar .top-bar__menus .noddy-panel-toggle:hover,
-	#app__top-bar .top-bar__menus .noddy-panel-toggle:active,
-	#app__top-bar .top-bar__menus .noddy-panel-toggle:focus {
-		padding: 0 var(--space-2);
-	}
-
 	#app__top-bar {
 		padding: 0 var(--space-4);
 	}
 
 	#app__workspace {
 		padding: 0 var(--space-4) var(--space-4);
-	}
-}
-
-/* Panel drawer toggle (wired by panels.js). Visible only at compact tiers. */
-.noddy-panel-toggle {
-	display: none;
-}
-
-@media (max-width: 1099px) {
-	.noddy-panel-toggle {
-		display: inline-block;
 	}
 }
 

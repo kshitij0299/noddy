@@ -2,6 +2,7 @@
 
 **Start here:**
 1. [PRODUCT.md](PRODUCT.md): what we're building and the owner's decisions. These are binding.
+1. [UI-RESET.md](UI-RESET.md): the 2026-10-21 UI reset after M1–M4 (one page, agent does the rest), what changed, and the PR/QA rules for M5 onward. Read before starting any milestone.
 2. [WORKFLOW.md](WORKFLOW.md): team roles (orchestrator, developer, UI/UX, QA), git conventions, protected-area process, morning report.
 3. [BUILD-PLAN.md](BUILD-PLAN.md): milestones M1–M9. Each bullet is one issue and one PR.
 4. [FIGMA.md](FIGMA.md): where every design lives (Figma node IDs), plus screen PNGs in [figma/screens/](figma/screens/).

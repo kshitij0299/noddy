@@ -138,6 +138,8 @@ export function makeInspector(editor) {
 		wrap.appendChild(makeElement({ tag: 'span', className: 'text-label', content: label }));
 		const input = makeSingleInput(glyph, property, 'currentItem', 'input-number');
 		input.setAttribute('aria-label', label);
+		// Figma flow-06: plain mono fields, no stepper arrows. Arrow keys still step.
+		input.setAttribute('hide-arrows', '');
 		wrap.appendChild(input);
 		return wrap;
 	}

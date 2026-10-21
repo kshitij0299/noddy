@@ -27,7 +27,7 @@ describe('Workspace page', () => {
 		const navigator = new Navigator();
 		expect(navigator.page).toBe('Workspace');
 		expect(navigator.tableOfContents.Workspace.pageMaker).toBe(makePage_Workspace);
-		// The other pages stay reachable from the page menu
+		// The other pages stay in the code (hidden behind the ?legacy flag)
 		expect(navigator.tableOfContents.Overview.pageMaker).toBeTypeOf('function');
 		expect(navigator.tableOfContents.Characters.pageMaker).toBeTypeOf('function');
 	});
@@ -36,11 +36,14 @@ describe('Workspace page', () => {
 		const navigator = new Navigator();
 		const pageContent = navigator.makePageContent();
 		document.body.appendChild(pageContent);
-		expect(pageContent.querySelector('.nav-button__title').innerHTML).toBe('Workspace');
+		// UI reset: no PAGE menu on the Workspace; the specimen is the first thing.
+		expect(pageContent.querySelector('.nav-button')).toBeNull();
+		expect(pageContent.querySelector('.workspace__page').firstElementChild.tagName).toBe('SPECIMEN-CARD');
 
 		const card = pageContent.querySelector('specimen-card#workspace__specimen');
 		expect(card).not.toBeNull();
-		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength(7);
+		// The pangram's 35 letters are ghosts on the empty sample project's missing glyphs
+		expect(card.querySelectorAll('.specimen__ghost').length).toBeGreaterThan(0);
 
 		const grid = pageContent.querySelector('.workspace__grid');
 		expect(grid).not.toBeNull();

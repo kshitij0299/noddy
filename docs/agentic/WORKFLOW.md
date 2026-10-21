@@ -12,13 +12,17 @@
 
 All agents run at medium effort. Agents talk to each other per [CAVEMAN.md](CAVEMAN.md); everything saved to GitHub stays in full sentences.
 
-**Skills:** shared skills live in `.claude/skills/` (developer: TDD, frontend UI, debugging; QA: code review). The rest are generic and optional. `responsive-design` is never used: its patterns conflict with AGENTS.md §1. `browser-testing-with-devtools` assumes a DevTools MCP we lack; use the Playwright helper in ENVIRONMENT.md. For protected-area PRs the orchestrator may add a `code-reviewer` agent pass on top of QA.
+**Skills:** shared skills live in `.claude/skills/`. Every UI task loads **`design-taste-frontend`** (TASTE, anti-generic art direction and the look-and-fix loop), **`refactoring-ui`** (spacing, type, colour and shadow scales; `references/diagnose.md` for fixing existing UI) and, for layout tiers, **`responsive-design`**. Each of the three ends with a "Noddy addendum": Figma and PRODUCT.md win, tokens only, and AGENTS.md §1 still bans the old-branch grids and overflow hacks. Developer: also `test-driven-development`, `frontend-ui-engineering`, `debugging-and-error-recovery`. QA: `code-review-and-quality`. `browser-testing-with-devtools` assumes a DevTools MCP we lack; use the Playwright helper in ENVIRONMENT.md. For protected-area PRs the orchestrator may add a `code-reviewer` agent pass on top of QA.
 
 **Concurrency:** at most two agents at a time. Cloud and local sessions draw from the same usage pool; parallel agents are what spend it.
 
 **Environment facts** for cloud agents (ports, screenshot helper, proxy, GitHub via MCP) live in [ENVIRONMENT.md](ENVIRONMENT.md).
 
-**PR size (from M3 on):** one PR per milestone feature when the pieces interact (M3 focus mode = #16–#18 together; M4 agent panel = #19–#21 together). Independent pieces stay separate.
+**PR size (owner decision after the M1–M4 run, see [UI-RESET.md](UI-RESET.md)):** **one PR per milestone.** The run's 21 PRs cost six QA FAIL rounds; each round re-ran `npm ci`, the suite, the build and a browser matrix. Only a protected-area change (AGENTS.md §3) gets its own PR. Commits inside the PR stay small and logical so the diff is readable.
+
+**Browser check before the PR (developer):** nearly every QA FAIL was a real-browser problem jsdom cannot show: hover and focus styling beaten by the legacy `button` reset, Tab order trapped by the canvas, layout overlaps, zoom resetting. Before opening a PR the developer runs the app, checks hover, focus, keyboard (Tab, Enter, Esc, arrows) and layout at 1440 and 1024, and puts the screenshots in the PR body. A PR without them is not ready for QA.
+
+**QA rounds are capped at two.** QA posts one consolidated list per round (blocking first). After the fixes, the re-QA checks only the listed items plus lint, tests and build; it does not repeat the full browser matrix. If the second round still fails, the orchestrator folds the remaining items into the next milestone's issue instead of running a third round.
 
 **Model fallback:**
 - If Opus is rate-limited or usage is running out, spawn the agents on Fable 5.1 instead and note it in the PR.

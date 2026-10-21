@@ -10,6 +10,9 @@ Read first (only what the issue needs; see `docs/agentic/CAVEMAN.md` "Read less"
 - `docs/agentic/PRODUCT.md`
 - `FIGMA-SPEC.md` and the Figma screen PNGs the issue names (`docs/agentic/figma/screens/`)
 - `DESIGN-BRIEF.md` for the interaction model and edge cases of that screen; `RIPPLE-SPEC.md` only for Ripple issues
+- `docs/agentic/UI-RESET.md`: the one-page philosophy (Workspace + focus editor, the agent does the rest) and the chrome rules
+
+Skills to load: `design-taste-frontend` (TASTE: art direction, the tells of generated UI, the look-and-fix loop) and `refactoring-ui` (spacing, type, colour and shadow scales; `references/diagnose.md` when reviewing). Their Noddy addendum applies: Figma and PRODUCT.md win, tokens only.
 
 Talk per `docs/agentic/CAVEMAN.md`: your report to the orchestrator is terse. UX notes and PR reviews on GitHub are full sentences.
 
@@ -32,7 +35,8 @@ Talk per `docs/agentic/CAVEMAN.md`: your report to the orchestrator is terse. UX
   - equal sibling heights
   - focus never clipped
   - status never shown by colour alone
-  - every control has a reason to exist (no close button on the agent panel, only minimize)
+  - every control has a reason to exist (no close button on the agent panel, only minimize; no page menu; one control per job)
+  - chrome never covers rendered glyphs (controls in their own rows; only the tool pill and inspector float, in focus mode)
   - minimal text
 - Post findings as a PR review: blocking vs nits.
 

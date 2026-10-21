@@ -85,27 +85,35 @@ html[lang='en'] body {
 	overflow: auto;
 }
 
+/* Scrollbars: thin, warm, and only the thumb is visible. Colours come
+   from the Noddy tokens (the legacy blue-grey ramp showed as a blue bar
+   next to the agent panel). */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-border-default, var(--border)) transparent;
+}
 ::-webkit-scrollbar {
 	width: 8px;
-	padding: 1px;
-	border-radius: 4px;
-	border: 1px solid var(--gray-l90);
-	background-color: var(--offWhite);
+	height: 8px;
+	background-color: transparent;
 }
 ::-webkit-scrollbar-button {
 	height: 0px;
+	width: 0px;
 	background-color: transparent;
 }
-::-webkit-scrollbar-track {
-	width: 8px;
-}
+::-webkit-scrollbar-track,
 ::-webkit-scrollbar-track-piece {
 	background-color: transparent;
 }
 ::-webkit-scrollbar-thumb {
-	margin: 2px;
-	background-color: var(--gray-l80);
-	border-radius: 4px;
+	background-color: var(--color-border-default, var(--border));
+	border-radius: var(--radius-full, 999px);
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+	background-color: var(--color-border-strong, var(--muted-foreground));
 }
 ::-webkit-scrollbar-corner {
 	display: none;

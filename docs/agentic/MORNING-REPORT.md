@@ -2,6 +2,17 @@
 
 _Run 1: 2026-10-20 21:45 → ~22:30 UTC (stopped at the session usage limit). Run 2: 07:42 → 09:40 UTC (2-hour window). Run 3: 11:31 → 13:05 UTC (M3 and M4, then stop as the owner asked). See [BUDGET.md](BUDGET.md)._
 
+## UI reset (local, 2026-10-21, after the run)
+
+The owner opened the M1–M4 build and found UI drift, then approved a one-PR reset: `feat/ui-reset` into `dev`. Read [UI-RESET.md](UI-RESET.md) before M5. In short:
+
+- **One page.** No "PAGE" menu; the old Glyphr Studio pages are hidden behind `?legacy` (`src/app/legacy_pages.js`, guard in `Navigator.navigate()`). Kerning, ligatures, components, metrics, settings: agent tools, never pages.
+- **Specimen card:** pill and slider in a header row above the glyphs; pangram default at 72 px/em; Text mode wraps by words; the card grows from 240 px to half the window, then steps the size down.
+- **Focus mode:** context strip highlights only the middle slot of each group; inspector fields have no stepper arrows (`hide-arrows`), Keep/Revert match the 36 px fields.
+- **Shell:** the compact-tier "Panel" button is gone (the pill does that job); token-coloured thin scrollbars; one scroll container.
+- **Skills:** `design-taste-frontend` (TASTE) and `refactoring-ui` vendored into `.claude/skills/`; `responsive-design` allowed again. Roles load them (WORKFLOW.md).
+- **Process:** one PR per milestone; the developer checks the browser before the PR; QA capped at two rounds (WORKFLOW.md "PR size").
+
 ## TL;DR
 
 - **M3 Editor focus mode: done** (PR #57). Clicking a letter opens the Figma editor: close ×, prev/next pill, metric guides, floating tool pill, inspector card with Keep / Revert, live context strip. Milestone point `5f3ba04` (`m3-done`).
@@ -109,7 +120,8 @@ npm run lint && npx vitest run && npm run build
 
 ## What's next (in order)
 
-1. **M5 Start screen:** [#23](https://github.com/kshitij0299/noddy/issues/23), [#24](https://github.com/kshitij0299/noddy/issues/24).
+0. **Merge `feat/ui-reset`** (owner reviews on port 5300), then start M5 with [UI-RESET.md](UI-RESET.md) read.
+1. **M5 Start screen:** [#23](https://github.com/kshitij0299/noddy/issues/23), [#24](https://github.com/kshitij0299/noddy/issues/24). Every start lands on the Workspace; no page menu.
 2. **M6 Agent tools v2:** [#25](https://github.com/kshitij0299/noddy/issues/25), [#26](https://github.com/kshitij0299/noddy/issues/26) (protected), [#27](https://github.com/kshitij0299/noddy/issues/27).
 3. **M7 Runs:** [#28](https://github.com/kshitij0299/noddy/issues/28), [#29](https://github.com/kshitij0299/noddy/issues/29). This is what makes the panel's Plan / Approve / Keep buttons real.
 4. **M8 Ripple** (#30–#33) and **M9 Export** (#34).

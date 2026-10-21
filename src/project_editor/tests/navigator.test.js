@@ -1,11 +1,22 @@
-import { beforeEach, describe, it } from 'vitest';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { Navigator } from '../navigator.js';
+import {
+	HIDDEN_PAGES,
+	resolveVisiblePage,
+	setLegacyPagesOverride,
+} from '../../app/legacy_pages.js';
 
 describe('Navigator: Page Navigation', () => {
 	let navigator;
 
 	beforeEach(() => {
+		// These tests exercise the legacy pages themselves, so show them.
+		setLegacyPagesOverride(true);
 		navigator = new Navigator();
+	});
+
+	afterEach(() => {
+		setLegacyPagesOverride(null);
 	});
 
 	it('Should have a default page of "Workspace"', () => {
@@ -90,6 +101,51 @@ describe('Navigator: Page Navigation', () => {
 });
 
 /*
+describe('Navigator: hidden legacy pages (UI reset)', () => {
+	afterEach(() => {
+		setLegacyPagesOverride(null);
+	});
+
+	it('every legacy page resolves to the Workspace without the flag', () => {
+		setLegacyPagesOverride(false);
+		for (const page of HIDDEN_PAGES) {
+			expect(resolveVisiblePage(page)).toBe('Workspace');
+		}
+		expect(resolveVisiblePage('Workspace')).toBe('Workspace');
+	});
+
+	it('focus mode on the Characters page stays visible', () => {
+		setLegacyPagesOverride(false);
+		expect(resolveVisiblePage('Characters', { focus: true })).toBe('Characters');
+		expect(resolveVisiblePage('Characters', { focus: false })).toBe('Workspace');
+	});
+
+	it('the flag or dev mode shows every page', () => {
+		setLegacyPagesOverride(true);
+		expect(resolveVisiblePage('Kerning')).toBe('Kerning');
+		setLegacyPagesOverride(null);
+		expect(resolveVisiblePage('Kerning', { devMode: true })).toBe('Kerning');
+	});
+
+	it('navigate() lands on the Workspace when a hidden page is requested', () => {
+		setLegacyPagesOverride(false);
+		const navigator = new Navigator();
+		navigator.page = 'Overview';
+		navigator.navigate(true);
+		expect(navigator.page).toBe('Workspace');
+		const pageContent = navigator.makePageContent();
+		expect(pageContent.querySelector('#app__page[data-page="workspace"]')).not.toBeNull();
+	});
+
+	it('navigate() keeps a hidden page when the flag is on', () => {
+		setLegacyPagesOverride(true);
+		const navigator = new Navigator();
+		navigator.page = 'Overview';
+		navigator.navigate(true);
+		expect(navigator.page).toBe('Overview');
+	});
+});
+
 describe('Navigator: Panel Navigation', () => {
 	let navigator;
 

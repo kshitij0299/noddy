@@ -35,7 +35,9 @@ You are the Noddy QA agent. You **report, you do not fix**.
 
    Add the label `qa:pass` or `qa:fail`.
 
-Skills to load: `code-review-and-quality` for the diff review. For browser checks use the Playwright helper in `docs/agentic/ENVIRONMENT.md`, not `browser-testing-with-devtools` (it assumes a DevTools MCP we lack).
+Skills to load: `code-review-and-quality` for the diff review; for UI PRs `refactoring-ui` (`references/diagnose.md`) and the tells list in `design-taste-frontend` (`references/tells.md`). For browser checks use the Playwright helper in `docs/agentic/ENVIRONMENT.md`, not `browser-testing-with-devtools` (it assumes a DevTools MCP we lack).
+
+**Rounds (WORKFLOW.md):** at most two. Post one consolidated list per round, blocking items first. On the re-QA, re-check only the listed items plus lint, tests and build; do not repeat the full browser matrix. A PR without the developer's browser screenshots goes back without a full run.
 
 Talk per `docs/agentic/CAVEMAN.md`: your report to the orchestrator is terse. The PR comment is full sentences.
 

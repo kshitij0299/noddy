@@ -12,7 +12,12 @@ import { selectTool } from '../edit_canvas/tools/tools.js';
 import { Glyph } from '../project_data/glyph.js';
 import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
 import { ProjectEditor } from '../project_editor/project_editor.js';
-import { charForGlyphID, contextStringFor, makeContextStripSVG } from './focus_context_strip.js';
+import {
+	charForGlyphID,
+	contextSlotsFor,
+	contextStringFor,
+	makeContextStripSVG,
+} from './focus_context_strip.js';
 import {
 	REVERT_UNAVAILABLE_TOOLTIP,
 	codePointLabel,
@@ -404,6 +409,20 @@ describe('Focus mode: context strip (#18)', () => {
 		expect(svg.querySelectorAll('.focus-strip__ghost.is-current').length).toBe(2);
 	});
 
+	it('highlights only the middle slot of each group (UI reset)', () => {
+		expect(contextSlotsFor('HHHHH OOHOO')).toEqual([2, 8]);
+		expect(contextSlotsFor('nnann ooaoo')).toEqual([2, 8]);
+		expect(contextSlotsFor('n!n o!o')).toEqual([1, 5]);
+		expect(contextSlotsFor('')).toEqual([]);
+		// Editing n: the strip is "nnnnn oonoo", and only two n's are peach
+		const svg = makeContextStripSVG(n, editor.project);
+		const inks = [...svg.querySelectorAll('.focus-strip__ink[data-item-id="glyph-0x6E"]')];
+		expect(inks.length).toBe(6);
+		expect(svg.querySelectorAll('.is-current').length).toBe(2);
+		expect(inks[2].classList.contains('is-current')).toBe(true);
+		expect(inks[0].classList.contains('is-current')).toBe(false);
+	});
+
 	it('is mounted in focus mode with an accessible name and redraws live on itemChanged', async () => {
 		grid().tiles.get(a).click();
 		const strip = document.querySelector('.focus-strip');
@@ -684,6 +703,25 @@ describe('Focus mode: buttons beat the legacy reset (QA #57)', () => {
 		'focus-inspector__keep',
 		'focus-inspector__revert',
 	];
+
+	it('inspector fields hide the stepper arrows and match the 36px actions (UI reset)', () => {
+		grid().tiles.get(a).click();
+		const fields = [...document.querySelectorAll('.focus-inspector__field input-number')];
+		expect(fields.length).toBe(3);
+		fields.forEach((field) => expect(field.hasAttribute('hide-arrows')).toBe(true));
+
+		const focus = css('./focus-mode.css');
+		const fieldRule = focus.split('}').find((rule) => rule.includes('.focus-inspector__field input-number'));
+		expect(fieldRule).toContain('height: 36px');
+		const actionsRule = focus.split('}').find((rule) => rule.includes('Inspector actions'));
+		expect(actionsRule).toContain('height: 36px');
+
+		const control = css('../controls/input-number/input-number.css');
+		const arrows = control.split('}').find((rule) => rule.includes('\n.arrowWrapper {'));
+		expect(arrows).not.toContain('height: 32px');
+		expect(arrows).toContain('align-self: stretch');
+		expect(control).toContain(':host([hide-arrows]) .arrowWrapper');
+	});
 
 	it('every button class pins geometry for base, :hover, :focus and :active', () => {
 		const source = css('./focus-mode.css');

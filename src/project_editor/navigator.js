@@ -1,6 +1,7 @@
 import { showAppErrorPage } from '../app/app.js';
-import { getCurrentProject, getCurrentProjectEditor } from '../app/main.js';
+import { getCurrentProject, getCurrentProjectEditor, getGlyphrStudioApp } from '../app/main.js';
 import { makeWorkspace } from '../app/agent_panel_slot.js';
+import { resolveVisiblePage } from '../app/legacy_pages.js';
 import { ensureAgentPanel } from '../agent/ui/agent-panel.js';
 import { makeAppTopBar } from '../app/top_bar.js';
 import { accentColors } from '../common/colors.js';
@@ -24,6 +25,15 @@ import { makeSingleItemTypeChooserContent } from '../panels/item_chooser.js';
 // --------------------------------------------------------------
 // Navigation
 // --------------------------------------------------------------
+
+/** The app's dev-mode switch, false when the app is not built yet (tests). */
+function isDevMode() {
+	try {
+		return !!getGlyphrStudioApp()?.settings?.dev?.mode;
+	} catch {
+		return false;
+	}
+}
 
 export class Navigator {
 	constructor() {
@@ -110,6 +120,14 @@ export class Navigator {
 		// log(`editor.selectedItemID: ${getCurrentProjectEditor().selectedItemID}`);
 
 		closeEveryTypeOfDialog();
+		// UI reset (docs/agentic/UI-RESET.md): the user sees one page. Any
+		// request for a hidden legacy page (importers, legacy cards, dev
+		// shortcuts) lands on the Workspace unless the `?legacy` flag is set.
+		// Focus mode on the Characters page is always allowed.
+		this.page = resolveVisiblePage(this.page, {
+			focus: !!this.focus,
+			devMode: isDevMode(),
+		});
 		// Noddy focus mode lives only on the Characters page: leaving for any
 		// other page settles it and drops its subscriptions.
 		if (this.focus && this.page !== 'Characters') {

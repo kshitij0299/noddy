@@ -10,6 +10,7 @@ import {
 	unmountAgentPanel,
 } from '../agent_panel_slot.js';
 import { getGlyphrStudioApp, setCurrentProjectEditor } from '../main.js';
+import { setLegacyPagesOverride } from '../legacy_pages.js';
 
 /** @type {ProjectEditor} */
 let editor;
@@ -60,6 +61,8 @@ describe('Agent panel slot', () => {
 		mountAgentPanel(panel);
 
 		// Settings and Help build without the canvas custom elements in jsdom.
+		// They are hidden legacy pages now, so show them for this test.
+		setLegacyPagesOverride(true);
 		editor.nav.page = 'Settings';
 		editor.navigate();
 		const wrapper = document.querySelector('#app__wrapper');
@@ -77,5 +80,6 @@ describe('Agent panel slot', () => {
 		expect(second.querySelector('#my-agent-panel')).toBe(panel);
 		expect(panel.textContent).toBe('run in progress');
 		expect(wrapper.querySelectorAll('#app__top-bar').length).toBe(1);
+		setLegacyPagesOverride(null);
 	});
 });
