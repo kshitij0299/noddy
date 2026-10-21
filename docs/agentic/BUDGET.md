@@ -18,3 +18,5 @@ How to stay lean:
 **Update 2026-10-21 (owner):** stop after M4. Finish M3 and M4 (QA passed and merged into `dev`), update MORNING-REPORT.md, then stop. Do not start M5.
 
 **Update 2026-10-21 (owner):** continue from M5 after the UI reset (PR #61, [UI-RESET.md](UI-RESET.md)). Open-ended; one PR per milestone; QA capped at two rounds; at most two agents at a time. Stop when the owner says so or usage runs out, pushing everything and updating MORNING-REPORT.md first.
+
+**Update 2026-10-21 (owner):** stop after M7. Finish M5, M6 and M7 (QA passed and merged into `dev`), update MORNING-REPORT.md, then stop. Do not start M8.
