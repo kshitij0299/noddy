@@ -1,0 +1,224 @@
+/* --------------------------------------------------------------
+	<specimen-card> — Workspace hero (issue #12, Figma SpecimenCard 50:78)
+	240px card on bg/surface with radius/xl, no border, no shadow.
+	Chrome (mode pill, size slider) is UI; the glyph surface is an inline
+	SVG rendered from project outlines and marked [data-font-content].
+	This sheet never sets font properties on that surface.
+-------------------------------------------------------------- */
+specimen-card {
+	position: relative;
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 240px;
+	background: var(--color-bg-surface, var(--card, #fff));
+	border-radius: var(--radius-xl, 20px);
+	overflow: hidden;
+}
+
+/* Mode pill: 124×36, bg/subtle, radius/full, three 36px icon segments */
+specimen-card .specimen__mode-pill {
+	position: absolute;
+	top: var(--space-6, 24px);
+	left: var(--space-6, 24px);
+	z-index: 1;
+	display: flex;
+	gap: 8px;
+	height: 36px;
+	padding: 0;
+	background: var(--color-bg-subtle, var(--secondary));
+	border-radius: var(--radius-full, 999px);
+}
+
+specimen-card .specimen__mode {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: var(--radius-full, 999px);
+	background: transparent;
+	color: var(--color-text-primary, var(--foreground));
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+specimen-card .specimen__mode:hover {
+	background: var(--color-bg-accent-subtle, var(--secondary));
+}
+
+specimen-card .specimen__mode[aria-checked='true'] {
+	background: var(--color-bg-accent, var(--primary));
+	color: var(--color-text-on-accent, var(--primary-foreground));
+}
+
+specimen-card .specimen__mode:focus-visible {
+	outline: var(--focus-ring, 2px solid var(--ring));
+	outline-offset: var(--focus-ring-offset, 2px);
+}
+
+/* Size slider: 80px track, 8px thumb, Mono value at the right edge */
+specimen-card .specimen__size {
+	position: absolute;
+	top: var(--space-6, 24px);
+	right: var(--space-6, 24px);
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	gap: var(--space-3, 12px);
+	height: 36px;
+	color: var(--color-text-secondary, var(--muted-foreground));
+}
+
+specimen-card .specimen__size-slider {
+	width: 80px;
+	height: 8px;
+	margin: 0;
+	appearance: none;
+	-webkit-appearance: none;
+	background: transparent;
+	cursor: pointer;
+}
+
+specimen-card .specimen__size-slider::-webkit-slider-runnable-track {
+	height: 4px;
+	border-radius: var(--radius-full, 999px);
+	background: var(--color-bg-track, var(--border));
+}
+
+specimen-card .specimen__size-slider::-moz-range-track {
+	height: 4px;
+	border-radius: var(--radius-full, 999px);
+	background: var(--color-bg-track, var(--border));
+}
+
+specimen-card .specimen__size-slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 8px;
+	height: 8px;
+	margin-top: -2px;
+	border-radius: 50%;
+	border: none;
+	background: var(--color-bg-accent, var(--primary));
+}
+
+specimen-card .specimen__size-slider::-moz-range-thumb {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	border: none;
+	background: var(--color-bg-accent, var(--primary));
+}
+
+specimen-card .specimen__size-slider:focus-visible {
+	outline: var(--focus-ring, 2px solid var(--ring));
+	outline-offset: var(--focus-ring-offset, 2px);
+	border-radius: var(--radius-full, 999px);
+}
+
+specimen-card .specimen__size-value {
+	min-width: 3ch;
+	text-align: right;
+}
+
+/* Glyph surface: the sample sits on the vertical centre of the card */
+specimen-card .specimen__stage {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	width: 100%;
+	height: 100%;
+	/* Top inset clears the chrome band (24px inset + 36px pill); the
+	sample is centred in what remains, as in flow-07. */
+	padding: 60px var(--space-6, 24px) var(--space-4, 16px);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+specimen-card .specimen__row {
+	display: block;
+	flex: 0 0 auto;
+	max-width: 100%;
+	overflow: visible;
+}
+
+specimen-card .specimen__ink {
+	fill: var(--color-glyph-ink, var(--foreground));
+}
+
+specimen-card .specimen__letter {
+	cursor: pointer;
+	outline: none;
+}
+
+specimen-card .specimen__hit {
+	fill: transparent;
+	transition: fill 120ms ease;
+}
+
+specimen-card .specimen__letter:hover .specimen__hit,
+specimen-card .specimen__letter:focus-visible .specimen__hit {
+	fill: var(--color-bg-subtle, var(--secondary));
+}
+
+specimen-card .specimen__letter:focus-visible .specimen__hit {
+	stroke: var(--color-focus-ring, var(--ring));
+	stroke-width: 2px;
+	vector-effect: non-scaling-stroke;
+}
+
+/* Ghost: 1.5px dashed glyph/ghost box, radius/sm corners (set in JS) */
+specimen-card .specimen__box {
+	fill: none;
+	stroke: var(--color-glyph-ghost, var(--border));
+	stroke-width: 1.5px;
+	stroke-dasharray: 4 3;
+	vector-effect: non-scaling-stroke;
+}
+
+/* Drafting: solid status/draft box with a spinner ring centred */
+specimen-card .specimen__box--drafting {
+	stroke: var(--color-status-draft, var(--primary));
+	stroke-dasharray: none;
+}
+
+specimen-card .specimen__ring {
+	fill: none;
+	stroke: var(--color-status-draft, var(--primary));
+	stroke-width: 2px;
+	stroke-linecap: round;
+	stroke-dasharray: 36 14;
+	vector-effect: non-scaling-stroke;
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: specimen-ring-spin 900ms linear infinite;
+}
+
+@keyframes specimen-ring-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	specimen-card .specimen__ring {
+		animation: none;
+	}
+}
+
+/* Phone monitor mode: shorter card, no size slider, text still auto-fits */
+@media (max-width: 640px) {
+	specimen-card {
+		height: 160px;
+	}
+
+	specimen-card .specimen__size {
+		display: none;
+	}
+}
