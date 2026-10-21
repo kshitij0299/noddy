@@ -41,6 +41,15 @@ The executable contract is [tool-definitions.js](../../src/agent/tool-definition
 | `set_spacing` | Set left bearing, right bearing or advance width |
 | `transform_paths` | Translate explicit path indices in font units |
 | `add_paths` | Append bounded closed cubic contours, including to an empty selected glyph |
+| `get_font_spec` | Family, style, UPM, ascender, descender, cap height, x-height, overshoot, line gap, italic angle (stems: null until a design-spec store exists) |
+| `get_set_status` | Latin Kernel coverage and each glyph's status, owner and lock (`yours` / `open`) |
+| `render_glyphs` / `render_text` | One PNG (longest side ≤ 1024 px) with metric guides, drawn on a detached canvas from glyph copies; sent to the model as an image part |
+| `check_outlines` | Winding (incl. counters running the same way as their container), self-intersections, duplicate points, specks, too-few points, extents vs guides |
+| `get_mutation_log` | The agent's own logged writes (time, tool, glyph, summary, still in history) |
+
+Read tools never create history, publish events or change selection, view or navigation. IDs outside the character set return `OUT_OF_SET`.
+
+**Ownership lock** (`src/agent/ownership.js`): every write tool calls `assertAgentMayWrite(editor, id)`, which throws `LOCKED_YOURS` for a Yours glyph and `LOCKED_OPEN` for the glyph open in the focus editor. Consent is a grant minted by UI code (`grantConsent`, `handToAgent`); tool arguments can never carry one. A Send made from the focus editor hands that open glyph over for that request only (not the Yours lock). `takeBack`, `takeOver` (aborts `agentJobSignal(editor, id)`) and the in-memory mutation log (`logAgentWrite`, `getMutationLog`) are there for the panel.
 
 Writes require the current revision and are restricted to the character selected when Send was pressed. Manual changes or navigation cannot silently retarget calls. Locks are respected. Component-bearing and reused glyphs are rejected to avoid unexpected dependent changes. Reads never create glyphs.
 
