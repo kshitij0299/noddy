@@ -10,7 +10,9 @@ import {
 	ghostBoxForChar,
 	getSpecimenMetrics,
 	layoutSpecimenLine,
+	layoutSpecimenLines,
 	makeSpacingString,
+	SPECIMEN_DEFAULT_TEXT,
 } from './specimen_card.js';
 
 if (!customElements.get('specimen-card')) customElements.define('specimen-card', SpecimenCard);
@@ -96,13 +98,42 @@ describe('Specimen card: layout and rendering', () => {
 		expect(items.at(-1).x).toBeGreaterThan(items[0].x);
 	});
 
-	it('renders a glyph with an outline from its project path data, never a UI font', () => {
-		const glyph = drawRect(editor.project, 'glyph-0x48');
+	it('defaults to a pangram and puts the controls in a header row above the stage', () => {
+		expect(SPECIMEN_DEFAULT_TEXT).toBe('The quick brown fox jumps over the lazy dog');
 		const card = mountCard();
-		const letter = card.querySelector('.specimen__letter[data-item-id="glyph-0x48"]');
+		const bar = card.querySelector('.specimen__bar');
+		expect(bar).not.toBeNull();
+		expect(bar.querySelector('.specimen__mode-pill')).not.toBeNull();
+		expect(bar.querySelector('.specimen__size')).not.toBeNull();
+		expect(bar.nextElementSibling).toBe(card.querySelector('.specimen__stage'));
+		// 35 letters, 8 spaces: every letter is a ghost on an empty project
+		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength(35);
+	});
+
+	it('wraps the sample by words at a width limit, never inside a word', () => {
+		const one = layoutSpecimenLines('The quick brown fox', editor.project);
+		expect(one).toHaveLength(1);
+		const fullWidth = one[0].width;
+		const lines = layoutSpecimenLines('The quick brown fox', editor.project, {
+			maxWidthUnits: fullWidth / 2,
+		});
+		expect(lines.length).toBeGreaterThan(1);
+		lines.forEach((line) => expect(line.width).toBeLessThanOrEqual(fullWidth / 2 + 1));
+		const letters = lines.flatMap((line) => line.items.filter((i) => i.type !== 'space').map((i) => i.char));
+		expect(letters.join('')).toBe('Thequickbrownfox');
+		// A word wider than the limit stays whole on its own line
+		const tiny = layoutSpecimenLines('Hamburgefonstiv a', editor.project, { maxWidthUnits: 10 });
+		expect(tiny).toHaveLength(2);
+		expect(tiny[0].items.filter((i) => i.type !== 'space')).toHaveLength('Hamburgefonstiv'.length);
+	});
+
+	it('renders a glyph with an outline from its project path data, never a UI font', () => {
+		const glyph = drawRect(editor.project, 'glyph-0x54');
+		const card = mountCard();
+		const letter = card.querySelector('.specimen__letter[data-item-id="glyph-0x54"]');
 		expect(letter).not.toBeNull();
 		expect(letter.querySelector('path').getAttribute('d')).toBe(glyph.svgPathData);
-		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength(6);
+		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength(34);
 		expect(card.querySelector('svg').hasAttribute('data-font-content')).toBe(true);
 		expect(card.querySelector('.specimen__stage').textContent.trim()).toBe('');
 	});
@@ -114,9 +145,11 @@ describe('Specimen card: layout and rendering', () => {
 			kind: g.getAttribute('data-ghost-kind'),
 			h: Number(g.querySelector('rect').getAttribute('height')),
 		}));
+		// T h e q …: cap, ascender (cap), x-height, descender
 		expect(boxes[0]).toEqual({ kind: 'cap', h: metrics.capHeight });
-		expect(boxes[1]).toEqual({ kind: 'x', h: metrics.xHeight });
-		expect(boxes[6]).toEqual({ kind: 'descender', h: metrics.xHeight - metrics.descent });
+		expect(boxes[1]).toEqual({ kind: 'cap', h: metrics.capHeight });
+		expect(boxes[2]).toEqual({ kind: 'x', h: metrics.xHeight });
+		expect(boxes[3]).toEqual({ kind: 'descender', h: metrics.xHeight - metrics.descent });
 	});
 
 	it('switches modes from the pill and keeps the radio group accessible', () => {
@@ -130,12 +163,12 @@ describe('Specimen card: layout and rendering', () => {
 		expect(card.mode).toBe('spacing');
 		expect(radios[1].getAttribute('aria-checked')).toBe('true');
 		expect(radios[0].getAttribute('aria-checked')).toBe('false');
-		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength('nnannoaoo'.length);
+		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength('HHTHHOTOO'.length);
 
 		radios[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 		expect(card.mode).toBe('waterfall');
 		expect(card.querySelectorAll('svg.specimen__row')).toHaveLength(WATERFALL_STEPS.length);
-		expect(card.querySelectorAll('svg.specimen__row')[0].getAttribute('data-row-size')).toBe('160');
+		expect(card.querySelectorAll('svg.specimen__row')[0].getAttribute('data-row-size')).toBe(String(SPECIMEN_SIZE.default));
 	});
 
 	it('changes the size from the slider, clamped to the range', () => {
@@ -143,7 +176,7 @@ describe('Specimen card: layout and rendering', () => {
 		const slider = /** @type {HTMLInputElement} */ (card.querySelector('input[type="range"]'));
 		expect(slider.getAttribute('aria-label')).toBe('Size');
 		expect(card.size).toBe(SPECIMEN_SIZE.default);
-		expect(card.querySelector('.specimen__size-value').textContent).toBe('160');
+		expect(card.querySelector('.specimen__size-value').textContent).toBe(String(SPECIMEN_SIZE.default));
 
 		slider.value = '200';
 		slider.dispatchEvent(new Event('input'));
@@ -172,17 +205,18 @@ describe('Specimen card: layout and rendering', () => {
 		expect(card.querySelectorAll('.specimen__letter')).toHaveLength(0);
 		drawRect(editor.project, 'glyph-0x61');
 		card.redraw();
+		// 'a' appears once in the pangram ("lazy")
 		expect(card.querySelectorAll('.specimen__letter')).toHaveLength(1);
-		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength(6);
+		expect(card.querySelectorAll('.specimen__ghost')).toHaveLength(34);
 	});
 
 	it('marks a drafting glyph with a solid box and ring, and calls the open hook on click', () => {
-		drawRect(editor.project, 'glyph-0x48');
+		drawRect(editor.project, 'glyph-0x54');
 		const card = mountCard();
 		const open = vi.fn();
 		card.onOpenLetter = open;
 		card.querySelector('.specimen__letter').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-		expect(open).toHaveBeenCalledWith('glyph-0x48');
+		expect(open).toHaveBeenCalledWith('glyph-0x54');
 
 		card.setDrafting(['glyph-0x67']);
 		const drafting = card.querySelector('.specimen__drafting');

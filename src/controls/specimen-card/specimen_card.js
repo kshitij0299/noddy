@@ -32,8 +32,14 @@ export const SPECIMEN_MODES = Object.freeze([
 	{ id: 'waterfall', label: 'Waterfall', icon: 'format_size' },
 ]);
 
-export const SPECIMEN_SIZE = Object.freeze({ min: 96, max: 240, step: 8, default: 160 });
-export const SPECIMEN_DEFAULT_TEXT = 'Hamburg';
+/** Size slider, px per em. 72 puts the pangram on two lines inside the 240px card at 1440. */
+export const SPECIMEN_SIZE = Object.freeze({ min: 48, max: 240, step: 8, default: 72 });
+/** The card grows with the wrapped sample up to this (mirrors specimen-card.css). */
+export const SPECIMEN_MAX_HEIGHT = Object.freeze({ px: 560, vh: 50 });
+/** Gap (px) between wrapped text rows. */
+const TEXT_ROW_GAP = 8;
+/** Default sample: a pangram, so every letter of the set shows (UI reset). */
+export const SPECIMEN_DEFAULT_TEXT = 'The quick brown fox jumps over the lazy dog';
 /** Ghost width as a fraction of the em (flow-02). */
 export const GHOST_WIDTH_EM = 0.55;
 /** Side bearing on each side of a ghost box, as a fraction of the em. */
@@ -148,6 +154,39 @@ export function layoutSpecimenLine(text, project, { drafting } = {}) {
 }
 
 /**
+ * Lays out text on as many lines as it needs to stay within `maxWidthUnits`
+ * (font units). Words never break; a word wider than the limit stays alone
+ * on its line. Whitespace runs are collapsed to one space between words.
+ * @param {String} text - sample text
+ * @param {Object} project - GlyphrStudioProject
+ * @param {Object} [options]
+ * @param {Number} [options.maxWidthUnits=Infinity] - line limit in font units
+ * @param {Set<String>} [options.drafting] - item IDs currently being drafted
+ * @returns {Array<{items: Array, width: Number, metrics: Object}>} one entry per line
+ */
+export function layoutSpecimenLines(text, project, { maxWidthUnits = Infinity, drafting } = {}) {
+	const words = String(text ?? '')
+		.split(/\s+/u)
+		.filter((w) => w.length > 0);
+	if (words.length === 0) return [layoutSpecimenLine('', project, { drafting })];
+
+	const lines = [];
+	let current = '';
+	const widthOf = (sample) => layoutSpecimenLine(sample, project, { drafting }).width;
+	for (const word of words) {
+		const candidate = current ? `${current} ${word}` : word;
+		if (!current || widthOf(candidate) <= maxWidthUnits) {
+			current = candidate;
+		} else {
+			lines.push(current);
+			current = word;
+		}
+	}
+	if (current) lines.push(current);
+	return lines.map((line) => layoutSpecimenLine(line, project, { drafting }));
+}
+
+/**
  * @param {String} value - text for an attribute
  * @returns {String}
  */
@@ -255,7 +294,15 @@ export class SpecimenCard extends HTMLElement {
 		this.redraw();
 		this.subscribe();
 		if (typeof ResizeObserver === 'function' && !this._resizeObserver) {
-			this._resizeObserver = new ResizeObserver(() => this.fit());
+			// Re-wrap when the card's width changes (agent panel opens or
+			// minimizes, window resize). Height changes are our own doing.
+			this._observedWidth = this.clientWidth;
+			this._resizeObserver = new ResizeObserver(() => {
+				const width = this.clientWidth;
+				if (width === this._observedWidth) return;
+				this._observedWidth = width;
+				this.redraw();
+			});
 			this._resizeObserver.observe(this);
 		}
 	}
@@ -347,8 +394,13 @@ export class SpecimenCard extends HTMLElement {
 			attributes: { 'data-font-content': '' },
 		});
 
-		this.appendChild(this.pill);
-		this.appendChild(this.sizeBox);
+		// Header row: the pill and the slider sit in their own 36px row above
+		// the glyph surface, never over it (UI reset).
+		this.bar = makeElement({ tag: 'div', className: 'specimen__bar' });
+		this.bar.appendChild(this.pill);
+		this.bar.appendChild(this.sizeBox);
+
+		this.appendChild(this.bar);
 		this.appendChild(this.stage);
 		this.updateModePill();
 	}
@@ -408,11 +460,38 @@ export class SpecimenCard extends HTMLElement {
 		if (!project) return;
 
 		const sample = this.sampleForMode;
-		const steps = this._mode === 'waterfall' ? WATERFALL_STEPS : [1];
-		const rows = steps.map((step) => {
-			const line = layoutSpecimenLine(sample, project, { drafting: this._drafting });
-			return { line, size: this._size * step };
-		});
+		let rows;
+		if (this._mode === 'text') {
+			// Text mode wraps by words at the chosen size and the card grows with
+			// the lines (min 240px, capped). When even the cap is too small, the
+			// size steps down until the wrapped sample fits, so the type is never
+			// squeezed into a tiny column of one-word lines.
+			const { availableWidth, availableHeight } = this.availableBox();
+			const { upm } = getSpecimenMetrics(project);
+			let size = this._size;
+			let lines;
+			for (;;) {
+				const maxWidthUnits = Number.isFinite(availableWidth)
+					? (availableWidth * upm) / size
+					: Infinity;
+				lines = layoutSpecimenLines(sample, project, { maxWidthUnits, drafting: this._drafting });
+				const height =
+					lines.reduce((sum, line) => sum + ((line.metrics.ascent - line.metrics.descent) * size) / upm, 0) +
+					TEXT_ROW_GAP * (lines.length - 1);
+				if (height <= availableHeight || size - SPECIMEN_SIZE.step < SPECIMEN_SIZE.min) break;
+				size -= SPECIMEN_SIZE.step;
+			}
+			this.setAttribute('data-effective-size', String(size));
+			rows = lines.map((line) => ({ line, size }));
+		} else {
+			this.removeAttribute('data-effective-size');
+			// Spacing: one line. Waterfall: one line per step, scaled to fit.
+			const steps = this._mode === 'waterfall' ? WATERFALL_STEPS : [1];
+			rows = steps.map((step) => {
+				const line = layoutSpecimenLine(sample, project, { drafting: this._drafting });
+				return { line, size: this._size * step };
+			});
+		}
 
 		this.stage.innerHTML = '';
 		this.stage.setAttribute('data-mode', this._mode);
@@ -482,14 +561,28 @@ export class SpecimenCard extends HTMLElement {
 	 * @returns {{availableWidth: Number, availableHeight: Number}}
 	 */
 	availableBox() {
-		if (!this.stage.clientWidth || !this.stage.clientHeight) {
+		if (!this.stage.clientWidth) {
 			return { availableWidth: Infinity, availableHeight: Infinity };
 		}
-		const style = getComputedStyle(this.stage);
 		const px = (value) => parseFloat(value) || 0;
+		const stageStyle = getComputedStyle(this.stage);
+		// The stage grows with its rows up to the card's cap, so the height
+		// limit is the cap minus the card's own chrome (padding, bar, gap),
+		// not the stage's current size.
+		const cardStyle = getComputedStyle(this);
+		const chrome =
+			px(cardStyle.paddingTop) +
+			px(cardStyle.paddingBottom) +
+			px(cardStyle.rowGap) +
+			(this.bar ? this.bar.offsetHeight : 0);
+		const viewportCap =
+			typeof window !== 'undefined' && window.innerHeight
+				? (window.innerHeight * SPECIMEN_MAX_HEIGHT.vh) / 100
+				: Infinity;
+		const cap = Math.min(SPECIMEN_MAX_HEIGHT.px, viewportCap);
 		return {
-			availableWidth: this.stage.clientWidth - px(style.paddingLeft) - px(style.paddingRight),
-			availableHeight: this.stage.clientHeight - px(style.paddingTop) - px(style.paddingBottom),
+			availableWidth: this.stage.clientWidth - px(stageStyle.paddingLeft) - px(stageStyle.paddingRight),
+			availableHeight: Math.max(0, cap - chrome),
 		};
 	}
 
@@ -501,7 +594,7 @@ export class SpecimenCard extends HTMLElement {
 	fit() {
 		if (!this._rows || !this.stage) return;
 		const { availableWidth, availableHeight } = this.availableBox();
-		const rowGap = this._rows.length > 1 ? WATERFALL_GAP : 0;
+		const rowGap = this._rows.length > 1 ? (this._mode === 'text' ? TEXT_ROW_GAP : WATERFALL_GAP) : 0;
 
 		let scale = 1;
 		let totalHeight = 0;

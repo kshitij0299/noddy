@@ -1,28 +1,43 @@
 /* --------------------------------------------------------------
 	<specimen-card> — Workspace hero (issue #12, Figma SpecimenCard 50:78)
-	240px card on bg/surface with radius/xl, no border, no shadow.
-	Chrome (mode pill, size slider) is UI; the glyph surface is an inline
-	SVG rendered from project outlines and marked [data-font-content].
+	Card on bg/surface with radius/xl, no border, no shadow; at least 240px
+	tall and growing with the wrapped sample (UI reset). Chrome (mode pill,
+	size slider) is a header row above the glyph surface, an inline SVG
+	rendered from project outlines and marked [data-font-content].
 	This sheet never sets font properties on that surface.
 -------------------------------------------------------------- */
 specimen-card {
 	position: relative;
-	display: block;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4, 16px);
 	box-sizing: border-box;
 	width: 100%;
-	height: 240px;
+	min-height: 240px;
+	/* Grows with the wrapped sample, up to about half the window
+	   (SPECIMEN_MAX_HEIGHT in specimen_card.js mirrors this) */
+	max-height: min(560px, 50vh);
+	padding: var(--space-6, 24px);
 	background: var(--color-bg-surface, var(--card, #fff));
 	border-radius: var(--radius-xl, 20px);
 	overflow: hidden;
 }
 
+/* Header row: mode pill left, size slider right. Its own 36px row, so the
+   chrome never sits over the glyphs. */
+specimen-card .specimen__bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-4, 16px);
+	flex: 0 0 auto;
+	height: 36px;
+}
+
 /* Mode pill: 124×36, bg/subtle, radius/full, three 36px icon segments */
 specimen-card .specimen__mode-pill {
-	position: absolute;
-	top: var(--space-6, 24px);
-	left: var(--space-6, 24px);
-	z-index: 1;
 	display: flex;
+	flex: 0 0 auto;
 	gap: 8px;
 	height: 36px;
 	padding: 0;
@@ -62,11 +77,8 @@ specimen-card .specimen__mode:focus-visible {
 
 /* Size slider: 80px track, 8px thumb, Mono value at the right edge */
 specimen-card .specimen__size {
-	position: absolute;
-	top: var(--space-6, 24px);
-	right: var(--space-6, 24px);
-	z-index: 1;
 	display: flex;
+	flex: 0 0 auto;
 	align-items: center;
 	gap: var(--space-3, 12px);
 	height: 36px;
@@ -125,18 +137,18 @@ specimen-card .specimen__size-value {
 	text-align: right;
 }
 
-/* Glyph surface: the sample sits on the vertical centre of the card */
+/* Glyph surface: rows of outlines, centred in whatever height is left.
+   It grows with the wrapped sample (the card caps it); it never scrolls. */
 specimen-card .specimen__stage {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
+	gap: var(--space-2, 8px);
+	flex: 1 1 auto;
 	width: 100%;
-	height: 100%;
-	/* Top inset clears the chrome band (24px inset + 36px pill); the
-	sample is centred in what remains, as in flow-07. */
-	padding: 60px var(--space-6, 24px) var(--space-4, 16px);
+	min-height: 0;
+	padding: 0;
 	box-sizing: border-box;
 	overflow: hidden;
 }
@@ -215,7 +227,8 @@ specimen-card .specimen__ring {
 /* Phone monitor mode: shorter card, no size slider, text still auto-fits */
 @media (max-width: 640px) {
 	specimen-card {
-		height: 160px;
+		min-height: 160px;
+		padding: var(--space-4, 16px);
 	}
 
 	specimen-card .specimen__size {
