@@ -44,6 +44,8 @@ const GLOBAL_STYLESHEETS = [
 	'src/controls/fancy-slider/fancy-slider.css',
 	'src/controls/tabs/tab-control.css',
 	'src/controls/progress-indicator/progress-indicator.css',
+	// Side-effect imports (document-wide once their module loads).
+	'src/agent/ui/cards/agent-cards.css',
 ];
 
 // Allowlisted: component-scoped stylesheets (matched by path substring).
