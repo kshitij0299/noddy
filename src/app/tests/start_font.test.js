@@ -8,7 +8,11 @@ import {
 	getAgentPanel,
 	resetAgentPanelForTests,
 } from '../../agent/ui/agent-panel.js';
-import { getAgentPanelMode, resetAgentPanelSlotForTests } from '../agent_panel_slot.js';
+import {
+	getAgentPanelMode,
+	getAgentPanelSlot,
+	resetAgentPanelSlotForTests,
+} from '../agent_panel_slot.js';
 import { ioFont_exportFont } from '../../formats_io/otf/font_export.js';
 import {
 	isInLatinKernel,
@@ -18,6 +22,7 @@ import {
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { getCurrentProjectEditor, getGlyphrStudioApp, setCurrentProjectEditor } from '../main.js';
 import {
+	FONT_FILE_ACCEPT,
 	makePage_OpenProject,
 	showLicenceNote,
 	startFromFontFile,
@@ -37,7 +42,7 @@ import {
 // jsdom has no Web Animations; dialogs.js animates menus away on close.
 if (!Element.prototype.animate) Element.prototype.animate = () => ({});
 
-const FIXTURE_DIR =path.resolve(__dirname, '../../formats_io/otf/tests');
+const FIXTURE_DIR = path.resolve(__dirname, '../../formats_io/otf/tests');
 
 function readFixture(name) {
 	return new Uint8Array(fs.readFileSync(path.join(FIXTURE_DIR, name))).buffer;
@@ -132,6 +137,32 @@ describe('New font: project state for each start (#23)', () => {
 		expect(editor.nav.page).toBe('Workspace');
 		expect(getAgentPanel().mode).toBe('minimized');
 		expect(getAgentPanelMode()).toBe('minimized');
+	});
+
+	it('focus lands in the composer when the panel opens', () => {
+		mountStartScreen();
+		buildPanel('minimized');
+		// navigate() is a spy here; stand in for the Workspace it would build.
+		getCurrentProjectEditor().navigate = vi.fn(() =>
+			document.querySelector('#app__wrapper').replaceChildren(getAgentPanelSlot())
+		);
+		document.querySelector('[data-start="agent"]').click();
+		expect(document.activeElement).toBe(getAgentPanel().composer.input);
+	});
+
+	it('focus lands on the first letter tile when the panel is minimized', async () => {
+		mountStartScreen();
+		buildPanel('open');
+		const editor = getCurrentProjectEditor();
+		// navigate() is a spy here; stand in for the grid it would render.
+		editor.navigate = vi.fn(() => {
+			const tile = document.createElement('glyph-grid-tile');
+			tile.setAttribute('tabindex', '0');
+			document.querySelector('#app__wrapper').replaceChildren(tile);
+		});
+		document.querySelector('[data-start="draw"]').click();
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		expect(document.activeElement.tagName).toBe('GLYPH-GRID-TILE');
 	});
 
 	it('openStartProject never lands on a hidden page', () => {
@@ -281,6 +312,61 @@ describe('From a font file (#24)', () => {
 		await vi.waitFor(() => expect(document.querySelector('.start__note')).not.toBeNull());
 		expect(document.querySelector('.start__note-line').textContent).toBe(LICENCE_NOTE);
 		expect(getCurrentProjectEditor().navigate).not.toHaveBeenCalled();
+	});
+
+	it('the picker offers only types the importers read (no .woff2)', () => {
+		expect(FONT_FILE_ACCEPT.split(',')).toEqual(['.otf', '.ttf', '.woff', '.svg']);
+		expect(START_CARDS.find((card) => card.id === 'file').line).toBe('OTF, TTF or SVG');
+	});
+
+	it('an invalid file shows an error, brings the cards back and creates no project', async () => {
+		mountStartScreen();
+		const before = getCurrentProjectEditor();
+		const beforeProject = before.project;
+		await startFromFontFile(new File(['{"not": "a font"}'], 'notes.json'));
+
+		expect(document.querySelector('#error')).not.toBeNull();
+		expect(document.querySelector('.start__note')).toBeNull();
+		expect(document.querySelectorAll('.start-card')).toHaveLength(3);
+		expect(document.activeElement.dataset.start).toBe('file');
+		expect(getCurrentProjectEditor()).toBe(before);
+		expect(before.project).toBe(beforeProject);
+		expect(before.navigate).not.toHaveBeenCalled();
+	});
+
+	it('regression: a good pick after a bad one reaches the note (validator result leak)', async () => {
+		mountStartScreen();
+		await startFromFontFile(new File(['nope'], 'broken.otf'));
+		expect(document.querySelector('#error')).not.toBeNull();
+		expect(document.querySelector('.start__note')).toBeNull();
+
+		const good = new File([readFixture('ObleggExtendedTestRegular.otf')], 'Oblegg.otf');
+		await startFromFontFile(good);
+		expect(document.querySelector('.start__note-line').textContent).toBe(LICENCE_NOTE);
+		// The stale error from the first pick is dismissed.
+		await vi.waitFor(() => expect(document.querySelector('#error')).toBeNull());
+
+		// And the reverse: a bad pick after a good one does not reuse the old font.
+		document.querySelector('[data-action="cancel"]').click();
+		await startFromFontFile(new File(['nope'], 'broken.otf'));
+		expect(document.querySelector('.start__note')).toBeNull();
+		expect(document.querySelector('#error')).not.toBeNull();
+		expect(getCurrentProjectEditor().navigate).not.toHaveBeenCalled();
+	});
+
+	it('while the note is up the name shows the imported family, read-only; Esc anywhere cancels', async () => {
+		mountStartScreen();
+		/** @type {HTMLInputElement} */
+		const name = document.querySelector('#input__new-project-name');
+		name.value = 'Typed';
+		showLicenceNote(await importFixture());
+		expect(name.value).toBe('Oblegg');
+		expect(name.disabled).toBe(true);
+
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(document.querySelector('.start__note')).toBeNull();
+		expect(name.value).toBe('Typed');
+		expect(name.disabled).toBe(false);
 	});
 
 	it('the subsetted project exports and re-imports with only Kernel glyphs', async () => {

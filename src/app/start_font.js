@@ -164,5 +164,28 @@ export function openStartProject(project, { panel = 'open', secondProject = fals
 		if (panel === 'minimized') agent.minimize();
 		else agent.restore();
 	}
+	focusAfterStart(panel === 'minimized' ? 'minimized' : 'open');
 	return editor;
+}
+
+/**
+ * Puts keyboard focus somewhere useful after a start: the agent composer
+ * when the panel is open, the first letter tile when it is minimized.
+ * Runs now and again on the next frame, after the grid has rendered.
+ * @param {'open' | 'minimized'} panel
+ */
+export function focusAfterStart(panel) {
+	const target = () =>
+		/** @type {HTMLElement | null} */ (
+			panel === 'open'
+				? getAgentPanel()?.composer?.input || null
+				: document.querySelector('glyph-grid-tile[tabindex="0"]')
+		);
+	target()?.focus();
+	// The grid may render its tiles a frame later; only fill in focus that
+	// was lost (nothing focused), never steal it.
+	requestAnimationFrame(() => {
+		const active = document.activeElement;
+		if (!active || active === document.body || !active.isConnected) target()?.focus();
+	});
 }

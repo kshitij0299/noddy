@@ -15,7 +15,10 @@
 	align-items: center;
 	width: 100%;
 	min-height: 100vh;
-	padding: var(--space-12) var(--space-4);
+	/* The page sits 40px up (top: -40px, no top bar here). The extra top
+	padding (40px + the 64px secondary row) centres the logo-to-cards group
+	in the viewport the way flow-01 does, with the quiet row hanging below. */
+	padding: calc(var(--space-12) + 40px + 64px) var(--space-4) var(--space-12);
 	overflow-y: auto;
 	background-color: var(--color-bg-canvas);
 	color: var(--color-text-primary);
@@ -75,7 +78,7 @@ focus outline in from currentColor. */
 	height: 68px;
 	margin: 0;
 	padding: 0 var(--space-6);
-	border: 2px solid var(--color-border-accent);
+	border: 2px solid var(--color-border-strong);
 	border-radius: var(--radius-full);
 	background-color: var(--color-bg-surface);
 	color: var(--color-text-primary);
@@ -93,11 +96,17 @@ focus outline in from currentColor. */
 	border-color: var(--color-bg-accent-hover);
 }
 
+/* Focus is the single peach border, as in flow-01 (rest: border-strong). */
 #open-project__page .start__name:focus,
 #open-project__page .start__name:focus-visible {
-	border-color: var(--color-border-accent);
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
+	border-color: var(--color-focus-ring);
+	outline: none;
+}
+
+#open-project__page .start__name:disabled {
+	border-color: var(--color-border-default);
+	color: var(--color-text-secondary);
+	cursor: default;
 }
 
 .start__set {
@@ -119,11 +128,18 @@ focus outline in from currentColor. */
 	font-size: 18px;
 }
 
-/* Stage: the cards, the import progress or the licence note. Same
-min-height for all three so nothing below jumps. */
+/* Stage: the cards, the import progress or the licence note. One fixed
+height for all three so the row below never moves. Measured at 1440:
+card = 24 padding + 52 icon + 24 gap + 22 title + 4 + 20 line + 24 padding
++ 4 border = 174px; the note and the progress indicator are shorter and
+centre inside it. Phone: 3 stacked 80px rows + 2 × 12px gaps = 264px. */
+#open-project__page {
+	--start-stage-height: 174px;
+}
+
 .start__stage {
 	width: 100%;
-	min-height: 162px;
+	height: var(--start-stage-height);
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -141,8 +157,7 @@ min-height for all three so nothing below jumps. */
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	min-height: 162px;
-	height: 100%;
+	height: var(--start-stage-height);
 	margin: 0;
 	padding: var(--space-6);
 	border: 2px solid transparent;
@@ -226,7 +241,6 @@ min-height for all three so nothing below jumps. */
 	gap: var(--space-2);
 	width: 100%;
 	max-width: 512px;
-	min-height: 162px;
 	margin: 0 auto;
 	padding: var(--space-6);
 	border-radius: var(--radius-xl);
@@ -428,8 +442,8 @@ min-height for all three so nothing below jumps. */
 		margin-bottom: var(--space-8);
 	}
 
-	.start__stage {
-		min-height: 0;
+	#open-project__page {
+		--start-stage-height: 264px;
 	}
 
 	.start__cards {
@@ -444,7 +458,7 @@ min-height for all three so nothing below jumps. */
 		grid-template-rows: auto auto;
 		column-gap: var(--space-4);
 		align-items: center;
-		min-height: 76px;
+		height: 80px;
 		padding: var(--space-4);
 	}
 
@@ -570,7 +584,7 @@ min-height for all three so nothing below jumps. */
 	grid-template-columns: 44px minmax(0, 1fr);
 	column-gap: var(--space-4);
 	align-items: center;
-	min-height: 72px;
+	height: 72px;
 	padding: var(--space-3) var(--space-4);
 }
 
@@ -581,8 +595,9 @@ min-height for all three so nothing below jumps. */
 	margin: 0;
 }
 
-.modal-dialog__open-new-project .start__stage {
-	min-height: 0;
+/* Dialog: 3 stacked 72px rows + 2 × 8px gaps = 232px. */
+.modal-dialog__open-new-project #open-project__page {
+	--start-stage-height: 232px;
 }
 
 .modal-dialog__open-new-project #open-project__page .start__theme {

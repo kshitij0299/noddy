@@ -1,6 +1,11 @@
 import { addAsChildren, makeElement } from '../common/dom.js';
 import noddyLogoBig from '../common/graphics/noddy-logo-big.svg?raw';
-import { closeEveryTypeOfDialog, showError, showToast } from '../controls/dialogs/dialogs.js';
+import {
+	closeAllErrors,
+	closeEveryTypeOfDialog,
+	showError,
+	showToast,
+} from '../controls/dialogs/dialogs.js';
 import { makeProgressIndicator } from '../controls/progress-indicator/progress_indicator.js';
 import { cancelDefaultEventActions } from '../edit_canvas/events.js';
 import { ioFont_importFont } from '../formats_io/otf/font_import.js';
@@ -40,7 +45,8 @@ import { getTheme, toggleTheme } from './top_bar.js';
 let isSecondProject;
 
 /** Font files the "From a font file" card accepts. */
-export const FONT_FILE_ACCEPT = '.otf,.ttf,.woff,.woff2,.svg';
+// Only what the validator and importers read: no .woff2 (no importer).
+export const FONT_FILE_ACCEPT = '.otf,.ttf,.woff,.svg';
 
 /** The three starts, in order. `icon` is a Material Symbol; null uses the Noddy mark. */
 export const START_CARDS = Object.freeze([
@@ -255,6 +261,8 @@ function pickFontFile() {
  * @returns {Promise<void>}
  */
 export function startFromFontFile(file) {
+	// A new pick replaces any error left over from the last one.
+	closeAllErrors();
 	const stage = document.querySelector('.start__stage');
 	if (stage) stage.replaceChildren(makeProgressIndicator());
 	// Where the File System Access API exists, the validator expects a file
@@ -331,25 +339,55 @@ export function showLicenceNote(result) {
 	const line = makeElement({ tag: 'p', className: 'start__note-line', content: LICENCE_NOTE });
 	const actions = makeElement({ className: 'start__note-actions' });
 
+	// While the note is up the name field shows the imported family (the
+	// project keeps the font's own name) and is read-only.
+	/** @type {HTMLInputElement | null} */
+	const nameInput = document.querySelector('#input__new-project-name');
+	const typed = nameInput?.value;
+	if (nameInput) {
+		nameInput.value = family;
+		nameInput.disabled = true;
+	}
+
+	// Esc cancels from anywhere on the page while the note is up.
+	const onKey = (event) => {
+		if (!note.isConnected) {
+			document.removeEventListener('keydown', onKey);
+			return;
+		}
+		if (event.key !== 'Escape') return;
+		event.preventDefault();
+		close();
+		showStartCards('file');
+	};
+	function close() {
+		document.removeEventListener('keydown', onKey);
+		if (nameInput) {
+			nameInput.disabled = false;
+			nameInput.value = typed;
+		}
+	}
+	document.addEventListener('keydown', onKey);
+
 	const cancel = makeElement({
 		tag: 'button',
 		className: 'start__button start__button--secondary',
 		content: 'Cancel',
 		attributes: { type: 'button', 'data-action': 'cancel' },
-		onClick: () => showStartCards('file'),
+		onClick: () => {
+			close();
+			showStartCards('file');
+		},
 	});
 	const proceed = makeElement({
 		tag: 'button',
 		className: 'start__button start__button--primary',
 		content: 'Continue',
 		attributes: { type: 'button', 'data-action': 'continue' },
-		onClick: () =>
-			openStartProject(project, { panel: 'open', secondProject: !!isSecondProject }),
-	});
-	note.addEventListener('keydown', (event) => {
-		if (event.key !== 'Escape') return;
-		event.preventDefault();
-		showStartCards('file');
+		onClick: () => {
+			document.removeEventListener('keydown', onKey);
+			openStartProject(project, { panel: 'open', secondProject: !!isSecondProject });
+		},
 	});
 	actions.append(cancel, proceed);
 	note.append(title, line, actions);
