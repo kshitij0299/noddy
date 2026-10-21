@@ -299,7 +299,7 @@ code.warning {
 	.editor-page__left-area {
 		position: fixed;
 		left: 0;
-		top: 40px;
+		top: 56px;
 		bottom: 0;
 		width: min(450px, calc(100vw - 32px));
 		z-index: 500;

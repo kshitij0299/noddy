@@ -73,6 +73,120 @@ export function makeAppTopBar() {
 	return topBar;
 }
 
+/**
+ * Rows for the project file menu: save the project file and export the
+ * font in every format the app has. Shared by the legacy File menu and the
+ * Noddy top bar's Export menu (M2), so the actions are defined once.
+ * @returns {Array} - rows for makeContextMenu
+ */
+export function makeFileMenuRows() {
+	const editor = getCurrentProjectEditor();
+	/** @type {Array} */
+	let fileMenuData = [];
+	// Preferred font export format (the format that was imported, or 'otf'
+	// for new projects) drives the file name preview and the Ctrl+E note.
+	const preferredExportFormat = getPreferredExportFormat();
+	if (typeof editor.loadedFileHandle === 'object') {
+		let projectDisplayName = `${editor.project.settings.project.name} - Noddy Project.gs2`;
+
+		// @ts-expect-error 'property does exist'
+		if (typeof editor?.loadedFileHandle?.name === 'string') {
+			// @ts-expect-error 'property does exist'
+			projectDisplayName = editor.loadedFileHandle.name;
+		}
+
+		fileMenuData.push(
+			{
+				child: makeElement({
+					tag: 'h2',
+					content: projectDisplayName,
+				}),
+				className: 'spanAll',
+			},
+			{
+				name: 'Save this project file',
+				icon: 'command_save',
+				note: ['Ctrl', 's'],
+				onClick: () => editor.saveProjectFile(),
+			},
+			{
+				name: 'Save a copy of this project file',
+				icon: 'command_save',
+				onClick: () => editor.saveProjectFile(true),
+			}
+		);
+	} else {
+		fileMenuData.push(
+			{
+				child: makeElement({
+					tag: 'h2',
+					content: makeFileName('gs2', true),
+				}),
+				className: 'spanAll',
+			},
+			{
+				name: 'Save project file (to downloads folder)',
+				icon: 'command_save',
+				note: ['Ctrl', 's'],
+				onClick: () => editor.saveProjectFile(),
+			}
+		);
+	}
+	fileMenuData = fileMenuData.concat([
+		{ name: 'hr' },
+		{
+			child: makeElement({
+				tag: 'h2',
+				content:
+					`${editor.project.settings.font.family}-${editor.project.settings.font.style}.${preferredExportFormat}`.replaceAll(
+						' ',
+						''
+					),
+			}),
+			className: 'spanAll',
+		},
+		{
+			name: 'Export OTF file',
+			icon: 'command_export',
+			note: preferredExportFormat === 'otf' ? ['Ctrl', 'e'] : false,
+			onClick: ioFont_exportOTF,
+		},
+		{
+			name: 'Export TTF file',
+			icon: 'command_export',
+			note: preferredExportFormat === 'ttf' ? ['Ctrl', 'e'] : false,
+			onClick: ioFont_exportTTF,
+		},
+		{
+			name: 'Export WOFF file',
+			icon: 'command_export',
+			note: preferredExportFormat === 'woff' ? ['Ctrl', 'e'] : false,
+			onClick: ioFont_exportWOFF,
+		},
+		{
+			name: 'Export WOFF2 file',
+			icon: 'command_export',
+			note: preferredExportFormat === 'woff2' ? ['Ctrl', 'e'] : false,
+			onClick: ioFont_exportWOFF2,
+		},
+		{ name: 'hr' },
+		{
+			child: makeElement({
+				tag: 'h2',
+				content: makeFileName('svg'),
+			}),
+			className: 'spanAll',
+		},
+		{
+			name: 'Export SVG font file',
+			icon: 'command_export',
+			note: ['Ctrl', 'g'],
+			onClick: ioSVG_exportSVGfont,
+		},
+	]);
+	return fileMenuData;
+}
+
 // --------------------------------------------------------------
 // Menu
 // --------------------------------------------------------------
@@ -88,111 +202,8 @@ function makeMenu(menuName) {
 		innerHTML: menuName,
 		className: 'menu-entry-point',
 	});
-	const editor = getCurrentProjectEditor();
 	if (menuName === 'File') {
-		/** @type {Array} */
-		let fileMenuData = [];
-		// Preferred font export format (the format that was imported, or 'otf'
-		// for new projects) drives the file name preview and the Ctrl+E note.
-		const preferredExportFormat = getPreferredExportFormat();
-		if (typeof editor.loadedFileHandle === 'object') {
-			let projectDisplayName = `${editor.project.settings.project.name} - Noddy Project.gs2`;
-
-			// @ts-expect-error 'property does exist'
-			if (typeof editor?.loadedFileHandle?.name === 'string') {
-				// @ts-expect-error 'property does exist'
-				projectDisplayName = editor.loadedFileHandle.name;
-			}
-
-			fileMenuData.push(
-				{
-					child: makeElement({
-						tag: 'h2',
-						content: projectDisplayName,
-					}),
-					className: 'spanAll',
-				},
-				{
-					name: 'Save this project file',
-					icon: 'command_save',
-					note: ['Ctrl', 's'],
-					onClick: () => editor.saveProjectFile(),
-				},
-				{
-					name: 'Save a copy of this project file',
-					icon: 'command_save',
-					onClick: () => editor.saveProjectFile(true),
-				}
-			);
-		} else {
-			fileMenuData.push(
-				{
-					child: makeElement({
-						tag: 'h2',
-						content: makeFileName('gs2', true),
-					}),
-					className: 'spanAll',
-				},
-				{
-					name: 'Save project file (to downloads folder)',
-					icon: 'command_save',
-					note: ['Ctrl', 's'],
-					onClick: () => editor.saveProjectFile(),
-				}
-			);
-		}
-		fileMenuData = fileMenuData.concat([
-			{ name: 'hr' },
-			{
-				child: makeElement({
-					tag: 'h2',
-					content:
-						`${editor.project.settings.font.family}-${editor.project.settings.font.style}.${preferredExportFormat}`.replaceAll(
-							' ',
-							''
-						),
-				}),
-				className: 'spanAll',
-			},
-			{
-				name: 'Export OTF file',
-				icon: 'command_export',
-				note: preferredExportFormat === 'otf' ? ['Ctrl', 'e'] : false,
-				onClick: ioFont_exportOTF,
-			},
-			{
-				name: 'Export TTF file',
-				icon: 'command_export',
-				note: preferredExportFormat === 'ttf' ? ['Ctrl', 'e'] : false,
-				onClick: ioFont_exportTTF,
-			},
-			{
-				name: 'Export WOFF file',
-				icon: 'command_export',
-				note: preferredExportFormat === 'woff' ? ['Ctrl', 'e'] : false,
-				onClick: ioFont_exportWOFF,
-			},
-			{
-				name: 'Export WOFF2 file',
-				icon: 'command_export',
-				note: preferredExportFormat === 'woff2' ? ['Ctrl', 'e'] : false,
-				onClick: ioFont_exportWOFF2,
-			},
-			{ name: 'hr' },
-			{
-				child: makeElement({
-					tag: 'h2',
-					content: makeFileName('svg'),
-				}),
-				className: 'spanAll',
-			},
-			{
-				name: 'Export SVG font file',
-				icon: 'command_export',
-				note: ['Ctrl', 'g'],
-				onClick: ioSVG_exportSVGfont,
-			},
-		]);
+		const fileMenuData = makeFileMenuRows();
 		entryPoint.addEventListener('click', (event) => {
 			// @ts-expect-error 'property does exist'
 			let rect = event.target.getBoundingClientRect();

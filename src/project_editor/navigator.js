@@ -1,6 +1,7 @@
 import { showAppErrorPage } from '../app/app.js';
 import { getCurrentProject, getCurrentProjectEditor } from '../app/main.js';
-import { makeAppTopBar } from '../app/menu.js';
+import { makeWorkspace } from '../app/agent_panel_slot.js';
+import { makeAppTopBar } from '../app/top_bar.js';
 import { accentColors } from '../common/colors.js';
 import { addAsChildren, insertAfter, makeElement } from '../common/dom.js';
 import { countItems } from '../common/functions.js';
@@ -116,7 +117,9 @@ export class Navigator {
 				const pageContent = this.makePageContent();
 				wrapper.innerHTML = '';
 				wrapper.appendChild(makeAppTopBar());
-				wrapper.appendChild(pageContent);
+				// The workspace re-attaches the persistent agent panel slot
+				// every time, so its contents survive this rebuild.
+				wrapper.appendChild(makeWorkspace(pageContent));
 			} catch (e) {
 				console.warn(`Navigation failed:`, e);
 				showAppErrorPage(`Oops, navigation failed!`, e);
