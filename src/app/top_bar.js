@@ -300,9 +300,6 @@ export function makeAppTopBar() {
 	const name = makeNameField(editor);
 	const progress = makeProgressRing();
 	const status = makeElement({ tag: 'div', className: 'top-bar__status', id: 'top-bar-status' });
-	// The existing compact-tier panel drawer toggle (panels.js) mounts here;
-	// it sits with the actions so the name is never squeezed.
-	const menus = makeElement({ tag: 'div', className: 'top-bar__menus' });
 
 	left.append(mark, name, progress, status);
 
@@ -346,7 +343,7 @@ export function makeAppTopBar() {
 	});
 	exportButton.append(icon('download'), makeElement({ tag: 'span', content: 'Export' }));
 
-	right.append(menus, undo, redo, theme, exportButton);
+	right.append(undo, redo, theme, exportButton);
 	topBar.append(left, right);
 
 	// Pub/sub passes the published item as the first argument, so wrap the

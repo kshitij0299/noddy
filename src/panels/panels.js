@@ -151,12 +151,6 @@ function allFocusablesInDrawer(container) {
 	);
 }
 
-function syncPanelDrawerToggle() {
-	if (typeof document === 'undefined') return;
-	const toggle = document.querySelector('#noddy-panel-toggle');
-	if (toggle) toggle.setAttribute('aria-expanded', isPanelDrawerOpen() ? 'true' : 'false');
-}
-
 /**
  * Opens the panel drawer/sheet (compact tiers only for focus moves)
  * @param {Boolean} moveFocus - move focus into the drawer when opening
@@ -170,7 +164,6 @@ export function openPanelDrawer(moveFocus = true) {
 		panelDrawerReturnFocusTo = active instanceof HTMLElement ? active : null;
 		document.body.classList.add(panelDrawerOpenClass);
 	}
-	syncPanelDrawerToggle();
 	if (moveFocus && isCompactViewport()) {
 		const focusables = allFocusablesInDrawer(container);
 		if (focusables.length > 0) focusables[0].focus();
@@ -185,16 +178,11 @@ export function closePanelDrawer(returnFocus = true) {
 	if (typeof document === 'undefined' || !document.body) return;
 	if (!isPanelDrawerOpen()) return;
 	document.body.classList.remove(panelDrawerOpenClass);
-	syncPanelDrawerToggle();
 	if (returnFocus) {
-		const fallback =
-			typeof document !== 'undefined'
-				? document.querySelector('#noddy-panel-toggle')
-				: null;
 		const target =
 			panelDrawerReturnFocusTo && document.contains(panelDrawerReturnFocusTo)
 				? panelDrawerReturnFocusTo
-				: fallback;
+				: null;
 		if (target instanceof HTMLElement) target.focus();
 	}
 	panelDrawerReturnFocusTo = null;
@@ -206,36 +194,6 @@ export function closePanelDrawer(returnFocus = true) {
 export function togglePanelDrawer() {
 	if (isPanelDrawerOpen()) closePanelDrawer();
 	else openPanelDrawer();
-}
-
-function makePanelDrawerToggle() {
-	const toggle = makeElement({
-		tag: 'button',
-		id: 'noddy-panel-toggle',
-		className: 'menu-entry-point noddy-panel-toggle',
-		innerHTML: 'Panel',
-		attributes: {
-			title: 'Show or hide the panel',
-			'aria-expanded': isPanelDrawerOpen() ? 'true' : 'false',
-		},
-	});
-	toggle.addEventListener('click', () => togglePanelDrawer());
-	return toggle;
-}
-
-function wirePanelDrawerToggle() {
-	if (typeof document === 'undefined') return;
-	if (document.querySelector('#noddy-panel-toggle')) return;
-	// Primary mount: app top-bar menus (present on every navigator page).
-	// Fallbacks cover shells without a top bar (editor / content page nav
-	// areas). Same toggle, same behavior, same focus discipline in all
-	// cases; no navigation logic is touched.
-	const mount =
-		document.querySelector('#app__top-bar .top-bar__menus') ||
-		document.querySelector('.editor-page__nav-area') ||
-		document.querySelector('.content-page__nav-area');
-	if (!mount) return;
-	mount.appendChild(makePanelDrawerToggle());
 }
 
 function wirePanelDrawerCloseButton() {
@@ -255,8 +213,10 @@ function wirePanelDrawerCloseButton() {
 	container.insertBefore(closeButton, container.firstChild);
 }
 
+// UI reset: the compact-tier "Panel" top-bar toggle is gone. The minimized
+// agent pill restores the panel; the panel's own minimize, Esc and the scrim
+// close it. One control per job (docs/agentic/UI-RESET.md).
 function wirePanelDrawerChrome() {
-	wirePanelDrawerToggle();
 	wirePanelDrawerCloseButton();
 }
 
