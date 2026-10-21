@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GlyphrStudioProject } from '../../project_data/glyphr_studio_project.js';
 import { Glyph } from '../../project_data/glyph.js';
@@ -88,12 +90,22 @@ describe('agent card shell', () => {
 		}
 		buttons[1].focus();
 		expect(document.activeElement).toBe(buttons[1]);
-		// Native buttons activate on Enter / Space through click; both reach the
-		// same handler.
-		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-		buttons[1].dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true }));
+		// Enter / Space on a native button dispatch click; the card then locks
+		// and keeps keyboard focus instead of dropping it to <body>.
 		buttons[1].click();
 		expect(events.map((e) => e.action)).toEqual(['tweak']);
+		expect(buttons[1].disabled).toBe(true);
+		expect(document.activeElement).toBe(card);
+		expect(card.tabIndex).toBe(-1);
+	});
+
+	it('pointer activation without focus inside the card does not steal focus', () => {
+		const outside = document.createElement('button');
+		document.body.append(outside);
+		outside.focus();
+		const card = mount('agent-plan-card', { cardId: 'p' });
+		card.fire('start');
+		expect(document.activeElement).toBe(outside);
 	});
 
 	it('the data setter renders and re-rendering unlocks the card', () => {
@@ -295,5 +307,68 @@ describe('<agent-step-line>', () => {
 		expect(() => mod.registerAgentCards()).not.toThrow();
 		expect(customElements.get('agent-step-line')).toBe(mod.AgentStepLine);
 		vi.restoreAllMocks();
+	});
+});
+
+describe('agent-cards.css beats the legacy global button rules', () => {
+	const css = fs
+		.readFileSync(path.resolve(__dirname, '../ui/cards/agent-cards.css'), 'utf8')
+		.replace(/\/\*[\s\S]*?\*\//g, '');
+	const rules = [];
+	const re = /([^{}]+)\{([^{}]*)\}/g;
+	let match;
+	while ((match = re.exec(css)) !== null) {
+		for (const selector of match[1].split(',')) {
+			rules.push({ selector: selector.trim(), declarations: match[2] });
+		}
+	}
+	/** (ids, classes/attrs/pseudo-classes, elements) — :not() counts its argument */
+	const specificity = (selector) => {
+		const s = selector.replace(/:not\(([^)]*)\)/g, '$1');
+		const ids = (s.match(/#[\w-]+/g) || []).length;
+		const classes = (s.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g) || []).length;
+		const elements = (s.match(/(^|[\s>+~(])[a-z][\w-]*/g) || []).length;
+		return [ids, classes, elements];
+	};
+	/**
+	 * The legacy rules are `button` (0,0,1) at rest and `button:hover` /
+	 * `button:focus` / `button[disabled]` (0,1,1) for states. A rest selector
+	 * must beat (0,0,1); any selector carrying a state must beat (0,1,1).
+	 */
+	const beatsLegacy = ([i, c, e], selector) => {
+		const stateful = /:(hover|focus|focus-visible|active|disabled)/.test(selector);
+		if (i > 0) return true;
+		return stateful ? c > 1 || (c === 1 && e > 1) : c > 0 || e > 1;
+	};
+	const PINNED = ['padding', 'margin', 'border-radius', 'border', 'background-color', 'box-shadow', 'color'];
+	const STATES = ['', ':hover', ':focus', ':focus-visible', ':active', ':disabled', ':disabled:hover'];
+
+	it('every state of .agent-card__button pins its box metrics at specificity above button:hover (0,1,1)', () => {
+		for (const state of STATES) {
+			const selector = `button.agent-card__button${state}`;
+			const rule = rules.find((r) => r.selector === selector);
+			expect(rule, `rule for ${selector}`).toBeDefined();
+			expect(beatsLegacy(specificity(rule.selector), rule.selector), `${selector} specificity`).toBe(
+				true
+			);
+			for (const prop of PINNED) {
+				expect(rule.declarations, `${selector} pins ${prop}`).toMatch(new RegExp(`(^|;|\\s)${prop}\\s*:`));
+			}
+		}
+	});
+
+	it('no button rule in the cards stylesheet is weaker than the legacy global state rules', () => {
+		for (const rule of rules) {
+			if (!rule.selector.includes('agent-card__button')) continue;
+			if (rule.selector.includes('agent-card__icon')) continue;
+			expect(beatsLegacy(specificity(rule.selector), rule.selector), rule.selector).toBe(true);
+		}
+	});
+
+	it('the variant hover/disabled rules never change geometry, only paint', () => {
+		for (const rule of rules) {
+			if (!/agent-card__button--(primary|secondary|ghost)/.test(rule.selector)) continue;
+			expect(rule.declarations).not.toMatch(/(^|;|\s)(padding|margin|border-radius|border|box-shadow|height)\s*:/);
+		}
 	});
 });

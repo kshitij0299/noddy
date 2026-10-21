@@ -83,6 +83,13 @@ agent-step-line + agent-step-line,
 	text-overflow: ellipsis;
 }
 
+.agent-chip > span:not(.agent-chip__icon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .agent-chip--selected {
 	background: var(--color-bg-accent);
 	color: var(--color-text-on-accent);
@@ -112,27 +119,48 @@ agent-step-line + agent-step-line,
 	margin-top: var(--space-2);
 }
 
-.agent-card__button {
+/* The legacy global button rules in resets.css (`button:hover`,
+`button:focus`, `button[disabled]`, specificity 0,1,1) would change padding,
+radius, border, colour and shadow per state. Every state is pinned here at
+0,2,1 or more so the only thing that changes on hover/focus/active/disabled
+is paint. */
+button.agent-card__button,
+button.agent-card__button:hover,
+button.agent-card__button:focus,
+button.agent-card__button:focus-visible,
+button.agent-card__button:active,
+button.agent-card__button:disabled,
+button.agent-card__button:disabled:hover,
+button.agent-card__button:disabled:active {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: var(--space-1);
 	height: 32px;
+	min-height: 0;
 	padding: 0 var(--space-4);
+	margin: 0;
 	border-radius: var(--radius-full);
 	border: 1px solid transparent;
-	background: transparent;
+	background-color: transparent;
 	color: var(--color-text-primary);
 	font: inherit;
 	font-size: 0.8125rem;
 	font-weight: 500;
 	line-height: 1;
+	text-align: center;
+	text-decoration: none;
+	box-shadow: none;
 	cursor: pointer;
 	white-space: nowrap;
 	transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.agent-card__button--lg {
+button.agent-card__button--lg,
+button.agent-card__button--lg:hover,
+button.agent-card__button--lg:focus,
+button.agent-card__button--lg:active,
+button.agent-card__button--lg:disabled {
 	height: 36px;
 }
 
@@ -141,32 +169,75 @@ agent-step-line + agent-step-line,
 	margin-left: -2px;
 }
 
-.agent-card__button--primary {
-	background: var(--color-bg-accent);
+/* Variants: paint only (colour, background, border colour) — never geometry */
+button.agent-card__button--primary,
+button.agent-card__button--primary:focus,
+button.agent-card__button--primary:active {
+	background-color: var(--color-bg-accent);
+	border-color: transparent;
 	color: var(--color-text-on-accent);
 }
 
-.agent-card__button--primary:hover:not(:disabled) {
-	background: var(--color-bg-accent-hover);
+button.agent-card__button--primary:hover:not(:disabled) {
+	background-color: var(--color-bg-accent-hover);
+	border-color: transparent;
+	color: var(--color-text-on-accent);
 }
 
-.agent-card__button--secondary {
+button.agent-card__button--secondary,
+button.agent-card__button--secondary:focus,
+button.agent-card__button--secondary:active {
 	border-color: var(--color-border-strong);
 }
 
-.agent-card__button--secondary:hover:not(:disabled),
-.agent-card__button--ghost:hover:not(:disabled) {
-	background: var(--color-bg-subtle);
+button.agent-card__button--secondary:hover:not(:disabled) {
+	background-color: var(--color-bg-subtle);
+	border-color: var(--color-border-strong);
+	color: var(--color-text-primary);
 }
 
-.agent-card__button:disabled {
+button.agent-card__button--ghost:hover:not(:disabled) {
+	background-color: var(--color-bg-subtle);
+	border-color: transparent;
+	color: var(--color-text-primary);
+}
+
+button.agent-card__button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+/* Disabled keeps the variant's colours at reduced opacity (no blue-grey). */
+button.agent-card__button:disabled,
+button.agent-card__button:disabled:hover,
+button.agent-card__button:disabled:focus,
+button.agent-card__button:disabled:active {
 	cursor: default;
 	opacity: 0.55;
 }
 
-.agent-card__button:focus-visible {
-	outline: var(--focus-ring);
-	outline-offset: var(--focus-ring-offset);
+button.agent-card__button--primary:disabled,
+button.agent-card__button--primary:disabled:hover,
+button.agent-card__button--primary:disabled:focus {
+	background-color: var(--color-bg-accent);
+	border-color: transparent;
+	color: var(--color-text-on-accent);
+}
+
+button.agent-card__button--secondary:disabled,
+button.agent-card__button--secondary:disabled:hover,
+button.agent-card__button--secondary:disabled:focus {
+	background-color: transparent;
+	border-color: var(--color-border-strong);
+	color: var(--color-text-primary);
+}
+
+button.agent-card__button--ghost:disabled,
+button.agent-card__button--ghost:disabled:hover,
+button.agent-card__button--ghost:disabled:focus {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--color-text-primary);
 }
 
 /* Style check well: 320×118, glyphs scale with the card, never clip */

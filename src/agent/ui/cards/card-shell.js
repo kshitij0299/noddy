@@ -209,9 +209,17 @@ export class AgentCard extends HTMLElement {
 	act(action, extra = {}) {
 		this.acted = action;
 		this.setAttribute('data-acted', action);
+		const hadFocus = this.contains(document.activeElement);
 		this.querySelectorAll('button').forEach((button) => {
 			/** @type {HTMLButtonElement} */ (button).disabled = true;
 		});
+		if (hadFocus) {
+			// Disabling the pressed button would drop keyboard focus to <body>;
+			// keep it on the card so the appended step line is announced and
+			// Tab continues from here.
+			this.tabIndex = -1;
+			this.focus({ preventScroll: true });
+		}
 		const copy = this.stepCopyFor(action, extra);
 		if (copy) {
 			const line = /** @type {any} */ (document.createElement('agent-step-line'));
