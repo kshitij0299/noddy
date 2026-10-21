@@ -42,3 +42,16 @@ Detailed pattern documentation lives in `references/details.md`. Read that file 
 - **Touch Targets**: Buttons too small to tap accurately
 - **Aspect Ratio**: Images squishing or stretching
 - **Z-Index Stacking**: Overlays breaking on different screens
+
+
+---
+
+## Noddy addendum (read this before applying the skill here)
+
+This skill is vendored for the Noddy font editor (see `docs/agentic/PRODUCT.md`, `docs/agentic/UI-RESET.md`). Where the skill and Noddy disagree, Noddy wins:
+
+- **Source of truth:** the Figma screens (`docs/agentic/figma/screens/`) and `PRODUCT.md`. The skill is a method, not a direction: never change the product look (Google Sans Flex, ROND 60 headings, peach/brown tokens, outlined Material Symbols Rounded).
+- **Colour and spacing only from tokens** in `src/common/colors.css` (`--color-*`, `--space-*`, `--radius-*`, `--shadow-*`). The skill's own palettes, `tokens.css`, `base.css` or `app.css` are reference material, never copied into the repo.
+- **Still banned by AGENTS.md section 1 and 3b:** the old-branch layout grids and breakpoints, drawer transforms, `overflow-x: clip`, `scrollbar-gutter`, `contain: layout`, dot-grid or glow wrappers. No new runtime dependency. Never touch protected areas (AGENTS.md section 3).
+- **The font is the hero.** Chrome never covers rendered glyphs; controls sit in their own rows. Every control must have a reason to exist. Minimal text.
+- **Browser checks** use the in-app browser (local session) or the Playwright helper in `docs/agentic/ENVIRONMENT.md`. Do not run this skill's own scripts; they are kept only so the text stays complete.
