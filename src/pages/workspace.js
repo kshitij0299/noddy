@@ -1,4 +1,6 @@
+import { getCurrentProjectEditor } from '../app/main.js';
 import { makeElement } from '../common/dom.js';
+import { teardownFocusMode } from './focus_mode.js';
 import { GlyphGrid, openGlyph } from '../controls/glyph-grid/glyph-grid.js';
 import { handleKeyPress, handleKeyUp } from '../edit_canvas/events_keyboard.js';
 import { makeNavButton, toggleNavDropdown } from '../project_editor/navigator.js';
@@ -13,6 +15,12 @@ import { makeNavButton, toggleNavDropdown } from '../project_editor/navigator.js
  * @returns {Element} - page content
  */
 export function makePage_Workspace() {
+	// Focus mode is never open behind the workspace.
+	const editor = getCurrentProjectEditor();
+	if (editor?.nav?.focus) {
+		teardownFocusMode(editor);
+		editor.nav.focus = null;
+	}
 	const content = makeElement({
 		tag: 'div',
 		id: 'app__page',
@@ -33,7 +41,7 @@ export function makePage_Workspace() {
 	customElements.upgrade(content);
 	const specimen = content.querySelector('#workspace__specimen');
 	// @ts-expect-error 'onOpenLetter is the SpecimenCard hook'
-	specimen.onOpenLetter = (id) => openGlyph(id);
+	specimen.onOpenLetter = (id) => openGlyph(id, undefined, { origin: 'specimen' });
 	content.querySelector('.workspace__grid').appendChild(new GlyphGrid());
 
 	const l1 = content.querySelector('#nav-button-l1');

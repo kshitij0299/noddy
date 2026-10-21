@@ -11,6 +11,7 @@ import {
 	toggleNavDropdown,
 } from '../project_editor/navigator.js';
 import { ProjectEditor } from '../project_editor/project_editor.js';
+import { makePage_Focus } from './focus_mode.js';
 
 /**
  * Page > Characters
@@ -21,6 +22,8 @@ export function makePage_Characters() {
 	// log(`makePage_Characters`, 'start');
 	/** @type {ProjectEditor} */
 	const editor = getCurrentProjectEditor();
+	// Noddy focus mode (#16) is the Characters page with different chrome.
+	if (editor.nav.focus) return makePage_Focus(editor);
 	// log('current ProjectEditor');
 	// log(editor);
 	// log(editor.nav);

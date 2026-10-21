@@ -1,0 +1,426 @@
+/* --------------------------------------------------------------
+	Focus mode (issues #16, #17, #18; Figma flow-06, Components 50:78).
+	Tokens only (src/common/colors.css); type via the .text-* roles in
+	resets.css. This stylesheet never sets font properties on glyph art:
+	the canvas draws the outline, and the context strip is an SVG with
+	[data-font-content] rendered from project outlines (Contract 2).
+-------------------------------------------------------------- */
+
+#app__page[data-page='focus'] {
+	box-sizing: border-box;
+	padding-top: var(--space-2);
+}
+
+.focus-mode {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	min-height: 480px;
+	overflow: hidden;
+	border-radius: var(--radius-xl);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	animation: focus-mode-in 120ms ease-out;
+}
+
+@keyframes focus-mode-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.focus-mode {
+		animation: none;
+	}
+}
+
+.focus-mode__sentinel {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	opacity: 0;
+}
+
+/* ---- Header: close · prev/next pill · name ---- */
+.focus-mode__header {
+	position: absolute;
+	z-index: 2;
+	top: var(--space-6);
+	left: var(--space-6);
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.focus-mode__icon-button {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+}
+
+.focus-mode__icon-button:hover:not(:disabled) {
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.focus-mode__icon-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.focus-mode__icon-button:focus-visible,
+.focus-pill__tool:focus-visible,
+.focus-inspector__keep:focus-visible,
+.focus-inspector__revert:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+.focus-mode__stepper {
+	display: inline-flex;
+	align-items: center;
+	height: 36px;
+	padding: 0 2px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+}
+
+.focus-mode__stepper .focus-mode__icon-button {
+	width: 28px;
+	height: 32px;
+}
+
+.focus-mode__stepper .focus-mode__icon-button:hover:not(:disabled) {
+	background: var(--color-bg-surface);
+}
+
+.focus-mode__char {
+	min-width: 24px;
+	text-align: center;
+}
+
+.focus-mode__name {
+	color: var(--color-text-secondary);
+}
+
+/* ---- Canvas: the existing <edit-canvas>, between pill and inspector ---- */
+.focus-mode .editor-page__edit-canvas-wrapper.focus-mode__canvas {
+	position: absolute;
+	top: 72px;
+	right: 312px;
+	bottom: 120px;
+	left: 120px;
+	width: auto;
+	height: auto;
+	min-width: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	overflow: hidden;
+}
+
+.focus-guides {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.focus-guides__line {
+	position: absolute;
+	box-sizing: border-box;
+}
+
+.focus-guides__line--h {
+	left: 0;
+	right: 0;
+	height: 0;
+	border-top: 1px solid var(--color-border-default);
+}
+
+.focus-guides__line--h.is-strong {
+	border-top-color: var(--color-glyph-guide);
+}
+
+.focus-guides__line--v {
+	top: 0;
+	bottom: 0;
+	width: 0;
+	border-left: 1px dashed var(--color-glyph-guide);
+}
+
+.focus-guides__label {
+	position: absolute;
+	white-space: nowrap;
+	color: var(--color-text-secondary);
+}
+
+.focus-guides__label--h {
+	left: 0;
+	transform: translateY(calc(-100% - 2px));
+}
+
+.focus-guides__label--v {
+	margin-top: var(--space-3);
+	transform: translateX(-50%);
+}
+
+/* ---- Tool pill (48px wide, vertically centred on the canvas) ---- */
+.focus-pill {
+	position: absolute;
+	z-index: 2;
+	left: var(--space-6);
+	top: calc(50% - 24px);
+	transform: translateY(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	box-sizing: border-box;
+	width: 48px;
+	padding: var(--space-1);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-surface);
+	box-shadow: var(--shadow-sm);
+}
+
+.focus-pill__tool {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background: transparent;
+	color: var(--color-text-primary);
+	cursor: pointer;
+}
+
+.focus-pill__tool .material-symbols-rounded {
+	font-size: 24px;
+}
+
+.focus-pill__tool:hover {
+	background: var(--color-bg-subtle);
+}
+
+.focus-pill__tool.is-active {
+	background: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+/* ---- Inspector card (264px, top-right) ---- */
+.focus-inspector {
+	position: absolute;
+	z-index: 2;
+	top: var(--space-6);
+	right: var(--space-6);
+	box-sizing: border-box;
+	width: 264px;
+	padding: var(--space-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-surface-raised);
+	box-shadow: var(--shadow-sm);
+}
+
+.focus-inspector__head {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.focus-inspector__code {
+	color: var(--color-text-secondary);
+}
+
+.focus-inspector__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	margin-left: auto;
+	padding: 2px var(--space-3);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.focus-inspector__chip[data-status='draft'] {
+	background: var(--color-status-draft-subtle);
+}
+
+.focus-inspector__chip[data-status='kept'] {
+	background: var(--color-status-kept-subtle);
+}
+
+.focus-inspector__chip[data-status='yours'] {
+	background: var(--color-status-yours-subtle);
+}
+
+.focus-inspector__chip[data-status='failed'] {
+	background: var(--color-status-failed-subtle);
+}
+
+.focus-inspector__fields {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.focus-inspector__field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	min-width: 0;
+	color: var(--color-text-secondary);
+}
+
+.focus-inspector__field input-number {
+	height: 36px;
+}
+
+.focus-inspector__actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-2);
+}
+
+.focus-inspector__actions[hidden] {
+	display: none;
+}
+
+.focus-inspector__keep,
+.focus-inspector__revert {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	height: 32px;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border-radius: var(--radius-full);
+	cursor: pointer;
+}
+
+.focus-inspector__keep .material-symbols-rounded,
+.focus-inspector__revert .material-symbols-rounded {
+	font-size: 18px;
+}
+
+.focus-inspector__keep {
+	border: 0;
+	background: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+.focus-inspector__keep:hover {
+	background: var(--color-bg-accent-hover);
+}
+
+.focus-inspector__revert {
+	border: 1px solid var(--color-border-default);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+.focus-inspector__revert:hover:not([aria-disabled='true']) {
+	background: var(--color-bg-subtle);
+}
+
+.focus-inspector__revert[aria-disabled='true'] {
+	color: var(--color-text-secondary);
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* ---- Context strip (bottom-centre, not interactive) ---- */
+.focus-strip {
+	position: absolute;
+	z-index: 1;
+	left: 50%;
+	bottom: var(--space-6);
+	transform: translateX(-50%);
+	box-sizing: border-box;
+	max-width: 60%;
+	height: 64px;
+	padding: var(--space-2) var(--space-6);
+	display: flex;
+	align-items: center;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	pointer-events: none;
+}
+
+.focus-strip[hidden] {
+	display: none;
+}
+
+.focus-strip__svg {
+	display: block;
+	height: 48px;
+	width: auto;
+	max-width: 100%;
+	overflow: visible;
+}
+
+.focus-strip__ink {
+	fill: var(--color-glyph-ink);
+}
+
+.focus-strip__ink.is-current {
+	fill: var(--color-status-draft);
+}
+
+.focus-strip__ghost {
+	fill: none;
+	stroke: var(--color-glyph-ghost);
+	stroke-width: 1.5px;
+	stroke-dasharray: 4 3;
+	vector-effect: non-scaling-stroke;
+}
+
+.focus-strip__ghost.is-current {
+	stroke: var(--color-status-draft);
+}
+
+@media (max-height: 700px) {
+	.focus-strip {
+		height: 56px;
+	}
+
+	.focus-strip__svg {
+		height: 40px;
+	}
+}
+
+@media (max-width: 1100px) {
+	.focus-inspector {
+		width: 240px;
+	}
+
+	.focus-mode .editor-page__edit-canvas-wrapper.focus-mode__canvas {
+		right: var(--space-6);
+	}
+}

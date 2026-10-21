@@ -284,12 +284,15 @@ describe('GlyphGrid: keyboard navigation', () => {
 		expect(grid.openGlyph).toHaveBeenLastCalledWith(N);
 	});
 
-	it('openGlyph(id) selects the glyph and navigates to the Characters page (M2 behaviour)', () => {
+	it('openGlyph(id) selects the glyph and opens it in focus mode (M3)', () => {
 		const navigate = vi.spyOn(editor, 'navigate').mockImplementation(() => {});
-		openGlyph(a, editor);
+		openGlyph(a, editor, { origin: 'grid', order: grid.visibleIDs, view: grid.view });
 		expect(editor.selectedGlyphID).toBe(a);
 		expect(editor.nav.page).toBe('Characters');
+		expect(editor.nav.focus).toMatchObject({ originID: a, origin: 'grid', view: 'default' });
+		expect(editor.nav.focus.order).toEqual(grid.visibleIDs);
 		expect(navigate).toHaveBeenCalledTimes(1);
+		editor.nav.focus = null;
 	});
 
 	it('grid keys never reach document-level canvas shortcuts; Ctrl/Cmd combos still do', () => {
