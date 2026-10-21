@@ -447,3 +447,8 @@ export function makeAgentToggle() {
 		toggle.addEventListener(eventName, (event) => event.stopPropagation());
 	return toggle;
 }
+
+/** Read-only: true while the Agent window has a request in flight. */
+export function isAgentRunning() {
+	return !!singleton?.controller.running;
+}
