@@ -1,532 +1,597 @@
 /* --------------------------------------------------------
-	Open Project page — Noddy welcome (Phase 3.1)
-	Hero card + content card on warm paper. Peach pill tabs,
-	peach primary buttons (fancy-button default), muted help text.
-	UI type scoped here only; never touches preview surfaces.
+	Open Project page: New font start screen (M5, flow-01)
+	Centred wordmark, name field, set chip, three equal start
+	cards, and a quiet row to open an existing project.
+	Tokens only (src/common/colors.css). Hovers are paint-only:
+	every box metric is pinned so the legacy button resets never
+	shift layout.
 -------------------------------------------------------- */
 #open-project__page {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: center;
-	/* Equal-height cards: both cards stretch to the taller one. */
-	align-items: stretch;
-	align-content: center;
-	gap: var(--space-6, 24px);
-	background: var(--background, oklch(1 0 0));
 	position: relative;
 	top: -40px;
+	box-sizing: border-box;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 	width: 100%;
 	min-height: 100vh;
-	padding: var(--space-8, 32px) var(--space-4, 16px);
-	box-sizing: border-box;
+	padding: var(--space-12) var(--space-4);
 	overflow-y: auto;
-	font-family: var(--font-sans, 'Google Sans Flex', 'FiraGo', system-ui, sans-serif);
+	background-color: var(--color-bg-canvas);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
 	font-size: 1rem;
-	line-height: 1.6;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	line-height: 1.5;
 }
 
-#open-project__left-area {
+.start__main {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
-	gap: var(--space-3, 12px);
-	flex: 0 1 360px;
+	align-items: center;
 	width: 100%;
-	max-width: 380px;
-	min-width: 0;
-	background-color: var(--card, oklch(1 0 0));
-	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
-	border-radius: var(--radius, 0.45rem);
-	box-shadow: var(--shadow-xs, 0px 4px 10px 0px hsl(0 0% 0% / 0.03));
-	padding: 28px 26px;
-	box-sizing: border-box;
+	max-width: 776px;
 }
 
-#open-project__right-area {
-	flex: 1 1 420px;
-	width: 100%;
-	max-width: 540px;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-	background-color: var(--card, oklch(1 0 0));
-	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
-	border-radius: var(--radius, 0.45rem);
-	box-shadow: var(--shadow-xs, 0px 4px 10px 0px hsl(0 0% 0% / 0.03));
-	padding: 24px 24px 28px;
-	box-sizing: border-box;
-	/* Page-scope type cap (was 40px display type): keeps every tab's
-	buttons reachable; tab content scrolls in-region below. */
-	font-size: 1rem;
-	line-height: 1.6;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+/* Paint-only transitions: the global `all 80ms` would also animate the
+focus outline in from currentColor. */
+#open-project__page button,
+#open-project__page input {
+	transition:
+		background-color 80ms ease,
+		border-color 80ms ease,
+		color 80ms ease;
 }
 
-#open-project__logo {
-	width: 100%;
-	max-width: 300px;
-	margin: 0 0 4px 0;
+.start__visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
 }
 
-#open-project__logo svg {
+.start__logo {
+	width: 280px;
+	max-width: 100%;
+	margin: 0 0 var(--space-12) 0;
+}
+
+.start__logo svg {
 	display: block;
 	width: 100%;
 	height: auto;
 }
 
-.open-project__version-name {
-	font-size: 1rem;
+/* Name field: large pill, centred text, peach ring. */
+#open-project__page .start__name {
+	box-sizing: border-box;
+	display: block;
+	width: 100%;
+	max-width: 408px;
+	height: 68px;
+	margin: 0;
+	padding: 0 var(--space-6);
+	border: 2px solid var(--color-border-accent);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	font-variation-settings: 'ROND' 60;
+	font-size: 1.5rem;
 	font-weight: 700;
-	letter-spacing: var(--tracking-tight, -0.025em);
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	letter-spacing: var(--tracking-tight);
+	text-align: center;
+	caret-color: var(--color-bg-accent);
+	box-shadow: none;
 }
 
-.open-project__version-number {
-	font-family: var(--font-mono, 'Google Sans Code', ui-monospace, monospace);
-	font-variant-numeric: tabular-nums;
-	font-size: 0.8125rem;
-	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+#open-project__page .start__name:hover {
+	border-color: var(--color-bg-accent-hover);
 }
 
-.open-project__version-number a {
-	color: inherit;
-	text-decoration: underline;
-}
-
-.open-project__version-number a:hover {
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-}
-
-.open-project__blurb {
-	font-size: 0.875rem;
-	line-height: 1.6;
-	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
-}
-
-.open-project__blurb a {
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-	text-decoration: underline;
-}
-
-/* Paint-only link hover: tint only, never layout (beats global a:hover). */
-.open-project__blurb a:hover {
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-	text-decoration: underline;
-}
-
-#open-project__page a:focus-visible,
-.open-project__tab:focus-visible,
-#input__new-project-name:focus-visible {
-	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+#open-project__page .start__name:focus,
+#open-project__page .start__name:focus-visible {
+	border-color: var(--color-border-accent);
+	outline: 2px solid var(--color-focus-ring);
 	outline-offset: 2px;
 }
 
-.open-project__tab-wrapper {
-	width: 100%;
-	min-width: 0;
-	/* Fill the stretched card so tab bodies anchor the card frame. */
-	flex: 1 1 auto;
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-}
-
-/* Pill tabs */
-.open-project__tabs {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	width: max-content;
-	max-width: 100%;
-	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
-	border-radius: var(--radius-full, 999px);
-	padding: 4px;
-	box-sizing: border-box;
-}
-
-.open-project__tab {
-	border: 1px solid transparent;
-	border-radius: var(--radius-full, 999px);
-	background-color: transparent;
-	padding: 6px 16px;
-	margin: 0;
-	min-height: 32px;
-	font-family: inherit;
+.start__set {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	height: 28px;
+	margin: var(--space-4) 0 var(--space-12) 0;
+	padding: 0 var(--space-3);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
 	font-size: 0.8125rem;
 	font-weight: 500;
-	line-height: 1.5;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	white-space: nowrap;
+}
+
+.start__set .material-symbols-rounded {
+	font-size: 18px;
+}
+
+/* Stage: the cards, the import progress or the licence note. Same
+min-height for all three so nothing below jumps. */
+.start__stage {
+	width: 100%;
+	min-height: 162px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.start__cards {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-4);
+	width: 100%;
+}
+
+#open-project__page .start-card {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-height: 162px;
+	height: 100%;
+	margin: 0;
+	padding: var(--space-6);
+	border: 2px solid transparent;
+	border-radius: var(--radius-xl);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	text-align: left;
+	box-shadow: none;
 	cursor: pointer;
 }
 
-.open-project__tab:hover {
-	/* Paint-only hover: text tint only. Background stays transparent so no
-	white rectangle appears, and every box metric is pinned to base values
-	so size never shifts (neutralizes global button:hover). */
-	background-color: transparent;
-	border-color: transparent;
-	border-width: 1px;
-	border-radius: var(--radius-full, 999px);
-	padding: 6px 16px;
+#open-project__page .start-card:hover {
+	border-color: var(--color-border-accent);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
 	margin: 0;
-	min-height: 32px;
-	font-size: 0.8125rem;
-	line-height: 1.5;
-	font-weight: 500;
-	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
+	padding: var(--space-6);
 	box-shadow: none;
-	text-decoration: none;
 }
 
-.open-project__tab[selected] {
-	background-color: var(--primary, oklch(0.8141 0.1261 58.1544));
-	/* Same geometry as unselected: fill only, no visible stroke.
-	Every box metric pinned to base values so the strip never shifts
-	(beats global button:focus/active metrics). */
-	border-color: transparent;
-	border-width: 1px;
-	border-radius: var(--radius-full, 999px);
-	padding: 6px 16px;
-	margin: 0;
-	min-height: 32px;
-	font-size: 0.8125rem;
-	line-height: 1.5;
-	font-weight: 500;
-	box-shadow: none;
-	text-decoration: none;
-	color: var(--primary-foreground, oklch(0.2707 0.054 44.1725));
+#open-project__page .start-card:active {
+	background-color: var(--color-bg-accent-subtle);
 }
 
-.open-project__tab[selected]:hover {
-	/* Selected stays peach on hover — no changes at all (same fill, text,
-	global button:hover shadow stays out, box metrics pinned to base). */
-	background-color: var(--primary, oklch(0.8141 0.1261 58.1544));
-	border-color: transparent;
-	border-width: 1px;
-	border-radius: var(--radius-full, 999px);
-	padding: 6px 16px;
-	margin: 0;
-	min-height: 32px;
-	font-size: 0.8125rem;
-	line-height: 1.5;
-	font-weight: 500;
-	color: var(--primary-foreground, oklch(0.2707 0.054 44.1725));
-	box-shadow: none;
-	text-decoration: none;
+#open-project__page .start-card:focus,
+#open-project__page .start-card:focus-visible {
+	border-color: var(--color-border-accent);
+	outline: none;
 }
 
-/* Tab bodies — fixed band + in-region scroll so the card frame never
-moves when switching tabs; the taller card sets the row height. */
-.open-project__tab-content {
-	margin: 16px 0 0 0;
-	/* Horizontal breathing room: this is a scroll container
-	(overflow-y:auto), so a full-width input's outset ring (2px + 2px
-	offset) would clip at both sides without inset padding. */
-	padding: 0 4px;
-	box-sizing: border-box;
+#open-project__page .start-card:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.start-card__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 52px;
+	height: 52px;
+	margin-bottom: var(--space-6);
+	border-radius: var(--radius-lg);
+	background-color: var(--color-bg-accent-subtle);
+	color: var(--color-text-primary);
+}
+
+.start-card__icon .material-symbols-rounded {
+	font-size: 22px;
+}
+
+.start-card__mark {
+	display: block;
+	width: 28px;
+	height: 28px;
+	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat center / contain;
+}
+
+.start-card__title {
+	font-variation-settings: 'ROND' 60;
 	font-size: 1rem;
-	line-height: 1.6;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-	min-width: 0;
-	flex: 1 1 auto;
-	min-height: 340px;
-	max-height: calc(100vh - 320px);
-	overflow-y: auto;
-	animation: var(--animate-fade-in);
+	font-weight: 700;
+	line-height: 1.4;
+	letter-spacing: var(--tracking-tight);
 }
 
-.open-project__tab-content h2 {
-	font-size: 1.25rem;
-	line-height: 1.3;
-	letter-spacing: var(--tracking-tight, -0.025em);
-	margin: 0 0 8px 0;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-}
-
-.open-project__tab-content p {
-	margin: 0 0 8px 0;
-}
-
-.open-project__help-text {
-	display: block;
+.start-card__line {
+	margin-top: var(--space-1);
 	font-size: 0.8125rem;
 	line-height: 1.5;
-	color: var(--muted-foreground, oklch(0.5931 0.0295 44.5478));
-	margin: 8px 0 4px 0;
+	color: var(--color-text-secondary);
 }
 
-.open-project__tab-content label {
+/* Licence note: one card in the cards' place. */
+.start__note {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-2);
+	width: 100%;
+	max-width: 512px;
+	min-height: 162px;
+	margin: 0 auto;
+	padding: var(--space-6);
+	border-radius: var(--radius-xl);
+	background-color: var(--color-bg-surface);
+	text-align: center;
+}
+
+.start__note p {
+	margin: 0;
+}
+
+.start__note-title {
+	font-variation-settings: 'ROND' 60;
+	font-size: 1rem;
+	font-weight: 700;
+	letter-spacing: var(--tracking-tight);
+	color: var(--color-text-primary);
+}
+
+.start__note-line {
+	font-size: 0.875rem;
+	color: var(--color-text-secondary);
+}
+
+.start__note-actions {
+	display: flex;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+}
+
+#open-project__page .start__button {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 36px;
+	min-width: 96px;
+	margin: 0;
+	padding: 0 var(--space-4);
+	border: 1px solid transparent;
+	border-radius: var(--radius-full);
+	font-family: var(--font-sans);
+	font-size: 0.875rem;
+	font-weight: 500;
+	line-height: 1;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+#open-project__page .start__button--primary,
+#open-project__page .start__button--primary:hover {
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+	border-color: transparent;
+	padding: 0 var(--space-4);
+	margin: 0;
+	box-shadow: none;
+}
+
+#open-project__page .start__button--primary:hover {
+	background-color: var(--color-bg-accent-hover);
+}
+
+#open-project__page .start__button--secondary,
+#open-project__page .start__button--secondary:hover {
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	border-color: var(--color-border-default);
+	padding: 0 var(--space-4);
+	margin: 0;
+	box-shadow: none;
+}
+
+#open-project__page .start__button--secondary:hover {
+	background-color: var(--color-bg-subtle);
+}
+
+#open-project__page .start__button:focus-visible,
+#open-project__page .start__link:focus-visible,
+#open-project__page .start__theme:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+/* Open an existing project: quiet text buttons below the cards. */
+.start__secondary {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--space-2);
+	margin-top: var(--space-8);
+}
+
+#open-project__page .start__link,
+#open-project__page .start__link:hover {
+	box-sizing: border-box;
+	height: 32px;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-secondary);
+	font-family: var(--font-sans);
 	font-size: 0.8125rem;
 	font-weight: 500;
-	line-height: 1.5;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	box-shadow: none;
+	cursor: pointer;
 }
 
-.open-project__tab-content fancy-button {
-	display: inline-block;
-	margin: 12px 8px 8px 0;
+#open-project__page .start__link:hover,
+#open-project__page .start__link[aria-expanded='true'] {
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
 }
 
-/* Figma fill model: primary welcome actions fill the card width.
-Fixed-size stays for auto-save restore buttons (row rails). */
-.open-project__tab-content #button__create-new-project,
-.open-project__tab-content #button__open-file-chooser {
-	display: block;
+.start__more {
 	width: 100%;
-	max-width: 100%;
-	margin: 12px 0 8px 0;
-	box-sizing: border-box;
+	max-width: 512px;
+	margin-top: var(--space-3);
 }
 
-#input__new-project-name {
-	display: block;
-	width: 100%;
-	max-width: 100%;
-	min-height: 32px;
-	margin: 8px 0 0 0;
-	padding: 6px 10px;
-	box-sizing: border-box;
-	font-size: 0.875rem;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-	background-color: var(--card, oklch(1 0 0));
-	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
-	border-radius: var(--radius-sm, 4px);
+.start__more[hidden] {
+	display: none;
 }
 
-/* Contained drop zone */
-#open-project__drop-target {
-	display: block;
-	width: 100%;
-	max-width: 100%;
-	box-sizing: border-box;
-	margin: 12px 0;
-	padding: 16px 16px 16px 20px;
-	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
-	border: 1px dashed var(--border, oklch(0.9055 0.0111 54.4854));
-	border-radius: var(--radius, 0.45rem);
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
-	font-size: 0.875rem;
-	line-height: 2;
+.start__panel {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--space-2);
+	padding: var(--space-4);
+	border-radius: var(--radius-lg);
+	background-color: var(--color-bg-surface);
 }
 
-/* T2 compact (760–1099px): stack cards, page scrolls */
+.start__muted {
+	margin: 0;
+	font-size: 0.8125rem;
+	color: var(--color-text-secondary);
+}
+
+/* Theme toggle, top right (flow-01). */
+#open-project__page .start__theme,
+#open-project__page .start__theme:hover {
+	position: absolute;
+	top: calc(40px + var(--space-6));
+	right: var(--space-6);
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-secondary);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+#open-project__page .start__theme:hover {
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.start__theme .material-symbols-rounded {
+	font-size: 20px;
+}
+
+/* Tablet: cards stay in one row, less air. */
 @media (max-width: 1099px) {
-	#open-project__page {
-		flex-direction: column;
-		align-items: center;
-		justify-content: flex-start;
-		padding: 24px 20px;
-	}
-
-	#open-project__left-area,
-	#open-project__right-area {
-		/* Content-height cards when stacked: flex-grow coupled the hero
-		card's height to the active tab's content height, moving the tab
-		strip up/down per tab. flex:none pins the strip below a fixed
-		hero; the tab body varies below it instead. */
-		flex: 0 0 auto;
-		width: 100%;
-		max-width: 580px;
-	}
-
-	#open-project__left-area {
-		justify-content: flex-start;
-	}
-
-	.open-project__tab-content {
-		max-height: none;
-		min-height: 0;
-		overflow-y: visible;
+	.start__logo {
+		margin-bottom: var(--space-10);
 	}
 }
 
-/* T3 narrow (<760px): single column, full-width cards */
+/* Phone: cards stack; each is a compact row with the icon on the left. */
 @media (max-width: 759px) {
 	#open-project__page {
-		padding: 16px 12px 24px 12px;
-		gap: var(--space-4, 16px);
+		align-items: flex-start;
+		padding: calc(40px + var(--space-12)) var(--space-4) var(--space-8);
 	}
 
-	#open-project__left-area,
-	#open-project__right-area {
-		max-width: 100%;
-		padding: 20px 16px;
+	.start__logo {
+		width: 200px;
+		margin-bottom: var(--space-8);
 	}
 
-	#open-project__logo {
-		max-width: 240px;
+	#open-project__page .start__name {
+		height: 56px;
+		font-size: 1.25rem;
 	}
 
-	.open-project__tabs {
-		width: 100%;
-	}
-}
-
-/* Short height (<620px): page scrolls, tab bodies scroll internally,
-cards stay equal-height via stretch. */
-@media (max-height: 619px) {
-	#open-project__page {
-		align-items: stretch;
+	.start__set {
+		margin-bottom: var(--space-8);
 	}
 
-	.open-project__tab-content {
-		max-height: calc(100vh - 180px);
-		overflow-y: auto;
+	.start__stage {
+		min-height: 0;
+	}
+
+	.start__cards {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-3);
+	}
+
+	#open-project__page .start-card,
+	#open-project__page .start-card:hover {
+		display: grid;
+		grid-template-columns: 44px minmax(0, 1fr);
+		grid-template-rows: auto auto;
+		column-gap: var(--space-4);
+		align-items: center;
+		min-height: 76px;
+		padding: var(--space-4);
+	}
+
+	.start-card__icon {
+		grid-row: 1 / 3;
+		width: 44px;
+		height: 44px;
+		margin: 0;
+	}
+
+	.start-card__line {
+		margin-top: 0;
+	}
+
+	#open-project__page .start__theme,
+	#open-project__page .start__theme:hover {
+		right: var(--space-4);
+		top: calc(40px + var(--space-4));
 	}
 }
 
 #open-project__drop-note {
 	display: none;
 	position: absolute;
-	left: 0;
-	top: 0;
-	height: calc(100vh - 20px);
-	width: calc(100vw - 20px);
-	padding: 100px 20px 0px 20px;
+	inset: var(--space-2);
+	padding-top: 30vh;
+	border: 2px dashed var(--color-border-accent);
+	border-radius: var(--radius-xl);
+	background-color: var(--color-bg-accent-subtle);
+	color: var(--color-text-primary);
+	font-size: 1.5rem;
+	font-weight: 700;
 	text-align: center;
-	font-size: 2em;
-	color: var(--blue-l70);
 	animation: var(--animate-fade-in);
-	backdrop-filter: blur(2px);
-	background-color: hsla(285, 100%, 17%, 0.2); /* purple l15 */
-	border: var(--global-focus-style);
-	border-radius: 10px;
-	margin: 10px;
 }
 
 /*
-	Auto-save list view
+	Auto-save list (Restore)
 */
 #auto-saves__list {
-	min-height: 210px;
-	max-height: 210px;
-	border-radius: var(--radius-sm, 4px);
+	width: 100%;
+	max-height: 240px;
 	overflow-y: auto;
-	overflow-x: auto;
-	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
-	border: 1px solid var(--border, oklch(0.9055 0.0111 54.4854));
-	padding: 5px 10px 10px 5px;
-	color: var(--foreground, oklch(0.2707 0.054 44.1725));
+	color: var(--color-text-primary);
 	font-size: 0.875rem;
 }
 
 .auto-saves__list-row {
 	display: grid;
-	grid-template-columns: min-content 1fr 40px;
-	grid-template-rows: 24px 16px;
-	padding: 0px 0px 0px 5px;
-	margin-bottom: 10px;
-	border-radius: 4px;
-	vertical-align: top;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	column-gap: var(--space-3);
+	padding: var(--space-2);
+	border-radius: var(--radius-md);
 }
 
 .auto-saves__list-row:hover {
-	background-color: var(--muted, oklch(0.9702 0 0));
+	background-color: var(--color-bg-subtle);
 }
 
 .auto-saves__list-row .name {
-	grid-column: span 2;
-	padding-top: 2px;
-	font-size: 1.1em;
-}
-
-.auto-saves__list-row .project-id,
-.auto-saves__list-row .time-stamp {
-	display: block;
-	opacity: 0.7;
-	padding: 0px 10px 4px 0px;
-	font-family: monospace;
-	font-size: 11px;
+	grid-column: 1;
+	grid-row: 1;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .auto-saves__list-row .project-id {
-	grid-column: 1;
-	grid-row: 2;
-	width: 100px;
+	display: none;
 }
 
 .auto-saves__list-row .time-stamp {
-	grid-column: 2;
+	grid-column: 1;
 	grid-row: 2;
+	font-size: 0.75rem;
+	color: var(--color-text-secondary);
 }
 
-.auto-saves__list-row fancy-button {
-	grid-column: 3;
-	height: 40px;
-	width: 20px;
-	padding: 0px;
-	font-size: 20px;
-	margin: 0px;
-	grid-row-start: 1;
-	grid-row-end: 2;
+.auto-saves__list-row .start__button {
+	grid-column: 2;
+	grid-row: 1 / 3;
 }
 
 /* --------------------------------------------------------
-	Open Project Dialog
+	Open Project Dialog (second project, from the File menu)
 -------------------------------------------------------- */
 .modal-dialog__open-new-project {
-	background-color: transparent;
-	background: linear-gradient(135deg, var(--blue-l20), var(--purple-l15));
+	background-color: var(--color-bg-canvas);
 	height: min-content;
 }
 
 .modal-dialog__open-new-project .modal-dialog__body {
 	padding: 0px;
-	/* Vertical scroll only (as baseline). No horizontal backstop: the
-	dialog-scope single-column grid below removes the cause (475px track),
-	so a permanent scrollbar track never renders. */
-}
-
-/* Phase 3.1: the Load dialog reuses open-project tab content.
-Welcome type is capped at the page scope (1rem); the dialog stacks the
-cards and scrolls in-region so every tab button stays reachable.
-Welcome copy/layout itself is untouched here. */
-.modal-dialog__open-new-project #open-project__right-area {
-	font-size: 1rem;
-	min-width: 0;
-	max-width: 100%;
-}
-
-.modal-dialog__open-new-project .open-project__tab-wrapper {
-	width: 100%;
-	max-width: 100%;
 }
 
 .modal-dialog__open-new-project #open-project__page {
-	height: auto;
-	min-height: 0;
 	top: 0;
-	/* Dialog scope only: stack the cards; the modal body scrolls
-	vertically and the tab body scrolls in-region. */
-	flex-direction: column;
-	align-items: stretch;
+	min-height: 0;
+	height: auto;
+	padding: var(--space-8) var(--space-6);
 	overflow-y: visible;
 }
 
-.modal-dialog__open-new-project .open-project__tab-content {
-	max-height: calc(100vh - 280px);
-	overflow-y: auto;
+.modal-dialog__open-new-project .start__logo {
+	width: 180px;
+	margin-bottom: var(--space-6);
 }
 
-.modal-dialog__open-new-project #open-project__left-area {
-	width: auto;
-	max-width: 100%;
+.modal-dialog__open-new-project .start__set {
+	margin-bottom: var(--space-6);
 }
 
-.modal-dialog__open-new-project #open-project__left-area {
-	width: 0px;
+.modal-dialog__open-new-project .start__cards {
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--space-2);
+}
+
+.modal-dialog__open-new-project #open-project__page .start-card,
+.modal-dialog__open-new-project #open-project__page .start-card:hover {
+	display: grid;
+	grid-template-columns: 44px minmax(0, 1fr);
+	column-gap: var(--space-4);
+	align-items: center;
+	min-height: 72px;
+	padding: var(--space-3) var(--space-4);
+}
+
+.modal-dialog__open-new-project .start-card__icon {
+	grid-row: 1 / 3;
+	width: 44px;
+	height: 44px;
+	margin: 0;
+}
+
+.modal-dialog__open-new-project .start__stage {
+	min-height: 0;
+}
+
+.modal-dialog__open-new-project #open-project__page .start__theme {
 	display: none;
 }
 
 .modal-dialog__open-new-project #open-project__drop-note {
-	height: 380px;
-	width: calc(100% - 20px);
-	padding: 150px 0px 0px 0px;
-	text-align: center;
-	color: var(--purple-l80);
-	background-color: hsla(285, 100%, 17%, 0.8); /* purple l15 */
+	inset: var(--space-2);
+	padding-top: var(--space-12);
 }
 
 /* --------------------------------------------------------
