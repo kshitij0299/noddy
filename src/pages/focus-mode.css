@@ -300,14 +300,16 @@
 		right: var(--space-6);
 	}
 }
-
 /* --------------------------------------------------------------
 	Buttons. The legacy reset (resets.css) styles `button`, `button:hover`,
 	`button:focus`, `button:active` and `button[disabled]` with padding,
-	margin, a border, a 4px radius and a shadow. Every state is pinned here
-	at higher specificity (as in PR #45's `button.agent-card__button`) so
-	geometry never changes and hovers are paint-only.
+	margin, a border, a 4px radius, colours and a shadow. Every state is
+	pinned here at higher specificity, per variant and including its
+	colours (as PR #45's `button.agent-card__button:<state>`), so geometry
+	never changes, hovers are paint-only and focus keeps the variant paint.
 -------------------------------------------------------------- */
+
+/* Geometry, shared by every focus-mode button in every state */
 .focus-mode button.focus-mode__icon-button,
 .focus-mode button.focus-mode__icon-button:hover,
 .focus-mode button.focus-mode__icon-button:focus,
@@ -335,8 +337,6 @@
 	border: 1px solid transparent;
 	border-radius: var(--radius-full);
 	box-shadow: none;
-	background-color: transparent;
-	color: var(--color-text-primary);
 	outline: none;
 	cursor: pointer;
 }
@@ -349,10 +349,16 @@
 	outline-offset: var(--focus-ring-offset);
 }
 
-/* Header icon buttons: 36px; 28×32 inside the prev/next pill */
-.focus-mode button.focus-mode__icon-button {
+/* ---- Header icon buttons: 36px; 28×32 inside the prev/next pill ---- */
+.focus-mode button.focus-mode__icon-button,
+.focus-mode button.focus-mode__icon-button:hover,
+.focus-mode button.focus-mode__icon-button:focus,
+.focus-mode button.focus-mode__icon-button:active,
+.focus-mode button.focus-mode__icon-button[disabled] {
 	width: 36px;
 	height: 36px;
+	border-color: transparent;
+	background-color: transparent;
 	color: var(--color-text-secondary);
 }
 
@@ -375,29 +381,43 @@
 	cursor: default;
 }
 
-/* Tool pill: six 40px round buttons, active = accent fill */
-.focus-mode button.focus-pill__tool {
+/* ---- Tool pill: six 40px round buttons, active = accent fill ---- */
+.focus-mode button.focus-pill__tool,
+.focus-mode button.focus-pill__tool:hover,
+.focus-mode button.focus-pill__tool:focus,
+.focus-mode button.focus-pill__tool:active {
 	width: 40px;
 	height: 40px;
+	border-color: transparent;
+	background-color: transparent;
+	color: var(--color-text-primary);
 }
 
 .focus-pill__tool .material-symbols-rounded {
 	font-size: 24px;
 }
 
-.focus-mode button.focus-pill__tool:hover {
+.focus-mode button.focus-pill__tool:hover:not(.is-active) {
 	background-color: var(--color-bg-subtle);
 }
 
 .focus-mode button.focus-pill__tool.is-active,
-.focus-mode button.focus-pill__tool.is-active:hover {
+.focus-mode button.focus-pill__tool.is-active:hover,
+.focus-mode button.focus-pill__tool.is-active:focus,
+.focus-mode button.focus-pill__tool.is-active:active {
 	background-color: var(--color-bg-accent);
 	color: var(--color-text-on-accent);
 }
 
-
+/* ---- Inspector actions: Keep (primary) and Revert (secondary), 32px ---- */
 .focus-mode button.focus-inspector__keep,
-.focus-mode button.focus-inspector__revert {
+.focus-mode button.focus-inspector__keep:hover,
+.focus-mode button.focus-inspector__keep:focus,
+.focus-mode button.focus-inspector__keep:active,
+.focus-mode button.focus-inspector__revert,
+.focus-mode button.focus-inspector__revert:hover,
+.focus-mode button.focus-inspector__revert:focus,
+.focus-mode button.focus-inspector__revert:active {
 	gap: var(--space-2);
 	height: 32px;
 	padding: 0 var(--space-3);
@@ -408,7 +428,11 @@
 	font-size: 18px;
 }
 
-.focus-mode button.focus-inspector__keep {
+.focus-mode button.focus-inspector__keep,
+.focus-mode button.focus-inspector__keep:hover,
+.focus-mode button.focus-inspector__keep:focus,
+.focus-mode button.focus-inspector__keep:active {
+	border-color: transparent;
 	background-color: var(--color-bg-accent);
 	color: var(--color-text-on-accent);
 }
@@ -417,9 +441,13 @@
 	background-color: var(--color-bg-accent-hover);
 }
 
-.focus-mode button.focus-inspector__revert {
+.focus-mode button.focus-inspector__revert,
+.focus-mode button.focus-inspector__revert:hover,
+.focus-mode button.focus-inspector__revert:focus,
+.focus-mode button.focus-inspector__revert:active {
 	border-color: var(--color-border-default);
 	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
 }
 
 .focus-mode button.focus-inspector__revert:hover:not([aria-disabled='true']) {
@@ -427,7 +455,10 @@
 }
 
 .focus-mode button.focus-inspector__revert[aria-disabled='true'],
-.focus-mode button.focus-inspector__revert[aria-disabled='true']:hover {
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:hover,
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:focus,
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:active {
+	border-color: var(--color-border-default);
 	background-color: var(--color-bg-surface);
 	color: var(--color-text-secondary);
 	opacity: 0.6;

@@ -12,7 +12,7 @@ import { GLYPH_STATUS_TOPIC } from '../project_editor/glyph-status.js';
 import { ITEM_CHANGED_TOPIC, createDebouncedRedraw } from '../project_editor/item_changed.js';
 import { charForGlyphID, makeContextStrip } from './focus_context_strip.js';
 import { makeInspector } from './focus_inspector.js';
-import { makeToolPill } from './focus_tool_pill.js';
+import { guardControlKeys, makeToolPill } from './focus_tool_pill.js';
 import './focus-mode.css';
 
 // --------------------------------------------------------------
@@ -401,8 +401,8 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	card.append(header, wrapper, pill, inspector, strip);
 
 	// Header keys stay out of the canvas shortcuts.
-	header.addEventListener('keydown', guardKeys);
-	header.addEventListener('keyup', guardKeys);
+	header.addEventListener('keydown', guardControlKeys);
+	header.addEventListener('keyup', guardControlKeys);
 
 	// Keyboard order and focus trap. The edit canvas swallows Tab (its inner
 	// <canvas> cancels every keydown; protected code), so the card moves
@@ -565,15 +565,6 @@ let lastInputWasKeyboard = false;
 if (typeof document !== 'undefined') {
 	document.addEventListener('keydown', () => (lastInputWasKeyboard = true), true);
 	document.addEventListener('pointerdown', () => (lastInputWasKeyboard = false), true);
-}
-
-/**
- * Keys without Ctrl / Cmd stay out of the document-level canvas shortcuts.
- * @param {KeyboardEvent} event
- */
-function guardKeys(event) {
-	if (event.key === 'Escape') return;
-	if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
 }
 
 /**

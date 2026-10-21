@@ -585,6 +585,48 @@ describe('Focus mode: keyboard order and focus (QA #57)', () => {
 	});
 });
 
+describe('Focus mode: modifier keys are never swallowed (re-QA #57)', () => {
+	const fire = (target, type, init) =>
+		target.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init }));
+
+	it('after Ctrl+Z on a pill button, H still selects the pen (Ctrl is released)', () => {
+		grid().tiles.get(a).click();
+		const button = pillButton('oval');
+		button.focus();
+		fire(button, 'keydown', { key: 'Control', ctrlKey: true });
+		fire(button, 'keydown', { key: 'z', ctrlKey: true });
+		fire(button, 'keyup', { key: 'z', ctrlKey: true });
+		fire(button, 'keyup', { key: 'Control' });
+		expect(eventHandlerData.isCtrlDown).toBe(false);
+		key(document.body, 'h');
+		expect(editor.selectedTool).toBe('newPath');
+	});
+
+	it('Shift+Tab off the canvas releases Shift, so Ctrl+Z undoes (not redoes)', () => {
+		grid().tiles.get(a).click();
+		const glyph = editor.project.getItem(a);
+		glyph.advanceWidth = 777;
+		editor.history.addState('Changed advance');
+		canvas().focus();
+		fire(canvas(), 'keydown', { key: 'Shift', shiftKey: true });
+		fire(canvas(), 'keydown', { key: 'Tab', shiftKey: true });
+		fire(document.activeElement, 'keyup', { key: 'Shift' });
+		expect(focusedName()).toBe('Next glyph');
+		expect(eventHandlerData.isShiftDown).toBe(false);
+		document.body.focus();
+		fire(document.body, 'keydown', { key: 'Control', ctrlKey: true });
+		fire(document.body, 'keydown', { key: 'z', ctrlKey: true });
+		fire(document.body, 'keyup', { key: 'Control' });
+		expect(editor.project.getItem(a).advanceWidth).toBe(600);
+	});
+
+	it('plain keys on controls still stay away from the canvas', () => {
+		grid().tiles.get(a).click();
+		key(document.querySelector('.focus-mode__close'), 'm');
+		expect(editor.selectedTool).toBe('pathEdit');
+	});
+});
+
 describe('Focus mode: view and live strip (QA #57)', () => {
 	it('prev/next keep the zoom and pan', () => {
 		grid().tiles.get(A).click();
@@ -644,6 +686,58 @@ describe('Focus mode: buttons beat the legacy reset (QA #57)', () => {
 				expect(block, `${cls} ${prop}`).toContain(prop);
 			});
 		});
+	});
+
+	it('each variant sets its own colours in every state rule', () => {
+		const source = css('./focus-mode.css');
+		const variants = {
+			'focus-inspector__keep': 'var(--color-bg-accent)',
+			'focus-inspector__revert': 'var(--color-bg-surface)',
+			'focus-pill__tool': 'transparent',
+			'focus-mode__icon-button': 'transparent',
+		};
+		Object.entries(variants).forEach(([cls, background]) => {
+			const block = source
+				.split('}')
+				.find(
+					(rule) =>
+						rule.includes(`.focus-mode button.${cls}:focus,`) &&
+						rule.includes('background-color:')
+				);
+			expect(block, cls).toBeTruthy();
+			[':hover', ':focus', ':active'].forEach((state) => {
+				expect(block, `${cls}${state}`).toContain(`.focus-mode button.${cls}${state}`);
+			});
+			expect(block, cls).toContain(`background-color: ${background};`);
+			expect(block, cls).toContain('border-color:');
+		});
+	});
+
+	it('Keep keeps its fill and Revert its border on focus, with the reset loaded', () => {
+		const style = document.createElement('style');
+		style.textContent =
+			css('../common/resets.css').replace(/^@import.*$/gm, '') + css('./focus-mode.css');
+		document.head.appendChild(style);
+		try {
+			editor.glyphStatus.set(a, 'draft', 'agent');
+			grid().tiles.get(a).click();
+			['.focus-inspector__keep', '.focus-inspector__revert', '.focus-pill__tool'].forEach(
+				(selector) => {
+					const button = /** @type {HTMLElement} */ (document.querySelector(selector));
+					const paint = () => {
+						const s = getComputedStyle(button);
+						return [s.backgroundColor, s.borderTopColor, s.color];
+					};
+					const rest = paint();
+					button.focus();
+					expect(paint(), selector).toEqual(rest);
+				}
+			);
+			const keep = getComputedStyle(document.querySelector('.focus-inspector__keep'));
+			expect(keep.backgroundColor).toContain('--color-bg-accent');
+		} finally {
+			style.remove();
+		}
 	});
 
 	it('computed geometry is the same at rest and on focus, with the reset loaded', () => {

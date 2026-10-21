@@ -56,6 +56,22 @@ export const PILL_TOOLS = Object.freeze([
 	{ id: 'hand', tool: 'pan', activeFor: ['pan'], icon: 'pan_tool', label: 'Hand', shortcut: 'Space' },
 ]);
 
+/** Keys that always reach the document handlers (they track modifier state). */
+const PASS_THROUGH_KEYS = new Set(['Shift', 'Control', 'Meta', 'Alt', 'AltGraph', 'Escape']);
+
+/**
+ * Key guard for focus-mode controls (pill, inspector, header): stops plain
+ * keys such as Delete or tool letters from reaching the canvas shortcuts.
+ * Never stops modifier keys (the canvas tracks Shift / Ctrl down and up
+ * itself), Esc, or any Ctrl / Cmd / Alt combination.
+ * @param {KeyboardEvent} event
+ */
+export function guardControlKeys(event) {
+	if (PASS_THROUGH_KEYS.has(event.key)) return;
+	if (event.ctrlKey || event.metaKey || event.altKey) return;
+	event.stopPropagation();
+}
+
 /**
  * Builds the pill. Keys pressed on its buttons never reach the canvas
  * shortcuts (except Ctrl/Cmd combos such as undo).
@@ -89,12 +105,8 @@ export function makeToolPill(editor) {
 		return { def, button };
 	});
 
-	const guard = (event) => {
-		if (event.key === 'Escape') return;
-		if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
-	};
-	pill.addEventListener('keydown', guard);
-	pill.addEventListener('keyup', guard);
+	pill.addEventListener('keydown', guardControlKeys);
+	pill.addEventListener('keyup', guardControlKeys);
 
 	pill.sync = (tool = editor.selectedTool) => {
 		buttons.forEach(({ def, button }) => {

@@ -3,6 +3,7 @@ import { STATUS_LABELS, makeStatusMark } from '../controls/glyph-grid/status-mar
 import { Glyph } from '../project_data/glyph.js';
 import { makeSingleInput } from '../panels/cards.js';
 import { charForGlyphID } from './focus_context_strip.js';
+import { guardControlKeys } from './focus_tool_pill.js';
 
 // --------------------------------------------------------------
 // Focus mode: inspector card (issue #17, flow-06)
@@ -93,12 +94,8 @@ export function makeInspector(editor) {
 		})
 	);
 
-	const guard = (event) => {
-		if (event.key === 'Escape') return;
-		if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
-	};
-	card.addEventListener('keydown', guard);
-	card.addEventListener('keyup', guard);
+	card.addEventListener('keydown', guardControlKeys);
+	card.addEventListener('keyup', guardControlKeys);
 
 	let currentID = '';
 	let renderedGlyph = null;
