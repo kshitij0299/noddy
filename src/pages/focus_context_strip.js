@@ -7,8 +7,9 @@ import { layoutSpecimenLine } from '../controls/specimen-card/specimen_card.js';
 /*
 	A bg/subtle pill under the canvas that shows the glyph being edited
 	between spacing controls, drawn from the PROJECT's outlines (the
-	specimen card's layout helper), never from a UI font. The current glyph
-	is peach; missing neighbours are dashed ghosts. Not interactive.
+	specimen card's layout helper), never from a UI font. The edited glyph
+	(the middle slot of each group) is peach; missing neighbours are dashed
+	ghosts. Not interactive.
 */
 
 /**
@@ -42,6 +43,24 @@ export function contextStringFor(char) {
 }
 
 /**
+ * Item indexes of the "slots" in a context string: the middle character of
+ * each space-separated word, counted over the layout items (spaces
+ * included). `'HHHHH OOHOO'` → `[2, 8]`. Only these are highlighted, so
+ * editing H or O still shows which letter is the one being edited.
+ * @param {String} text - context string from contextStringFor
+ * @returns {Array<Number>}
+ */
+export function contextSlotsFor(text) {
+	const slots = [];
+	let index = 0;
+	for (const word of String(text ?? '').split(' ')) {
+		if (word.length > 0) slots.push(index + Math.floor(word.length / 2));
+		index += word.length + 1;
+	}
+	return slots;
+}
+
+/**
  * @param {String} value
  * @returns {String} value safe inside a double-quoted attribute
  */
@@ -65,10 +84,13 @@ export function makeContextStripSVG(id, project) {
 	if (!text || !project) return null;
 	const { items, width, metrics } = layoutSpecimenLine(text, project);
 	const totalVertical = metrics.ascent - metrics.descent;
+	const slots = new Set(contextSlotsFor(text));
 
-	const parts = items.map((item) => {
+	const parts = items.map((item, index) => {
 		if (item.type === 'space') return '';
-		const current = item.id === id ? ' is-current' : '';
+		// Highlight by slot, not by glyph id: when the edited letter is itself
+		// a control letter (H, O, n, o) only the middle slots light up.
+		const current = slots.has(index) ? ' is-current' : '';
 		if (item.type === 'glyph') {
 			return `<path class="focus-strip__ink${current}" data-item-id="${escapeAttr(item.id)}" transform="translate(${item.x} 0)" d="${escapeAttr(item.pathData)}" />`;
 		}
