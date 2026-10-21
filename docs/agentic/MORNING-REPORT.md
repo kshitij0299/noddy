@@ -15,6 +15,9 @@ The owner opened the M1–M4 build and found UI drift, then approved a one-PR re
 
 ## TL;DR
 
+- **M5 Start screen: done** (PR #62): the flow-01 start screen (name, set chip, Start with agent / Draw myself / From a font file) and font-file import subsetted to the Kernel with a licence note. Milestone point `5addc8b` (`m5-done`). Two QA rounds.
+- **M6 in progress:** read tools + ownership lock (one PR), then atomic writes (#26, protected, own PR).
+
 - **M3 Editor focus mode: done** (PR #57). Clicking a letter opens the Figma editor: close ×, prev/next pill, metric guides, floating tool pill, inspector card with Keep / Revert, live context strip. Milestone point `5f3ba04` (`m3-done`).
 - **M4 Agent panel: done** (PR #60). Full-height right panel with minimize only, empty state, composer with attachments, minimized pill, model connect card, wired to the existing controller and relay. **The old Codex floating window and welcome composer are deleted.** Milestone point `f020e18` (`m4-done`).
 - **Stopped after M4** as asked. M5–M9 not started.
@@ -83,6 +86,8 @@ No `.gs2` serialization changes were made.
 
 ## Small things to decide when you look at it
 
+- M5: imported glyphs default to **Kept**; you may prefer Yours. The font keeps its own name, not the typed one. Card says "OTF, TTF or SVG" (no UFO importer). Ligatures are dropped on import. Fonts opened via Open a file / drag-drop skip the Kernel subset and licence note (only the "From a font file" card does them).
+
 - Inspector fields still show number-input spinner arrows (hiding them changes a shared control).
 - In the context strip every copy of the current glyph is peach; Figma could be read as only one.
 - Revert in the inspector is disabled: the status store keeps no pre-draft snapshot yet.
@@ -90,6 +95,7 @@ No `.gs2` serialization changes were made.
 
 ## Known bugs / caveats
 
+- [#63](https://github.com/kshitij0299/noddy/issues/63): `validate_file_input` keeps the previous pick's result (protected; worked around in the start screen).
 - [#58](https://github.com/kshitij0299/noddy/issues/58): pen tool click-only points add no undo entry (pre-existing, protected).
 - [#59](https://github.com/kshitij0299/noddy/issues/59): undo after switching glyphs leaves a stray path (pre-existing, protected).
 - Keyboard Tab is cancelled by the canvas (protected); focus mode moves Tab itself, the old Characters page still traps it.
@@ -100,7 +106,7 @@ No `.gs2` serialization changes were made.
 - Specimen Waterfall mode ignores the size slider (QA nit).
 - **Build churn:** `npm run build` rewrites the tracked `dist/` folder and `src/app/app_config.json`. Never commit those.
 - Merged feature branches stay on GitHub, because this cloud session can't delete remote branches.
-- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git tag m3-done 5f3ba04 && git tag m4-done f020e18 && git push origin m1-done m2-done m3-done m4-done`.
+- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git tag m3-done 5f3ba04 && git tag m4-done f020e18 && git tag m5-done 5addc8b && git push origin m1-done m2-done m3-done m4-done m5-done`.
 - Labels were auto-created by GitHub (grey, no descriptions).
 
 ## Models used
