@@ -1,10 +1,22 @@
 import { attachmentParts, validateAttachmentSet } from './attachments.js';
 import { resolveProviderProtocol } from './provider-config.js';
 
+/**
+ * An Error carrying a short machine code ('RELAY_OFFLINE', or the relay's
+ * public error code such as 'PROVIDER_AUTH') so the panel can pick its copy.
+ * @param {String} message
+ * @param {String} code
+ * @returns {Error & {code: String}}
+ */
+export function agentError(message, code) {
+	return Object.assign(new Error(message), { code });
+}
+
 export function requireSelectedGlyph(context) {
 	if (!context?.glyphId || !context.writable) {
-		throw new Error(
-			'Select a glyph in Characters before sending. This agent edits the current glyph only. Your message and attachments are still here.'
+		throw agentError(
+			'Select a glyph in Characters before sending. This agent edits the current glyph only. Your message and attachments are still here.',
+			'NO_GLYPH'
 		);
 	}
 	return context;
@@ -26,16 +38,25 @@ export async function requestAgentStep(payload, signal) {
 		});
 	} catch (error) {
 		if (signal.aborted) throw error;
-		throw new Error('Cannot reach the agent relay. Run Noddy with its agent server and try again.');
+		throw agentError(
+			'Cannot reach the agent relay. Run Noddy with its agent server and try again.',
+			'RELAY_OFFLINE'
+		);
 	}
 	let result;
 	try {
 		result = await response.json();
 	} catch {
-		throw new Error('The agent relay is unavailable. Run Noddy with its agent server.');
+		throw agentError(
+			'The agent relay is unavailable. Run Noddy with its agent server.',
+			'RELAY_OFFLINE'
+		);
 	}
 	if (!response.ok)
-		throw new Error(result.error?.message || 'The provider could not complete this request.');
+		throw agentError(
+			result.error?.message || 'The provider could not complete this request.',
+			result.error?.code || 'PROVIDER_UNAVAILABLE'
+		);
 	if (!Array.isArray(result.messages) || !Array.isArray(result.toolCalls))
 		throw new Error('The agent relay returned an invalid response.');
 	return result;
@@ -235,8 +256,13 @@ export function createAgentController({
 						? 'The request timed out. Completed edits are kept and can be undone.'
 						: 'Stopped. Completed edits are kept and can be undone.'
 					: error.message || 'The agent request failed.';
+				const code = abort.signal.aborted
+					? abort.signal.reason === 'timeout'
+						? 'TIMEOUT'
+						: 'STOPPED'
+					: error.code;
 				finalText += message;
-				emit('error', { message });
+				emit('error', { message, code });
 			} finally {
 				clearTimeout(timer);
 				config.apiKey = '';
