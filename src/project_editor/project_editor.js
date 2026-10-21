@@ -203,7 +203,10 @@ export class ProjectEditor {
 		this.history = new History();
 		this.history.queue = [];
 		this.history.initialTimeStamp = new Date().getTime();
-		this.history.initialProject = project;
+		// Snapshot (same serialization as whole-project history entries), so
+		// edits to the live project don't also change the "initial state" undo
+		// falls back to.
+		this.history.initialProject = new GlyphrStudioProject(project.save());
 	}
 
 	// --------------------------------------------------------------

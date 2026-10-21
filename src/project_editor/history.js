@@ -172,34 +172,39 @@ export class History {
 			// log(this.initialProject);
 			let baseItemState;
 			let baseItem;
+			// An item created after load (getItem/selectedGlyph auto-create) is not in
+			// the initial snapshot. Fall back to the state it was created in,
+			// `new Glyph({ id })`, rather than deleting it: a missing selected item is
+			// re-created on the next read, adding history again.
+			const createdItemState = { id: editor.selectedItemID };
 
 			if (editor.nav.page === 'Characters') {
 				// log(`editor.selectedGlyphID : ${editor.selectedGlyphID}`);
 				if (editor.selectedGlyphID) {
 					baseItem = this.initialProject.glyphs[editor.selectedGlyphID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			} else if (editor.nav.page === 'Ligatures') {
 				// log(`editor.selectedLigatureID : ${editor.selectedLigatureID}`);
 				if (editor.selectedLigatureID) {
 					baseItem = this.initialProject.ligatures[editor.selectedLigatureID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			} else if (editor.nav.page === 'Components') {
 				// log(`editor.selectedComponentID : ${editor.selectedComponentID}`);
 				if (editor.selectedComponentID) {
 					baseItem = this.initialProject.components[editor.selectedComponentID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			} else if (editor.nav.page === 'Kerning') {
 				// log(`editor.selectedKernGroupID : ${editor.selectedKernGroupID}`);
 				if (editor.selectedKernGroupID) {
 					baseItem = this.initialProject.kerning[editor.selectedKernGroupID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			}
 
