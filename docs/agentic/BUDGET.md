@@ -16,3 +16,5 @@ How to stay lean:
 **Update 2026-10-21 11:31 UTC (owner, in the orchestrator session):** the owner restarted the build with "Start and tell me when it's fine to close my laptop." No end time was given. Work continues milestone by milestone (M3, then M4, then M5–M9) until the owner says stop or usage runs out. The weekly caps still apply. At most two agents run at a time. When usage runs out, the orchestrator pushes everything and updates MORNING-REPORT.md before stopping.
 
 **Update 2026-10-21 (owner):** stop after M4. Finish M3 and M4 (QA passed and merged into `dev`), update MORNING-REPORT.md, then stop. Do not start M5.
+
+**Update 2026-10-21 (owner):** continue from M5 after the UI reset (PR #61, [UI-RESET.md](UI-RESET.md)). Open-ended; one PR per milestone; QA capped at two rounds; at most two agents at a time. Stop when the owner says so or usage runs out, pushing everything and updating MORNING-REPORT.md first.
