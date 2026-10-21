@@ -4,12 +4,12 @@ _Run 1: 2026-10-20 21:45 → ~22:30 UTC (stopped at the session usage limit). Ru
 
 ## TL;DR
 
-- **M1 Foundations:** 3 of 4 done (tokens, inspector undo fix, `itemChanged`). The fourth, safety indicator #10, isn't started.
+- **M1 Foundations: done** (tokens, inspector undo fix, `itemChanged`, the not-autosaving chip and leave-page warning). Milestone point: `3de97d3` (`m1-done`).
 - **M2 Workspace: done** (app shell, specimen card + Workspace page, character set, Letters & figures grid, status store). Milestone point: `f6939d7` (`m2-done`; see caveat on tags).
 - **M4 Agent panel:** the message cards are done; the panel itself (#19–#21) isn't started.
-- **Two pre-existing undo bugs fixed** (both protected areas), plus two tooling fixes that let the project install and test on Linux.
+- **Four undo bugs fixed** (all protected areas). Three were pre-existing; #52 surfaced once the new top bar put Undo on every page., plus two tooling fixes that let the project install and test on Linux.
 - Every PR went issue → developer agent → QA agent → fixes → re-QA → squash-merge into `dev`. QA failed six rounds across five PRs, and each failure was fixed before merge.
-- `dev` checks after the last merge: lint 0 errors, **52 test files / 891 tests pass**, build passes.
+- `dev` checks after the last merge: lint 0 errors, **55 test files / 909 tests pass**, build passes, agent relay 22/22.
 
 ## Protected-area PRs to review first
 
@@ -20,6 +20,8 @@ All merged after QA PASS with adversarial undo/history tests. Each is a small, s
 | [#37](https://github.com/kshitij0299/noddy/pull/37) | Numeric inspector edits now create one undo step each (per `docs/agent/INSPECTOR-UNDO-PROPOSAL.md`). One existing agent test was reordered because it only passed due to the bug. | `src/panels/cards.js` |
 | [#46](https://github.com/kshitij0299/noddy/pull/46) | Fixes [#41](https://github.com/kshitij0299/noddy/issues/41): undoing the first edit after opening a project did nothing. The initial history state is now a real snapshot. The first QA round caught a crash on glyphs created after load, fixed before merge. | `src/project_editor/project_editor.js` |
 | [#48](https://github.com/kshitij0299/noddy/pull/48) | Fixes [#44](https://github.com/kshitij0299/noddy/issues/44): after undo, typing in the inspector edited a stale copy of the glyph | `src/project_editor/history.js` |
+| [#53](https://github.com/kshitij0299/noddy/pull/53) | Fixes [#52](https://github.com/kshitij0299/noddy/issues/52): on the Workspace page (no glyph selected), Undo/Redo used the history entry up without changing the glyph. They now restore the glyph the entry recorded. Editing pages behave as before. | `src/project_editor/history.js` |
+| [#51](https://github.com/kshitij0299/noddy/pull/51) | Fixes [#49](https://github.com/kshitij0299/noddy/issues/49): Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl+Y now work on the Workspace page. Typing in the font-name field keeps normal text undo. Side effect: Ctrl+S/E/G/O also work there. | `src/edit_canvas/events_keyboard.js`, `src/pages/workspace.js` |
 | [#4](https://github.com/kshitij0299/noddy/pull/4) | Test-only: SVG import tests now load on Linux (fixture filename case) | `src/formats_io/…/svg_outline.test.js` |
 
 No `.gs2` serialization changes were made.
@@ -28,6 +30,7 @@ No `.gs2` serialization changes were made.
 
 | PR | Issue | What |
 |---|---|---|
+| [#50](https://github.com/kshitij0299/noddy/pull/50) | [#10](https://github.com/kshitij0299/noddy/issues/10) | [M1] "Not autosaving" chip in the top bar (only when autosave is off and there are unsaved changes), plus a leave-page warning when there are unsaved changes or an agent run is active. Owner note: if you turned off "stop page navigation", nothing warns, not even during a run. |
 | [#42](https://github.com/kshitij0299/noddy/pull/42) | [#11](https://github.com/kshitij0299/noddy/issues/11) | [M2] App shell: 56px top bar (mark → Back to start, editable font name, `n/116` ring, undo, redo, theme, Export menu), persistent 384px agent panel slot, responsive tiers. Passed QA on the third round: undo enable, file actions, start-screen layout and keyboard menu were fixed first. |
 | [#47](https://github.com/kshitij0299/noddy/pull/47) | [#14](https://github.com/kshitij0299/noddy/issues/14) | [M2] Letters & figures grid: `62 · All 116` switch, legend counts, status marks (shape + colour + label), keyboard nav (arrows wrap, Home/End, Enter opens), live tile refresh. 13 / 10 / 6 columns by width. |
 | [#45](https://github.com/kshitij0299/noddy/pull/45) | [#22](https://github.com/kshitij0299/noddy/issues/22) | [M4] Agent message cards: Plan, Approve-the-style (n o H O from your outlines), Receipt ("22 new · 1 failed", Keep / Retry), step lines. Presentational only; the panel wires them later. |
@@ -50,22 +53,23 @@ No `.gs2` serialization changes were made.
 
 ## Open PRs and why
 
-- _Being finished in the last hour: [#10](https://github.com/kshitij0299/noddy/issues/10) safety indicator and [#49](https://github.com/kshitij0299/noddy/issues/49) keyboard undo on Workspace (see final status below)._
+- None. Every PR opened in this run is merged. Nothing is half-done, and no agent is still running.
 
 ## Known bugs / caveats
 
-- [#49](https://github.com/kshitij0299/noddy/issues/49): Ctrl/Cmd+Z does nothing on the Workspace page; the top bar Undo button works. Pre-existing and protected (keyboard shortcuts).
+- [#54](https://github.com/kshitij0299/noddy/issues/54): after a width-only undo, the grid tile keeps the old width until the next redraw. The specimen card is fine. Low severity, cosmetic.
+- Renaming the font in the top bar doesn't add an undo step (QA note on #50).
 - Dark theme on the **old** pages hides some header and nav text, because legacy tokens have no dark values. The new screens are fine.
 - Specimen Waterfall mode ignores the size slider (QA nit).
 - **Build churn:** `npm run build` rewrites the tracked `dist/` folder and `src/app/app_config.json`. Never commit those.
 - Merged feature branches stay on GitHub, because this cloud session can't delete remote branches.
-- **Milestone tags:** the cloud proxy rejects tag pushes, so `m2-done` exists only in the session. To create it: `git tag m2-done f6939d7 && git push origin m2-done`.
+- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git push origin m1-done m2-done`. `m2-done` is the commit where M2 finished. `m1-done` is later because M1's last item, #10, merged after M2.
 - Labels were auto-created by GitHub (grey, no descriptions).
 
 ## Models used
 
 - **Orchestrator:** Opus 5.5, medium effort.
-- **Subagents:** Opus 5.5 (medium) for undo/history and engine work; Fable 5.1 (medium) for UI, UX notes and QA; Sonnet 5.5 (medium) for one small investigation. No Fable "high" runs.
+- **Subagents:** Opus 5.5 (medium) for undo/history and engine work; Fable 5.1 (medium) for UI, UX notes and QA; Sonnet 5.5 (medium) for one investigation (it confirmed typed inspector edits *do* record undo on `dev`, so no bug). No Fable "high" runs.
 
 ## How to run it
 
@@ -78,10 +82,9 @@ npm run lint && npx vitest run && npm run build
 
 ## What's next (in order)
 
-2. [#10](https://github.com/kshitij0299/noddy/issues/10) Safety indicator: mounts in the shell's status slot `#top-bar-status`.
-3. **M3 Editor focus mode:** [#16](https://github.com/kshitij0299/noddy/issues/16), [#17](https://github.com/kshitij0299/noddy/issues/17), [#18](https://github.com/kshitij0299/noddy/issues/18). The grid's `openGlyph(id)` in `src/controls/glyph-grid/glyph-grid.js` is the one hook to replace.
-4. **M4 Agent panel:** [#19](https://github.com/kshitij0299/noddy/issues/19), [#20](https://github.com/kshitij0299/noddy/issues/20), [#21](https://github.com/kshitij0299/noddy/issues/21). Mount with `mountAgentPanel()` and render the merged cards from `src/agent/ui/cards/`. #21 removes the old Codex window.
-5. [#49](https://github.com/kshitij0299/noddy/issues/49) keyboard undo on Workspace (protected).
-6. M5–M9 (issues #23–#34 are written and labelled).
+1. **M3 Editor focus mode:** [#16](https://github.com/kshitij0299/noddy/issues/16), [#17](https://github.com/kshitij0299/noddy/issues/17), [#18](https://github.com/kshitij0299/noddy/issues/18). The grid's `openGlyph(id)` in `src/controls/glyph-grid/glyph-grid.js` is the one hook to replace.
+2. **M4 Agent panel:** [#19](https://github.com/kshitij0299/noddy/issues/19), [#20](https://github.com/kshitij0299/noddy/issues/20), [#21](https://github.com/kshitij0299/noddy/issues/21). Mount with `mountAgentPanel()` and render the merged cards from `src/agent/ui/cards/`. #21 removes the old Codex window.
+3. [#54](https://github.com/kshitij0299/noddy/issues/54) grid tile width refresh (small).
+4. M5–M9 (issues #23–#34 are written and labelled).
 
 UX notes are already posted on #11, #12, #14, #16–#22.
