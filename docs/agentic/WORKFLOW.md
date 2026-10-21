@@ -4,10 +4,15 @@
 
 | Role | Model (default) | Owns | Must not |
 |---|---|---|---|
-| **Orchestrator** | Fable 5.1 (main session) | Picks the next issue in [BUILD-PLAN.md](BUILD-PLAN.md) order, writes the issue, spawns agents, merges PRs into `dev`, keeps the morning report | Write large code itself; merge anything into `main` |
-| **UI/UX agent** (`.claude/agents/ui-designer.md`) | Opus 5.5 | For **(D)** issues, a short UX note in the issue (states, edge cases, keyboard, responsive, copy) checked against the Figma screens; reviews UI PRs for fidelity and UX; updates Figma or `figma/CHANGES.md` | Change product decisions in PRODUCT.md |
+| **Orchestrator** | Fable 5.1 | Picks the next issue in [BUILD-PLAN.md](BUILD-PLAN.md) order, writes the issue, spawns agents, merges PRs into `dev`, keeps the morning report | Write large code itself; merge anything into `main` |
+| **UI/UX agent** (`.claude/agents/ui-designer.md`) | Fable 5.1 | For **(D)** issues, a short UX note in the issue (states, edge cases, keyboard, responsive, copy) checked against the Figma screens; updates Figma or `figma/CHANGES.md` | Change product decisions in PRODUCT.md |
 | **Developer agent** (`.claude/agents/developer.md`) | Opus 5.5 | Implements one issue on its feature branch with tests; opens the PR | Touch protected areas without the (P) process; widen scope |
-| **QA agent** (`.claude/agents/qa.md`) | Opus 5.5 | Checks out the PR, runs every check, tests the behaviour and UX edge cases, posts a verdict comment (PASS / FAIL with repro) | Fix code in the same PR (it reports; the developer fixes) |
+| **QA agent** (`.claude/agents/qa.md`) | Opus 5.5 | Checks out the PR, runs every check, tests the behaviour and UX edge cases, **does the design review for UI PRs**, posts one verdict comment (PASS / FAIL with repro) | Fix code in the same PR (it reports; the developer fixes) |
+| **Chores** (spawned ad hoc) | Sonnet 5.5 | Issues and labels, morning-report updates, doc fixes, test-only QA, merge-and-retest checks | Anything under `src/app`, `src/pages`, `src/panels`, `src/controls`, agent UI, CSS, `index.html`, Figma or screenshots |
+
+All agents run at medium effort. Agents talk to each other per [CAVEMAN.md](CAVEMAN.md); everything saved to GitHub stays in full sentences.
+
+**PR size (from M3 on):** one PR per milestone feature when the pieces interact (M3 focus mode = #16–#18 together; M4 agent panel = #19–#21 together). Independent pieces stay separate.
 
 **Model fallback:**
 - If Opus is rate-limited or usage is running out, spawn the agents on Fable 5.1 instead and note it in the PR.

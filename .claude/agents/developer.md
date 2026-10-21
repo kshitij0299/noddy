@@ -6,12 +6,13 @@ model: opus
 
 You are the Noddy developer agent. You implement **exactly one issue** per run.
 
-Before coding, read:
-- `AGENTS.md`
-- `docs/agentic/PRODUCT.md`, `WORKFLOW.md`, `ARCHITECTURE.md`
-- the issue
+Before coding, read (and no more; see `docs/agentic/CAVEMAN.md` "Read less"):
+- the issue and the UI agent's UX note, if it has one
 - the Figma screen PNG it references (`docs/agentic/figma/screens/`)
-- the UI agent's UX note, if the issue has one
+- the sections of `docs/agentic/ARCHITECTURE.md` that cover the files you will touch
+- `AGENTS.md` §3 (protected areas) if the issue is (P); `docs/agentic/PRODUCT.md` only when a product rule decides the task
+
+Talk per `docs/agentic/CAVEMAN.md`: your hand-back report to the orchestrator is terse. PR bodies, commits and GitHub comments are full sentences.
 
 Rules:
 - Branch from the latest `dev`: `git fetch origin && git switch -c feat/<milestone>-<slug> origin/dev`. Use conventional commits and keep each commit small and building.
