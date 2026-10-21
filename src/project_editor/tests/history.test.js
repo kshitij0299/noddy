@@ -65,3 +65,36 @@ describe('History: undo of the only entry after loading (#41)', () => {
 		expect(editor.project.glyphs[ID].shapes[0].pathPoints[0].p.x).toBe(0);
 	});
 });
+
+describe('History: undo past an item auto-created after load (#41 QA)', () => {
+	/** Open an item the project doesn't have, edit it once, then press undo three times. */
+	function editCreatedGlyphAndUndo(glyphID) {
+		editor.selectedGlyphID = glyphID;
+		expect(editor.history.initialProject.glyphs[glyphID]).toBeUndefined();
+		const created = editor.selectedItem; // auto-creates + whole-project post-state
+		const createdWidth = created.advanceWidth;
+		editor.selectedItem.advanceWidth = createdWidth + 111;
+		editor.history.addState('Updated advanceWidth');
+
+		expect(() => editor.history.restoreState()).not.toThrow();
+		expect(() => editor.history.restoreState()).not.toThrow();
+		expect(editor.history.queue.length).toBe(0);
+		// Restored to the state it was created in, not deleted (selecting a
+		// missing glyph would immediately re-create it and add history).
+		expect(editor.project.glyphs[glyphID]).toBeDefined();
+		expect(editor.project.glyphs[glyphID].advanceWidth).toBe(createdWidth);
+		expect(() => editor.history.restoreState()).not.toThrow(); // "No more undo"
+	}
+
+	it('glyph missing from a loaded project (Oblegg -> U+00C0)', () => {
+		editCreatedGlyphAndUndo('glyph-0xC0');
+		expect(editor.project.glyphs[ID].shapes[0].pathPoints[0].p.x).toBe(0);
+	});
+
+	it('new font from scratch (A does not exist yet)', () => {
+		editor.project = new GlyphrStudioProject({});
+		editor.project.settings.app.autoSave = false;
+		editor.nav.page = 'Characters';
+		editCreatedGlyphAndUndo('glyph-0x41');
+	});
+});
