@@ -92,20 +92,24 @@
 	color: var(--color-text-secondary);
 }
 
-/* Tiles: 13 columns, 4px gaps, flexible width, fixed 84px height */
+/* Tiles: 13 columns, 4px gaps, flexible width, fixed 84px height.
+   Column counts come from the Figma tile minimum of 72px (13 × 72 + 12 × 4
+   = 984px, the left column at 1440 with the agent panel open). Below that
+   the grid drops to 10 columns (10 × 72 + 9 × 4 = 756px; this is also the
+   1024 viewport, whose column is 976px), and below 756px to 6 (phone). */
 .glyph-grid__tiles {
 	display: grid;
 	grid-template-columns: repeat(13, minmax(0, 1fr));
 	gap: var(--space-1);
 }
 
-@container (max-width: 760px) {
+@container (max-width: 983px) {
 	.glyph-grid__tiles {
 		grid-template-columns: repeat(10, minmax(0, 1fr));
 	}
 }
 
-@container (max-width: 480px) {
+@container (max-width: 755px) {
 	.glyph-grid__tiles {
 		grid-template-columns: repeat(6, minmax(0, 1fr));
 	}
@@ -128,6 +132,12 @@ glyph-grid-tile {
 	user-select: none;
 	-webkit-user-select: none;
 	outline: none;
+	/* Paint changes are instant: no fading ring from the global transition */
+	transition: none;
+}
+
+glyph-grid-tile * {
+	transition: none;
 }
 
 /* Hover: paint only */

@@ -268,7 +268,9 @@ export class GlyphGrid extends HTMLElement {
 			items.push(item);
 		});
 		this.legendEl.replaceChildren(...items);
-		this.legendEl.hidden = items.length === 0;
+		// A legend only helps when there is a mix to compare: a project where
+		// every tile is Empty (or every tile Kept) shows no legend (flow-02).
+		this.legendEl.hidden = items.length < 2;
 	}
 
 	/** Flushes pending (debounced) refreshes now. Used by tests. */

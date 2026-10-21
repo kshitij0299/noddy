@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getGlyphrStudioApp, setCurrentProjectEditor } from '../../app/main.js';
 import { Glyph } from '../../project_data/glyph.js';
@@ -132,6 +134,17 @@ describe('GlyphGrid: legend', () => {
 		]);
 	});
 
+	it('hides the legend while every visible tile has the same status', () => {
+		editor.project.glyphs[A] = new Glyph({ id: A, parent: editor.project });
+		grid.refreshAll();
+		expect(grid.legendEl.hidden).toBe(true); // all Empty (flow-02)
+		expect(grid.legendEl.querySelectorAll('li')).toHaveLength(1);
+
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		grid.flushRedraws();
+		expect(grid.legendEl.hidden).toBe(false);
+	});
+
 	it('legend items name the status in text, not colour alone', () => {
 		const kept = grid.legendEl.querySelector('[data-status="kept"]');
 		expect(kept.getAttribute('aria-label')).toBe('1 Kept');
@@ -193,6 +206,22 @@ describe('GlyphGridTile: status marks (shape + text, never colour alone)', () =>
 		expect(svg.getAttribute('height')).toBe('40');
 		expect(svg.querySelector('path').getAttribute('d')).toBe(editor.project.getItem(A).svgPathData);
 		expect(drawn.getAttribute('aria-label')).toBe('A · Kept');
+	});
+});
+
+describe('GlyphGrid: column thresholds', () => {
+	it('derives 13 / 10 / 6 columns from the 72px tile minimum and 4px gaps', () => {
+		const css = fs.readFileSync(path.resolve(__dirname, 'glyph-grid.css'), 'utf8');
+		const tile = 72;
+		const gap = 4;
+		const widthFor = (cols) => cols * tile + (cols - 1) * gap;
+		expect(widthFor(13)).toBe(984); // 1440 viewport, agent panel open
+		expect(widthFor(10)).toBe(756);
+		expect(css).toContain(`@container (max-width: ${widthFor(13) - 1}px)`);
+		expect(css).toContain(`@container (max-width: ${widthFor(10) - 1}px)`);
+		// 1024 viewport (24px gutters) is 976px: narrower than 13 columns need
+		expect(1024 - 48).toBeLessThan(widthFor(13));
+		expect(1024 - 48).toBeGreaterThanOrEqual(widthFor(10));
 	});
 });
 
