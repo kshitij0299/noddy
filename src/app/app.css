@@ -461,6 +461,22 @@
 	display: none;
 }
 
+/* Minimized (#20): one column; the slot shrinks to the pill, 24px in from
+   the bottom-right edge. Inside focus mode the pill sits inside the card at
+   the same 24px inset. Never covers the grid's last row (workspace.css). */
+.agent-panel-slot[data-mode='minimized'] {
+	position: fixed;
+	right: var(--space-6);
+	bottom: var(--space-6);
+	z-index: 900;
+	height: auto;
+}
+
+body:has(.focus-mode) .agent-panel-slot[data-mode='minimized'] {
+	right: calc(var(--space-6) * 2);
+	bottom: calc(var(--space-6) * 2);
+}
+
 #app__page {
 	height: 100%;
 	width: 100%;
@@ -481,8 +497,36 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.agent-panel-slot {
-		display: none;
+	/* 1024 tier (#19): the open panel is a 384px drawer over the column,
+	   with a scrim; Esc or the scrim closes it to the pill. */
+	.agent-panel-slot[data-mode='open'] {
+		position: fixed;
+		top: calc(56px + var(--space-2));
+		right: var(--space-6);
+		bottom: var(--space-6);
+		z-index: 900;
+		width: 384px;
+		height: auto;
+	}
+}
+
+/* Phone: the open panel is a full-screen sheet; the pill spans the width. */
+@media (max-width: 759px) {
+	.agent-panel-slot[data-mode='open'] {
+		inset: 0;
+		width: auto;
+	}
+
+	.agent-panel-slot[data-mode='minimized'] {
+		left: var(--space-4);
+		right: var(--space-4);
+		bottom: var(--space-4);
+	}
+
+	body:has(.focus-mode) .agent-panel-slot[data-mode='minimized'] {
+		left: var(--space-4);
+		right: var(--space-4);
+		bottom: var(--space-4);
 	}
 }
 

@@ -33,6 +33,12 @@
 	flex: 0 0 auto;
 }
 
+/* The minimized agent pill (52px, 24px in) floats bottom-right: 76px of
+   bottom padding keeps the grid's last row scrollable clear of it (#20). */
+#app__workspace[data-agent-panel='minimized'] .workspace__page {
+	padding-bottom: 76px;
+}
+
 .workspace__grid {
 	flex: 1 1 auto;
 	min-height: 0;

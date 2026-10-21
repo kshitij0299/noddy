@@ -1,0 +1,742 @@
+/* --------------------------------------------------------------
+	Agent panel, composer, connect card and minimized pill
+	(M4: #19, #20, #21; Figma flow-02..07, Components 50:78).
+	Tokens only (src/common/colors.css). Type via the .text-* roles.
+	Every button state is pinned at 0,2,1 or more so the legacy global
+	`button:hover/focus/[disabled]` rules (resets.css) can only change paint
+	here, never geometry (pattern from PR #45 / #57).
+-------------------------------------------------------------- */
+
+.agent-panel-host {
+	height: 100%;
+	min-height: 0;
+}
+
+.agent-panel-host[data-mode='minimized'] {
+	height: auto;
+}
+
+/* ---- Panel shell ---- */
+.agent-panel {
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+	padding: var(--space-4);
+	gap: var(--space-2);
+	position: relative;
+	z-index: 1;
+	background: var(--color-bg-surface-raised);
+	border-radius: var(--radius-xl);
+	box-shadow: var(--shadow-float);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+}
+
+.agent-panel[hidden],
+.agent-pill[hidden],
+.agent-panel__scrim[hidden] {
+	display: none;
+}
+
+/* The scrim exists only on the drawer tiers (app.css media queries). */
+.agent-panel__scrim {
+	display: none;
+}
+
+@media (max-width: 1199px) {
+	.agent-panel__scrim {
+		display: block;
+		position: fixed;
+		inset: 0;
+		z-index: 0;
+		/* --color-text-primary at 20% (UX note #19). */
+		background: color-mix(in oklch, var(--color-text-primary) 20%, transparent);
+	}
+}
+
+@media (max-width: 759px) {
+	.agent-panel {
+		border-radius: 0;
+	}
+}
+
+/* ---- Mark ---- */
+.agent-mark {
+	display: inline-block;
+	flex: none;
+	background: transparent url('../../common/graphics/noddy-icon.svg') no-repeat center / contain;
+}
+
+.agent-mark--24 {
+	width: 24px;
+	height: 24px;
+}
+
+.agent-mark--48 {
+	width: 48px;
+	height: 48px;
+}
+
+/* ---- Header: 48px ---- */
+.agent-panel__header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	height: 48px;
+	flex: none;
+	margin-top: calc(var(--space-2) * -1);
+}
+
+.agent-panel__dot {
+	width: 8px;
+	height: 8px;
+	flex: none;
+	border-radius: var(--radius-full);
+	background: var(--color-status-draft);
+}
+
+.agent-panel__dot[hidden] {
+	display: none;
+}
+
+.agent-panel__model {
+	display: inline-flex;
+	align-items: center;
+	height: 24px;
+	padding: 0 var(--space-2);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 160px;
+	/* Pushes minimize to the right edge. Spacing lives on the chip, not the
+	   button, so no hover/focus state can move the button. */
+	margin-right: auto;
+}
+
+/* ---- Icon buttons (36px, paint-only hover) ---- */
+button.agent-icon-button,
+button.agent-icon-button:hover,
+button.agent-icon-button:focus,
+button.agent-icon-button:active,
+button.agent-icon-button:disabled,
+button.agent-icon-button:disabled:hover {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 36px;
+	height: 36px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-primary);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-icon-button:hover:not(:disabled) {
+	background-color: var(--color-bg-subtle);
+}
+
+button.agent-icon-button:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+button.agent-icon-button:focus {
+	outline: none;
+}
+
+button.agent-icon-button:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.agent-icon-button .material-symbols-rounded {
+	font-size: 20px;
+}
+
+/* ---- Thread: anchored at the bottom ---- */
+.agent-panel__thread {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	/* Room for focus rings of cards and chips inside the scroller. */
+	padding: 4px;
+	margin: -4px;
+}
+
+.agent-panel__log {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	margin-top: auto;
+}
+
+.agent-bubble {
+	box-sizing: border-box;
+	max-width: 85%;
+	min-height: 36px;
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-lg);
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.agent-bubble--agent {
+	align-self: flex-start;
+	background: var(--color-bg-subtle);
+}
+
+.agent-bubble--user {
+	align-self: flex-end;
+	background: var(--color-bg-accent-subtle);
+}
+
+.agent-bubble__files {
+	display: block;
+	margin-top: var(--space-1);
+	color: var(--color-text-secondary);
+}
+
+.agent-bubble--error {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.agent-bubble__icon {
+	font-size: 18px;
+	color: var(--color-status-failed);
+}
+
+.agent-bubble--typing {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.agent-bubble--typing > span {
+	width: 6px;
+	height: 6px;
+	border-radius: var(--radius-full);
+	background: var(--color-text-secondary);
+	animation: agent-typing 1s ease-in-out infinite;
+}
+
+.agent-bubble--typing > span:nth-child(2) {
+	animation-delay: 150ms;
+}
+
+.agent-bubble--typing > span:nth-child(3) {
+	animation-delay: 300ms;
+}
+
+@keyframes agent-typing {
+	0%,
+	100% {
+		opacity: 0.3;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+.agent-panel__log > agent-step-line,
+.agent-panel__log > agent-plan-card,
+.agent-panel__log > agent-approval-card,
+.agent-panel__log > agent-receipt-card {
+	margin-top: 0;
+}
+
+/* ---- Empty state (flow-02) ---- */
+.agent-panel__empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-3);
+	padding-bottom: var(--space-12);
+	text-align: center;
+}
+
+.agent-panel__empty-title {
+	margin: 0;
+	color: var(--color-text-primary);
+}
+
+.agent-panel__chips {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--space-2);
+	max-width: 280px;
+}
+
+.agent-panel__chips[hidden] {
+	display: none;
+}
+
+button.agent-suggestion,
+button.agent-suggestion:hover,
+button.agent-suggestion:focus,
+button.agent-suggestion:active {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	height: 32px;
+	min-height: 0;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-suggestion:hover {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+button.agent-suggestion:focus {
+	outline: none;
+}
+
+button.agent-suggestion:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.agent-suggestion .material-symbols-rounded {
+	font-size: 18px;
+}
+
+/* ---- Connect card (Plan-card shell) ---- */
+.agent-connect {
+	width: 352px;
+	max-width: 100%;
+	text-align: left;
+	margin: 0;
+}
+
+.agent-connect[hidden] {
+	display: none;
+}
+
+.agent-connect__providers {
+	display: inline-flex;
+	align-self: flex-start;
+	gap: 2px;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+}
+
+.agent-connect__segment {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	height: 28px;
+	padding: 0 var(--space-3);
+	border-radius: var(--radius-full);
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	transition: background-color 120ms ease, color 120ms ease;
+}
+
+.agent-connect__segment input {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.agent-connect__segment:has(input:checked) {
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+.agent-connect__segment:has(input:focus-visible) {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+input.agent-connect__input,
+input.agent-connect__input:focus {
+	box-sizing: border-box;
+	width: 100%;
+	height: 36px;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	box-shadow: none;
+}
+
+input.agent-connect__input:focus {
+	outline: none;
+}
+
+input.agent-connect__input:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+input.agent-connect__input.is-invalid {
+	border-color: var(--color-status-failed);
+}
+
+.agent-connect__key {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.agent-connect__note {
+	color: var(--color-text-secondary);
+}
+
+.agent-connect__line {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+.agent-connect__line > .material-symbols-rounded {
+	font-size: 18px;
+	color: var(--color-status-failed);
+}
+
+.agent-connect__result:empty {
+	display: none;
+}
+
+button.agent-card__button.is-checking {
+	cursor: progress;
+}
+
+/* ---- Composer: pinned bottom, 50px min ---- */
+.agent-composer {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	flex: none;
+	margin: 0;
+	padding: var(--space-2);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-surface);
+	transition: border-color 120ms ease;
+}
+
+.agent-composer:focus-within {
+	border-color: var(--color-border-strong);
+}
+
+.agent-composer__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+.agent-composer__chips[hidden] {
+	display: none;
+}
+
+.agent-attachment {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	height: 28px;
+	max-width: 100%;
+	padding: 0 var(--space-1) 0 var(--space-2);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.agent-attachment > .material-symbols-rounded {
+	font-size: 16px;
+}
+
+.agent-attachment__name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+button.agent-attachment__remove,
+button.agent-attachment__remove:hover,
+button.agent-attachment__remove:focus,
+button.agent-attachment__remove:active,
+button.agent-attachment__remove:disabled {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-secondary);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+button.agent-attachment__remove:hover:not(:disabled) {
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+button.agent-attachment__remove:focus {
+	outline: none;
+}
+
+button.agent-attachment__remove:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 1px;
+}
+
+.agent-attachment__remove .material-symbols-rounded {
+	font-size: 16px;
+}
+
+.agent-composer__row {
+	display: flex;
+	align-items: flex-end;
+	gap: var(--space-1);
+}
+
+textarea.agent-composer__input,
+textarea.agent-composer__input:focus {
+	flex: 1 1 auto;
+	min-width: 0;
+	box-sizing: border-box;
+	min-height: 32px;
+	margin: 0;
+	padding: 6px var(--space-1);
+	border: 0;
+	background: transparent;
+	color: var(--color-text-primary);
+	resize: none;
+	overflow-y: hidden;
+	outline: none;
+	box-shadow: none;
+}
+
+textarea.agent-composer__input::placeholder {
+	color: var(--color-text-secondary);
+}
+
+/* The composer border carries the focus ring for the input. */
+.agent-composer:has(textarea.agent-composer__input:focus-visible) {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+button.agent-composer__attach,
+button.agent-composer__attach:hover,
+button.agent-composer__attach:focus,
+button.agent-composer__attach:active,
+button.agent-composer__attach:disabled {
+	width: 32px;
+	height: 32px;
+	color: var(--color-text-secondary);
+}
+
+button.agent-composer__send,
+button.agent-composer__send:hover,
+button.agent-composer__send:focus,
+button.agent-composer__send:active,
+button.agent-composer__send:disabled,
+button.agent-composer__send:disabled:hover {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 32px;
+	height: 32px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease, opacity 120ms ease;
+}
+
+button.agent-composer__send:hover:not(:disabled) {
+	background-color: var(--color-bg-accent-hover);
+}
+
+button.agent-composer__send:disabled {
+	cursor: default;
+	opacity: 0.4;
+}
+
+button.agent-composer__send:focus {
+	outline: none;
+}
+
+button.agent-composer__send:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.agent-composer__send .material-symbols-rounded {
+	font-size: 20px;
+}
+
+/* ---- Minimized pill: 300×52 ---- */
+button.agent-pill,
+button.agent-pill:hover,
+button.agent-pill:focus,
+button.agent-pill:active {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	box-sizing: border-box;
+	width: 300px;
+	height: 52px;
+	min-height: 0;
+	margin: 0;
+	padding: 0 var(--space-3) 0 var(--space-2);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface-raised);
+	color: var(--color-text-primary);
+	box-shadow: var(--shadow-float);
+	text-align: left;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-pill:hover {
+	background-color: var(--color-bg-subtle);
+}
+
+button.agent-pill:focus {
+	outline: none;
+}
+
+button.agent-pill:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.agent-pill .agent-mark {
+	margin-left: var(--space-1);
+}
+
+.agent-pill__lead {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+}
+
+.agent-pill__lead[hidden] {
+	display: none;
+}
+
+.agent-pill__dot {
+	width: 8px;
+	height: 8px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-accent);
+}
+
+.agent-pill__icon {
+	font-size: 16px;
+}
+
+.agent-pill[data-phase='failed'] .agent-pill__icon {
+	color: var(--color-status-failed);
+}
+
+.agent-pill__label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-pill__ring {
+	width: 20px;
+	height: 20px;
+	flex: none;
+}
+
+.agent-pill__ring circle {
+	fill: none;
+	stroke-width: 2;
+}
+
+.agent-pill__ring-track {
+	stroke: var(--color-border-default);
+}
+
+.agent-pill__ring-value {
+	stroke: var(--color-status-draft);
+	stroke-linecap: round;
+}
+
+.agent-pill__ring.is-indeterminate {
+	animation: agent-pill-spin 1.2s linear infinite;
+}
+
+@keyframes agent-pill-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-pill__ring.is-indeterminate,
+	.agent-bubble--typing > span {
+		animation: none;
+	}
+}
+
+.agent-pill__expand {
+	width: 36px;
+	text-align: center;
+	font-size: 20px;
+}
+
+@media (max-width: 759px) {
+	button.agent-pill,
+	button.agent-pill:hover,
+	button.agent-pill:focus,
+	button.agent-pill:active {
+		width: 100%;
+		height: 44px;
+	}
+}
