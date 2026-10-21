@@ -12,6 +12,10 @@
 
 All agents run at medium effort. Agents talk to each other per [CAVEMAN.md](CAVEMAN.md); everything saved to GitHub stays in full sentences.
 
+**Concurrency:** at most two agents at a time. Cloud and local sessions draw from the same usage pool; parallel agents are what spend it.
+
+**Environment facts** for cloud agents (ports, screenshot helper, proxy, GitHub via MCP) live in [ENVIRONMENT.md](ENVIRONMENT.md).
+
 **PR size (from M3 on):** one PR per milestone feature when the pieces interact (M3 focus mode = #16–#18 together; M4 agent panel = #19–#21 together). Independent pieces stay separate.
 
 **Model fallback:**
