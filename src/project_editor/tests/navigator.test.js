@@ -8,8 +8,8 @@ describe('Navigator: Page Navigation', () => {
 		navigator = new Navigator();
 	});
 
-	it('Should have a default page of "Overview"', () => {
-		expect(navigator.page).toBe('Overview');
+	it('Should have a default page of "Workspace"', () => {
+		expect(navigator.page).toBe('Workspace');
 	});
 
 	it('Should have a default panel of "Attributes"', () => {

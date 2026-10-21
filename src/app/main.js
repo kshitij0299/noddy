@@ -8,6 +8,7 @@ import { InfoBubble } from '../controls/info-bubble/info_bubble.js';
 import { InputNumber } from '../controls/input-number/input_number.js';
 import { OptionChooser } from '../controls/option-chooser/option_chooser.js';
 import { OptionToggle } from '../controls/option-toggle/option_toggle.js';
+import { SpecimenCard } from '../controls/specimen-card/specimen_card.js';
 import { DisplayCanvas } from '../display_canvas/display_canvas.js';
 import { EditCanvas } from '../edit_canvas/edit_canvas.js';
 
@@ -87,6 +88,7 @@ function registerCustomComponents() {
 		{ fileName: 'info-bubble', className: InfoBubble },
 		{ fileName: 'input-number', className: InputNumber },
 		{ fileName: 'edit-canvas', className: EditCanvas },
+		{ fileName: 'specimen-card', className: SpecimenCard },
 	];
 
 	data.forEach((control) => {
