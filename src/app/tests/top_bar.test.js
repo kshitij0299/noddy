@@ -120,22 +120,63 @@ describe('Top bar: controls', () => {
 		}
 	});
 
-	it('Export opens the project file menu; Esc closes it and returns focus', () => {
+	it('Export opens a menu of real buttons: arrows move, Enter activates, Esc closes', () => {
 		const button = /** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__export'));
+		const save = vi.spyOn(editor, 'saveProjectFile').mockImplementation(() => {});
 		button.click();
-		const menu = document.querySelector('#context-menu');
+		const menu = document.querySelector('#top-bar-export-menu');
 		expect(menu).not.toBeNull();
+		expect(menu.getAttribute('role')).toBe('menu');
 		expect(button.getAttribute('aria-expanded')).toBe('true');
-		const rows = [...menu.querySelectorAll('[role="menuitem"]')].map((r) => r.textContent);
-		expect(rows.join(' ')).toContain('Save project file');
-		expect(rows.join(' ')).toContain('Export OTF file');
-		expect(rows.join(' ')).toContain('Export WOFF2 file');
-		expect(rows.join(' ')).toContain('Export SVG font file');
-		expect(menu.contains(document.activeElement)).toBe(true);
+		const items = [...menu.querySelectorAll('button[role="menuitem"]')];
+		const names = items.map((i) => i.querySelector('.export-menu__name').textContent);
+		expect(names[0]).toContain('Save project file');
+		expect(names).toEqual(
+			expect.arrayContaining([
+				'Export OTF file',
+				'Export TTF file',
+				'Export WOFF file',
+				'Export WOFF2 file',
+				'Export SVG font file',
+			])
+		);
+		// First action is focused on open (not a heading)
+		expect(document.activeElement).toBe(items[0]);
 
-		menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		const key = (k) => menu.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+		key('ArrowDown');
+		expect(document.activeElement).toBe(items[1]);
+		key('ArrowUp');
+		expect(document.activeElement).toBe(items[0]);
+		key('ArrowUp');
+		expect(document.activeElement).toBe(items[items.length - 1]);
+		key('Home');
+		expect(document.activeElement).toBe(items[0]);
+
+		// Enter on a focused button is a click: runs the action and closes
+		/** @type {HTMLElement} */ (document.activeElement).click();
+		expect(save).toHaveBeenCalledTimes(1);
+		expect(document.querySelector('#top-bar-export-menu')).toBeNull();
+		expect(button.getAttribute('aria-expanded')).toBe('false');
+
+		// Esc closes and returns focus
+		button.click();
+		expect(document.querySelector('#top-bar-export-menu')).not.toBeNull();
+		document
+			.querySelector('#top-bar-export-menu')
+			.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(document.querySelector('#top-bar-export-menu')).toBeNull();
 		expect(button.getAttribute('aria-expanded')).toBe('false');
 		expect(document.activeElement).toBe(button);
+	});
+
+	it('clicking outside closes the Export menu and resets aria-expanded', () => {
+		const button = /** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__export'));
+		button.click();
+		expect(button.getAttribute('aria-expanded')).toBe('true');
+		document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		expect(document.querySelector('#top-bar-export-menu')).toBeNull();
+		expect(button.getAttribute('aria-expanded')).toBe('false');
 	});
 
 	it('the mark goes back to the start screen, asking first when unsaved', () => {

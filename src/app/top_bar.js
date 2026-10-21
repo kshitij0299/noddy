@@ -9,7 +9,7 @@
  */
 
 import { insertAfter, makeElement } from '../common/dom.js';
-import { closeEveryTypeOfDialog, makeContextMenu } from '../controls/dialogs/dialogs.js';
+import { closeEveryTypeOfDialog } from '../controls/dialogs/dialogs.js';
 import { getCurrentProjectEditor, getGlyphrStudioApp } from './main.js';
 import { makeFileMenuRows } from './menu.js';
 import { makePage_OpenProject } from './open_project.js';
@@ -59,42 +59,136 @@ export function hasUnsavedChanges() {
 	return document.title.includes(' •');
 }
 
+export const EXPORT_MENU_ID = 'top-bar-export-menu';
+const MENU_ICONS = { command_save: 'save', command_export: 'download' };
+
 /**
- * Opens the project file menu under the Export button. Esc closes it and
- * returns focus to the button; rows are keyboard operable (makeContextMenu).
+ * Opens the project file menu under the Export button as a popover of real
+ * buttons: ArrowUp/ArrowDown/Home/End move, Enter/Space activate, Esc closes
+ * and returns focus, click outside or Tab away closes. Rows come from
+ * makeFileMenuRows() so the actions stay defined once.
  * @param {HTMLElement} button - the Export button
  * @returns {Element | null} the menu
  */
 export function openExportMenu(button) {
 	if (!button) return null;
-	if (document.querySelector('#context-menu')) {
-		closeEveryTypeOfDialog();
-		button.setAttribute('aria-expanded', 'false');
+	if (document.getElementById(EXPORT_MENU_ID)) {
+		closeExportMenu();
 		return null;
 	}
 	closeEveryTypeOfDialog();
-	const rect = button.getBoundingClientRect();
-	const menu = makeContextMenu(
-		makeFileMenuRows(),
-		Math.max(0, rect.right - EXPORT_MENU_WIDTH),
-		rect.bottom + 4,
-		EXPORT_MENU_WIDTH
-	);
-	menu.setAttribute('aria-label', 'Export');
+
+	const menu = makeElement({
+		tag: 'div',
+		id: EXPORT_MENU_ID,
+		className: 'export-menu',
+		attributes: { role: 'menu', 'aria-label': 'Export' },
+	});
+	for (const row of makeFileMenuRows()) {
+		if (row.name === 'hr') {
+			menu.appendChild(makeElement({ tag: 'hr', className: 'export-menu__separator' }));
+		} else if (row.child) {
+			const heading = makeElement({ tag: 'div', className: 'export-menu__heading' });
+			heading.appendChild(row.child);
+			menu.appendChild(heading);
+		} else {
+			menu.appendChild(makeExportMenuItem(row));
+		}
+	}
+
+	const close = () => closeExportMenu();
 	menu.addEventListener('keydown', (event) => {
+		const items = focusableMenuItems(menu);
+		const index = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+		const move = (next) => {
+			event.preventDefault();
+			items[(next + items.length) % items.length]?.focus();
+		};
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			event.stopPropagation();
-			closeEveryTypeOfDialog();
-			button.setAttribute('aria-expanded', 'false');
+			close();
 			button.focus();
-		}
+		} else if (event.key === 'ArrowDown') move(index + 1);
+		else if (event.key === 'ArrowUp') move(index - 1);
+		else if (event.key === 'Home') move(0);
+		else if (event.key === 'End') move(items.length - 1);
 	});
+	// Tab away or click outside closes the menu and resets the button.
+	menu.addEventListener('focusout', (event) => {
+		const next = /** @type {Node | null} */ (event.relatedTarget);
+		if (next && (menu.contains(next) || next === button)) return;
+		if (next) close();
+	});
+	const onPointerDown = (event) => {
+		const target = /** @type {Node} */ (event.target);
+		if (menu.contains(target) || button.contains(target)) return;
+		close();
+	};
+	document.addEventListener('pointerdown', onPointerDown, true);
+	menu.addEventListener('export-menu-close', () =>
+		document.removeEventListener('pointerdown', onPointerDown, true)
+	);
+
+	// Right-aligned under the button, inside the bar so navigate() drops it.
+	const rect = button.getBoundingClientRect();
+	menu.style.left = `${Math.max(0, rect.right - EXPORT_MENU_WIDTH)}px`;
+	menu.style.top = `${rect.bottom + 4}px`;
+	menu.style.width = `${EXPORT_MENU_WIDTH}px`;
 	insertAfter(button, menu);
 	button.setAttribute('aria-expanded', 'true');
-	const firstRow = menu.querySelector('[role="menuitem"]:not([disabled])');
-	if (firstRow instanceof HTMLElement) firstRow.focus();
+	focusableMenuItems(menu)[0]?.focus();
 	return menu;
+}
+
+/**
+ * Closes the Export menu (if open) and resets the button's aria-expanded.
+ */
+export function closeExportMenu() {
+	const menu = document.getElementById(EXPORT_MENU_ID);
+	if (menu) {
+		menu.dispatchEvent(new Event('export-menu-close'));
+		menu.remove();
+	}
+	document.querySelector('.top-bar__export')?.setAttribute('aria-expanded', 'false');
+}
+
+/**
+ * @param {Element} menu - the menu
+ * @returns {HTMLElement[]} enabled action buttons in order
+ */
+function focusableMenuItems(menu) {
+	return [...menu.querySelectorAll('button.export-menu__item:not([disabled])')].map(
+		(item) => /** @type {HTMLElement} */ (item)
+	);
+}
+
+/**
+ * One action row as a real button.
+ * @param {Object} row - makeContextMenu row data (name, icon, note, onClick, disabled)
+ * @returns {HTMLButtonElement}
+ */
+function makeExportMenuItem(row) {
+	const item = /** @type {HTMLButtonElement} */ (
+		makeElement({
+			tag: 'button',
+			className: 'export-menu__item',
+			attributes: { type: 'button', role: 'menuitem', tabindex: '-1' },
+		})
+	);
+	if (row.disabled) item.disabled = true;
+	item.appendChild(icon(MENU_ICONS[row.icon] || 'chevron_right'));
+	item.appendChild(makeElement({ tag: 'span', className: 'export-menu__name', content: row.name }));
+	const note = makeElement({ tag: 'span', className: 'export-menu__note' });
+	if (Array.isArray(row.note)) {
+		for (const key of row.note) note.appendChild(makeElement({ tag: 'code', content: key }));
+	}
+	item.appendChild(note);
+	item.addEventListener('click', () => {
+		closeExportMenu();
+		if (row.onClick) row.onClick();
+	});
+	return item;
 }
 
 // --------------------------------------------------------------
