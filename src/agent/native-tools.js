@@ -11,6 +11,7 @@ import {
 } from '../project_editor/charset_latin_kernel.js';
 import { checkGlyphOutlines } from './outline-check.js';
 import {
+	agentJobSignal,
 	assertAgentMayWrite,
 	grantConsent,
 	isHandedToAgent,
@@ -20,7 +21,11 @@ import {
 	readMutationLog,
 } from './ownership.js';
 import { fontMetrics, renderRow } from './render.js';
-import { READ_ONLY_TOOLS, validateToolInput } from './tool-definitions.js';
+import {
+	READ_ONLY_TOOLS,
+	RENDER_IMAGES_PER_REQUEST,
+	validateToolInput,
+} from './tool-definitions.js';
 
 let nextSession = 0;
 const activeTransactions = new WeakSet();
@@ -52,6 +57,10 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 		glyphId && openGlyphId(editor) === glyphId
 			? grantConsent(editor, glyphId, { open: true })
 			: undefined;
+	// The agent's job on the bound glyph. "Take over" aborts it, and every
+	// later write of this session then fails (CANCELLED) at execution time.
+	const job = glyphId ? agentJobSignal(editor, glyphId) : undefined;
+	const renderBudget = { used: 0 };
 	const sessionId = `agent-${++nextSession}`;
 	let revision = 0;
 	let lastState;
@@ -150,7 +159,11 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 				});
 				result = { ok: true, context, glyphs };
 			} else if (READ_ONLY_TOOLS.includes(name)) {
-				result = { ok: true, ...readTool(name, input, { editor, project, makeCanvas }) };
+				// The envelope's ok always wins: a payload field can never fail a step.
+				result = {
+					...readTool(name, input, { editor, project, makeCanvas, renderBudget }),
+					ok: true,
+				};
 			} else {
 				if (!context.writable || input.glyphId !== glyphId) {
 					fail(
@@ -158,7 +171,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 						'Edits are limited to the glyph selected when you sent this request. Select the intended character and send again.'
 					);
 				}
-				assertAgentMayWrite(editor, glyphId, { grant: requestGrant });
+				assertAgentMayWrite(editor, glyphId, { grant: requestGrant, job });
 				if (input.expectedRevision !== context.revision) {
 					fail(
 						'STALE_REVISION',
@@ -187,6 +200,8 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 				applyCommand(name, input, candidate);
 				assertGeometry(candidate);
 				abortIfNeeded(signal);
+				// Re-check right before commit: the lock state is read at execution time.
+				assertAgentMayWrite(editor, glyphId, { grant: requestGrant, job });
 				if (JSON.stringify(before.save()) === JSON.stringify(candidate.save())) {
 					result = { ok: true, changed: false, context, glyph: describeGlyph(before, false) };
 				} else {
@@ -365,7 +380,16 @@ function assertInSet(project, ids) {
 		fail('OUT_OF_SET', `Not in this font's character set: ${outside.slice(0, 8).join(', ')}.`);
 }
 
-function readTool(name, input, { editor, project, makeCanvas }) {
+function useRenderBudget(renderBudget) {
+	if (renderBudget.used >= RENDER_IMAGES_PER_REQUEST)
+		fail(
+			'RENDER_LIMIT',
+			`This request already rendered ${RENDER_IMAGES_PER_REQUEST} images. Finish with what you have; the user can send a follow-up.`
+		);
+	renderBudget.used++;
+}
+
+function readTool(name, input, { editor, project, makeCanvas, renderBudget }) {
 	if (name === 'get_font_spec') {
 		const font = project.settings.font;
 		return {
@@ -407,6 +431,7 @@ function readTool(name, input, { editor, project, makeCanvas }) {
 	if (name === 'render_glyphs') {
 		assertInSet(project, input.glyphIds);
 		const items = input.glyphIds.map((id) => ({ glyphId: id, glyph: project.glyphs[id] || null }));
+		useRenderBudget(renderBudget);
 		return renderRow({
 			project,
 			items,
@@ -418,28 +443,33 @@ function readTool(name, input, { editor, project, makeCanvas }) {
 	}
 	if (name === 'render_text') {
 		const ids = [...input.text].map((char) => codePointToGlyphID(char.codePointAt(0)));
+		// Like the specimen: characters outside the set render as ghost boxes
+		// and are listed, rather than failing the whole line.
 		const outside = [...input.text].filter(
 			(char, index) => !ids[index] || !isInSet(project, ids[index])
 		);
-		if (outside.length)
-			fail(
-				'OUT_OF_SET',
-				`Not in this font's character set: ${[...new Set(outside)].slice(0, 8).join(' ')}.`
-			);
-		const items = ids.map((id) => ({ glyphId: id, glyph: project.glyphs[id] || null }));
-		return renderRow({
-			project,
-			items,
-			height: input.height ?? undefined,
-			guides: input.guides ?? false,
-			gap: 0,
-			makeCanvas,
-		});
+		const items = ids.map((id) => ({
+			glyphId: id || 'glyph-0x0',
+			glyph: (id && project.glyphs[id]) || null,
+		}));
+		useRenderBudget(renderBudget);
+		return {
+			...renderRow({
+				project,
+				items,
+				height: input.height ?? undefined,
+				guides: input.guides ?? false,
+				gap: 0,
+				makeCanvas,
+			}),
+			outOfSet: [...new Set(outside)].slice(0, 32),
+		};
 	}
 	if (name === 'check_outlines') {
 		assertInSet(project, [input.glyphId]);
 		const glyph = project.glyphs[input.glyphId];
-		if (!glyph) return { glyphId: input.glyphId, exists: false, issues: [], contours: [] };
+		if (!glyph)
+			return { glyphId: input.glyphId, exists: false, clean: true, issues: [], contours: [] };
 		return {
 			glyphId: input.glyphId,
 			exists: true,

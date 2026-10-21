@@ -20,6 +20,9 @@ const nullable = (schema) => ({
 // Mirrors LATIN_KERNEL_GROUPS (charset_latin_kernel.js); a vitest keeps them equal.
 // Not imported: the relay loads this file without the editor module graph.
 export const SET_GROUPS = ['uppercase', 'lowercase', 'figures', 'punctuation', 'symbols', 'spaces'];
+// Rendered PNGs per request (one Send). The relay allows the same number per
+// conversation (LIMITS.toolImages); past it, render tools return RENDER_LIMIT.
+export const RENDER_IMAGES_PER_REQUEST = 8;
 const renderHeight = { type: 'integer', minimum: 64, maximum: 1024 };
 // Write tools refuse glyphs that are Yours or open in the editor
 // (LOCKED_YOURS / LOCKED_OPEN). Read tools have no side effects.
@@ -58,7 +61,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'render_glyphs',
 		description:
-			"Render up to 8 glyphs side by side as one PNG (longest side at most 1024 px) so you can look at them. guides draws ascender, cap height, x-height, baseline, descender and advance edges. Missing glyphs show as a dashed box. layout gives each glyph's x and width in pixels. Use it after drawing to check shapes. Read-only; null height = 384, null guides = true.",
+			"Render up to 8 glyphs side by side as one PNG (longest side at most 1024 px) so you can look at them. guides draws ascender, cap height, x-height, baseline, descender and advance edges. Missing glyphs show as a dashed box. At most 8 renders per request (RENDER_LIMIT). layout gives each glyph's x and width in pixels. Use it after drawing to check shapes. Read-only; null height = 384, null guides = true.",
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
 			height: nullable(renderHeight),
@@ -68,7 +71,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'render_text',
 		description:
-			'Render a line of text (up to 64 characters) in this font as one PNG (longest side at most 1024 px), with no kerning. Characters outside the set or not drawn yet show as a dashed box. Use it to judge spacing and consistency across glyphs. Read-only; null height = 384, null guides = false.',
+			'Render a line of text (up to 64 characters) in this font as one PNG (longest side at most 1024 px), with no kerning. Characters not drawn yet, or outside the set (listed in outOfSet), show as a dashed ghost box. Use it to judge spacing and consistency across glyphs. Read-only; null height = 384, null guides = false.',
 		inputSchema: object({
 			text: {
 				type: 'string',
@@ -83,7 +86,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'check_outlines',
 		description:
-			"Check one glyph's outlines: winding per contour (and counters that run the same way as their container), self-intersections, duplicate points, specks, too-few-point contours, and extents against the ascender, descender, cap height and x-height. Returns ok plus a list of issues with path indices. Read-only.",
+			"Check one glyph's outlines: winding per contour (and counters that run the same way as their container), self-intersections, duplicate points, specks, too-few-point contours, and extents against the ascender, descender, cap height and x-height. Returns clean (true when no issues) plus a list of issues with path indices. Read-only.",
 		inputSchema: object({ glyphId }),
 	},
 	{

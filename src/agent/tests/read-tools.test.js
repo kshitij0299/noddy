@@ -7,7 +7,12 @@ import { LATIN_KERNEL_GROUPS } from '../../project_editor/charset_latin_kernel.j
 import { toolOutput } from '../agent-controller.js';
 import { createNativeToolSession } from '../native-tools.js';
 import { getMutationLog, handToAgent } from '../ownership.js';
-import { READ_ONLY_TOOLS, SET_GROUPS, TOOL_DEFINITIONS } from '../tool-definitions.js';
+import {
+	READ_ONLY_TOOLS,
+	RENDER_IMAGES_PER_REQUEST,
+	SET_GROUPS,
+	TOOL_DEFINITIONS,
+} from '../tool-definitions.js';
 
 const N = 'glyph-0x6E';
 const O = 'glyph-0x6F';
@@ -252,12 +257,32 @@ describe('render_glyphs / render_text', () => {
 			session.execute('render_glyphs', { glyphIds: ['glyph-0x4E00'], height: null, guides: null })
 				.error.code
 		).toBe('OUT_OF_SET');
+		// render_text draws out-of-set characters as ghost boxes, like the specimen.
 		const text = session.execute('render_text', { text: 'n→o', height: null, guides: null });
-		expect(text.error.code).toBe('OUT_OF_SET');
-		expect(text.error.message).toContain('→');
+		expect(text.ok).toBe(true);
+		expect(text.outOfSet).toEqual(['→']);
+		expect(text.layout.map((item) => item.missing)).toEqual([false, true, false]);
 		expect(session.execute('check_outlines', { glyphId: 'glyph-0x4E00' }).error.code).toBe(
 			'OUT_OF_SET'
 		);
+	});
+
+	it('returns RENDER_LIMIT past the per-request image budget, as a clean tool error', () => {
+		const render = () =>
+			session.execute('render_glyphs', { glyphIds: [N], height: 64, guides: false });
+		for (let index = 0; index < RENDER_IMAGES_PER_REQUEST; index++) expect(render().ok).toBe(true);
+		const ninth = render();
+		expect(ninth.ok).toBe(false);
+		expect(ninth.error.code).toBe('RENDER_LIMIT');
+		expect(ninth.image).toBeUndefined();
+		expect(
+			session.execute('render_text', { text: 'no', height: null, guides: null }).error.code
+		).toBe('RENDER_LIMIT');
+		// Non-image reads still work, and a new request has a fresh budget.
+		expect(session.execute('check_outlines', { glyphId: N }).ok).toBe(true);
+		const next = createNativeToolSession();
+		expect(next.execute('render_text', { text: 'no', height: null, guides: null }).ok).toBe(true);
+		next.dispose();
 	});
 
 	it('sends the PNG to the model as an image part, not base64 text', () => {
@@ -286,6 +311,7 @@ describe('check_outlines', () => {
 	it('passes a clean glyph', () => {
 		const result = session.execute('check_outlines', { glyphId: O });
 		expect(result.ok).toBe(true);
+		expect(result.clean).toBe(true);
 		expect(result.issues).toEqual([]);
 		expect(result.contours.map((contour) => contour.winding)).toEqual([
 			'clockwise',
@@ -314,7 +340,10 @@ describe('check_outlines', () => {
 			rect(800, 800, 801, 801),
 		]);
 		const result = session.execute('check_outlines', { glyphId: 'glyph-0x67' });
-		expect(result.ok).toBe(false);
+		// The tool call succeeded; the glyph has problems.
+		expect(result.ok).toBe(true);
+		expect(result.error).toBeUndefined();
+		expect(result.clean).toBe(false);
 		const codes = result.issues.map((issue) => issue.code);
 		expect(codes).toEqual(
 			expect.arrayContaining([
@@ -340,7 +369,7 @@ describe('check_outlines', () => {
 
 	it('reports a set glyph that does not exist yet without creating it', () => {
 		const result = session.execute('check_outlines', { glyphId: 'glyph-0x71' });
-		expect(result).toMatchObject({ ok: true, exists: false, issues: [] });
+		expect(result).toMatchObject({ ok: true, clean: true, exists: false, issues: [] });
 		expect(editor.project.glyphs['glyph-0x71']).toBeUndefined();
 	});
 });

@@ -26,7 +26,7 @@ const MAX_INTERSECTION_SEGMENTS = 256;
  * @param {Object} glyph - project Glyph (only Path shapes are checked)
  * @param {{upm: Number, ascent: Number, descent: Number, capHeight: Number,
  *   xHeight: Number, overshoot: Number}} metrics
- * @returns {{ok: Boolean, issues: Array<Object>, contours: Array<Object>, extents: Object | null}}
+ * @returns {{clean: Boolean, issues: Array<Object>, contours: Array<Object>, extents: Object | null}}
  */
 export function checkGlyphOutlines(glyph, metrics) {
 	const issues = [];
@@ -124,7 +124,7 @@ export function checkGlyphOutlines(glyph, metrics) {
 			issues.push({ code: 'BELOW_DESCENDER', by: round(metrics.descent - yMin) });
 	}
 
-	return { ok: issues.length === 0, issues, contours, extents };
+	return { clean: issues.length === 0, issues, contours, extents };
 }
 
 function selfIntersections(path) {

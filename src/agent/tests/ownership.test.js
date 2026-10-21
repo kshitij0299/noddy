@@ -179,6 +179,23 @@ describe('write tools respect the lock', () => {
 });
 
 describe('Take over', () => {
+	it('stops a write that is mid-execution when the user takes over', () => {
+		// Simulate the user pressing Take over while the command is applied:
+		// the pre-commit check refuses it and nothing is committed.
+		const before = JSON.stringify(editor.project.glyphs[ID].save());
+		const history = editor.history.queue.length;
+		const realGlyph = editor.project.glyphs[ID];
+		const spy = vi.spyOn(realGlyph, 'save').mockImplementation(function (...args) {
+			spy.mockRestore();
+			takeOver(editor, ID);
+			return realGlyph.save(...args);
+		});
+		const result = write(session, 11);
+		expect(result.error.code).toBe('CANCELLED');
+		expect(JSON.stringify(editor.project.glyphs[ID].save())).toBe(before);
+		expect(editor.history.queue.length).toBe(history);
+	});
+
 	it('cancels the glyph job, returns the glyph to the user and leaves no partial edit', () => {
 		editor.glyphStatus.set(ID, 'drafting', 'agent');
 		const signal = agentJobSignal(editor, ID);
@@ -187,29 +204,27 @@ describe('Take over', () => {
 		const history = editor.history.queue.length;
 		expect(takeOver(editor, ID)).toEqual({ cancelled: true });
 		expect(signal.aborted).toBe(true);
+		expect(session.getContext().lock).toBeNull();
 		expect(signal.reason).toBe('TAKEN_OVER');
 		expect(editor.glyphStatus.get(ID)).toMatchObject({
 			status: 'kept',
 			owner: 'user',
 			derived: true,
 		});
-		// An agent write already in flight for this glyph stops before commit.
-		const result = session.execute(
-			'set_spacing',
-			{
-				glyphId: ID,
-				expectedRevision: session.getContext().revision,
-				metric: 'rightSideBearing',
-				value: 5,
-			},
-			{ signal }
-		);
+		// The running request's next write goes through the real path (no
+		// hand-passed signal) and is refused at execution time.
+		const result = write(session, 5);
+		expect(result.ok).toBe(false);
 		expect(result.error.code).toBe('CANCELLED');
+		expect(write(session, 6).error.code).toBe('CANCELLED');
 		expect(JSON.stringify(editor.project.glyphs[ID].save())).toBe(before);
 		expect(editor.history.queue.length).toBe(history);
 		expect(getMutationLog(editor)).toHaveLength(0);
-		// A new job gets a fresh signal.
+		// A new request is a new job and may write again.
+		const next = createNativeToolSession();
 		expect(agentJobSignal(editor, ID).aborted).toBe(false);
+		expect(write(next, 9).ok).toBe(true);
+		next.dispose();
 		expect(takeOver(editor, OTHER)).toEqual({ cancelled: false });
 	});
 

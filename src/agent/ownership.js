@@ -20,7 +20,8 @@
 	  takeBack().
 	- takeBack(editor, id): "Take back". Ends the hand-off.
 	- takeOver(editor, id): "Take over" a glyph the agent is drafting. Aborts
-	  that glyph's job signal (agentJobSignal), ends any hand-off and returns a
+	  that glyph's job signal (agentJobSignal), so writes holding it fail with
+	  CANCELLED in assertAgentMayWrite; it also ends any hand-off and returns a
 	  queued/drafting status to the user. Writes are atomic per glyph, so an
 	  aborted job leaves no partial outline.
 
@@ -130,9 +131,14 @@ export function ownershipOf(editor, id, { grant } = {}) {
  * Every agent write tool calls this before it changes anything.
  * @param {Object} editor
  * @param {String} id
- * @param {{grant?: Object}=} options - a UI-minted grant (never model input)
+ * @param {{grant?: Object, job?: AbortSignal}=} options - a UI-minted grant
+ * (never model input) and the agent's job signal for this glyph
+ * (agentJobSignal); a job aborted by takeOver() fails with CANCELLED.
  */
 export function assertAgentMayWrite(editor, id, options = {}) {
+	if (options.job?.aborted) {
+		throw lockError('CANCELLED', 'You took this glyph over, so the agent stopped. Skip it.', id);
+	}
 	const { locked } = ownershipOf(editor, id, options);
 	if (locked === 'yours') {
 		throw lockError(

@@ -114,6 +114,11 @@ test('relay validator accepts nulls for optional read-tool arguments and rejects
 	bad('get_mutation_log', { glyphId: null, limit: 0 });
 });
 
+test('the browser render budget per request matches the relay image limit', async () => {
+	const { RENDER_IMAGES_PER_REQUEST } = await import('../../src/agent/tool-definitions.js');
+	assert.equal(RENDER_IMAGES_PER_REQUEST, LIMITS.toolImages);
+});
+
 test('accepts rendered PNG tool results and the extended context; rejects spoofed or excess images', async () => {
 	const registry = await loadNativeRegistry();
 	const request = validateRequest(
