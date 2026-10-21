@@ -1,5 +1,6 @@
 import { makeElement } from '../common/dom.js';
 import { GlyphGrid, openGlyph } from '../controls/glyph-grid/glyph-grid.js';
+import { handleKeyPress, handleKeyUp } from '../edit_canvas/events_keyboard.js';
 import { makeNavButton, toggleNavDropdown } from '../project_editor/navigator.js';
 
 /**
@@ -39,6 +40,12 @@ export function makePage_Workspace() {
 	l1.addEventListener('click', function () {
 		toggleNavDropdown(l1);
 	});
+
+	// Page-level shortcuts (#49): the edit canvas only attaches these once an
+	// editing page has been opened. Same function references, so re-adding is
+	// a no-op and they are never doubled.
+	document.addEventListener('keydown', handleKeyPress, false);
+	document.addEventListener('keyup', handleKeyUp, false);
 
 	return content;
 }
