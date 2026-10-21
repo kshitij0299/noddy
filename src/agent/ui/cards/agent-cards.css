@@ -1,0 +1,366 @@
+/* --------------------------------------------------------------
+	Agent message cards (M4, #22). Shared 352px shell + plan / style check /
+	receipt cards + step lines. Tokens only (src/common/colors.css).
+	Glyph art inside .agent-glyph-well / .agent-glyph-strip is SVG from
+	project outlines and carries data-font-content: no UI font applies.
+-------------------------------------------------------------- */
+
+agent-plan-card,
+agent-approval-card,
+agent-receipt-card,
+agent-step-line {
+	display: block;
+	width: 352px;
+	max-width: 100%;
+	box-sizing: border-box;
+	font-family: var(--font-sans);
+	color: var(--color-text-primary);
+}
+
+agent-step-line + agent-step-line,
+.agent-card + agent-step-line,
+.agent-receipt__actions + agent-step-line {
+	margin-top: var(--space-2);
+}
+
+.agent-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-4);
+	background: var(--color-bg-surface);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-lg);
+	box-sizing: border-box;
+}
+
+.agent-card__header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+.agent-card__title {
+	color: var(--color-text-primary);
+}
+
+.agent-card__meta {
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+	max-width: 60%;
+}
+
+.agent-card__row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.agent-card__icon {
+	font-size: 18px;
+	flex: none;
+}
+
+/* Chips: 28px Mono on a subtle well; selected = accent */
+.agent-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	height: 28px;
+	padding: 0 var(--space-3);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+	white-space: nowrap;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-chip > span:not(.agent-chip__icon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-chip--selected {
+	background: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+.agent-chip__icon {
+	font-size: 16px;
+	margin-left: -2px;
+}
+
+.agent-plan__chevron {
+	font-size: 18px;
+	color: var(--color-text-secondary);
+	margin: 0 calc(var(--space-1) * -1);
+}
+
+/* Buttons: real <button>s, paint-only hover, focus ring never clipped */
+.agent-card__actions,
+.agent-receipt__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.agent-receipt__actions {
+	margin-top: var(--space-2);
+}
+
+/* The legacy global button rules in resets.css (`button:hover`,
+`button:focus`, `button[disabled]`, specificity 0,1,1) would change padding,
+radius, border, colour and shadow per state. Every state is pinned here at
+0,2,1 or more so the only thing that changes on hover/focus/active/disabled
+is paint. */
+button.agent-card__button,
+button.agent-card__button:hover,
+button.agent-card__button:focus,
+button.agent-card__button:focus-visible,
+button.agent-card__button:active,
+button.agent-card__button:disabled,
+button.agent-card__button:disabled:hover,
+button.agent-card__button:disabled:active {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-1);
+	height: 32px;
+	min-height: 0;
+	padding: 0 var(--space-4);
+	margin: 0;
+	border-radius: var(--radius-full);
+	border: 1px solid transparent;
+	background-color: transparent;
+	color: var(--color-text-primary);
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	line-height: 1;
+	text-align: center;
+	text-decoration: none;
+	box-shadow: none;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+button.agent-card__button--lg,
+button.agent-card__button--lg:hover,
+button.agent-card__button--lg:focus,
+button.agent-card__button--lg:active,
+button.agent-card__button--lg:disabled {
+	height: 36px;
+}
+
+.agent-card__button .agent-card__icon {
+	font-size: 18px;
+	margin-left: -2px;
+}
+
+/* Variants: paint only (colour, background, border colour) — never geometry */
+button.agent-card__button--primary,
+button.agent-card__button--primary:focus,
+button.agent-card__button--primary:active {
+	background-color: var(--color-bg-accent);
+	border-color: transparent;
+	color: var(--color-text-on-accent);
+}
+
+button.agent-card__button--primary:hover:not(:disabled) {
+	background-color: var(--color-bg-accent-hover);
+	border-color: transparent;
+	color: var(--color-text-on-accent);
+}
+
+button.agent-card__button--secondary,
+button.agent-card__button--secondary:focus,
+button.agent-card__button--secondary:active {
+	border-color: var(--color-border-strong);
+}
+
+button.agent-card__button--secondary:hover:not(:disabled) {
+	background-color: var(--color-bg-subtle);
+	border-color: var(--color-border-strong);
+	color: var(--color-text-primary);
+}
+
+button.agent-card__button--ghost:hover:not(:disabled) {
+	background-color: var(--color-bg-subtle);
+	border-color: transparent;
+	color: var(--color-text-primary);
+}
+
+button.agent-card__button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+/* Disabled keeps the variant's colours at reduced opacity (no blue-grey). */
+button.agent-card__button:disabled,
+button.agent-card__button:disabled:hover,
+button.agent-card__button:disabled:focus,
+button.agent-card__button:disabled:active {
+	cursor: default;
+	opacity: 0.55;
+}
+
+button.agent-card__button--primary:disabled,
+button.agent-card__button--primary:disabled:hover,
+button.agent-card__button--primary:disabled:focus {
+	background-color: var(--color-bg-accent);
+	border-color: transparent;
+	color: var(--color-text-on-accent);
+}
+
+button.agent-card__button--secondary:disabled,
+button.agent-card__button--secondary:disabled:hover,
+button.agent-card__button--secondary:disabled:focus {
+	background-color: transparent;
+	border-color: var(--color-border-strong);
+	color: var(--color-text-primary);
+}
+
+button.agent-card__button--ghost:disabled,
+button.agent-card__button--ghost:disabled:hover,
+button.agent-card__button--ghost:disabled:focus {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--color-text-primary);
+}
+
+/* Style check well: 320×118, glyphs scale with the card, never clip */
+.agent-glyph-well {
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	gap: 2%;
+	height: 118px;
+	padding: var(--space-3) var(--space-4);
+	box-sizing: border-box;
+	background: var(--color-bg-accent-subtle);
+	border-radius: var(--radius-lg);
+	color: var(--color-glyph-ink);
+	overflow: hidden;
+}
+
+.agent-glyph-well .agent-glyph-art {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+/* Receipt strip: ~40px glyphs, wrapping */
+.agent-glyph-strip {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	row-gap: var(--space-2);
+	color: var(--color-glyph-ink);
+}
+
+.agent-glyph-art {
+	position: relative;
+	display: inline-flex;
+	align-items: flex-end;
+	justify-content: center;
+	flex: none;
+}
+
+.agent-glyph-art__svg {
+	display: block;
+	max-width: 100%;
+	height: 100%;
+	width: auto;
+}
+
+.agent-glyph-ghost {
+	display: block;
+	margin: 0 3px 20%;
+	border: 1.5px dashed var(--color-glyph-ghost);
+	border-radius: var(--radius-sm);
+	box-sizing: border-box;
+}
+
+.agent-glyph-strip .agent-glyph-art--failed {
+	margin: 0 var(--space-1);
+}
+
+.agent-glyph-art__badge {
+	position: absolute;
+	top: 0;
+	right: -2px;
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+	border-radius: var(--radius-full);
+	background: var(--color-status-failed-subtle);
+	color: var(--color-status-failed);
+}
+
+.agent-glyph-art__badge-icon {
+	font-size: 14px;
+	line-height: 14px;
+}
+
+/* Step lines: 36px, subtle well, icon tone + sr-only prefix */
+.agent-step-line {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 36px;
+	padding: 0 var(--space-3);
+	box-sizing: border-box;
+	background: var(--color-bg-subtle);
+	border-radius: var(--radius-md);
+	color: var(--color-text-primary);
+}
+
+.agent-step-line__icon {
+	font-size: 16px;
+}
+
+.agent-step-line__text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-step-line--kept .agent-step-line__icon {
+	color: var(--color-status-kept);
+}
+
+.agent-step-line--yours .agent-step-line__icon {
+	color: var(--color-status-yours);
+}
+
+.agent-step-line--failed .agent-step-line__icon {
+	color: var(--color-status-failed);
+}
+
+.agent-step-line--info .agent-step-line__icon {
+	color: var(--color-text-secondary);
+}
+
+.agent-sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}

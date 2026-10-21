@@ -514,7 +514,7 @@ export function importProjectDataAndNavigate(glyphrStudioProjectFile) {
 	}
 
 	editor.project.resetSessionStateForAllItems();
-	editor.nav.page = 'Overview';
+	editor.nav.page = 'Workspace';
 	if (isSecondProject) showToast(`Switched to<br>${editor.project.settings.project.name}`);
 	updateWindowUnloadEvent();
 	editor.navigate();

@@ -172,34 +172,39 @@ export class History {
 			// log(this.initialProject);
 			let baseItemState;
 			let baseItem;
+			// An item created after load (getItem/selectedGlyph auto-create) is not in
+			// the initial snapshot. Fall back to the state it was created in,
+			// `new Glyph({ id })`, rather than deleting it: a missing selected item is
+			// re-created on the next read, adding history again.
+			const createdItemState = { id: editor.selectedItemID };
 
 			if (editor.nav.page === 'Characters') {
 				// log(`editor.selectedGlyphID : ${editor.selectedGlyphID}`);
 				if (editor.selectedGlyphID) {
 					baseItem = this.initialProject.glyphs[editor.selectedGlyphID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			} else if (editor.nav.page === 'Ligatures') {
 				// log(`editor.selectedLigatureID : ${editor.selectedLigatureID}`);
 				if (editor.selectedLigatureID) {
 					baseItem = this.initialProject.ligatures[editor.selectedLigatureID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			} else if (editor.nav.page === 'Components') {
 				// log(`editor.selectedComponentID : ${editor.selectedComponentID}`);
 				if (editor.selectedComponentID) {
 					baseItem = this.initialProject.components[editor.selectedComponentID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			} else if (editor.nav.page === 'Kerning') {
 				// log(`editor.selectedKernGroupID : ${editor.selectedKernGroupID}`);
 				if (editor.selectedKernGroupID) {
 					baseItem = this.initialProject.kerning[editor.selectedKernGroupID];
 					// log(baseItem);
-					baseItemState = baseItem.save();
+					baseItemState = baseItem ? baseItem.save() : createdItemState;
 				}
 			}
 
@@ -222,10 +227,6 @@ export class History {
 		// log(`nextEntry:`);
 		// log(nextEntry);
 
-		// Clear selections
-		editor.multiSelect.points.clear();
-		editor.multiSelect.shapes.clear();
-
 		// Capture entries being removed from the queue for redo
 		const redoEntries = [q[0]];
 
@@ -247,6 +248,11 @@ export class History {
 			editor.selectedItem = nextEntry.itemState;
 			// log(editor.selectedItem.print());
 		}
+		// Clear selections only after the item is replaced: clearing publishes
+		// selection topics that rebuild the inspector, which must bind to the
+		// restored item, not the one being discarded (#44).
+		editor.multiSelect.points.clear();
+		editor.multiSelect.shapes.clear();
 		editor.publish('currentItem', editor.selectedItem);
 
 		// Index 0 is the previous current state, so remove it
@@ -299,14 +305,14 @@ export class History {
 		const entries = this.redoQueue.shift();
 		const targetEntry = entries[0];
 
-		editor.multiSelect.points.clear();
-		editor.multiSelect.shapes.clear();
-
 		if (targetEntry.wholeProjectSave) {
 			editor._project = targetEntry.itemState;
 		} else {
 			editor.selectedItem = targetEntry.itemState;
 		}
+		// After the replacement, so the rebuilt inspector binds to it (#44)
+		editor.multiSelect.points.clear();
+		editor.multiSelect.shapes.clear();
 		editor.publish('currentItem', editor.selectedItem);
 
 		// Restore the queue entries so subsequent undos behave correctly
