@@ -5,7 +5,7 @@ _Run 1: 2026-10-20 21:45 → ~22:30 UTC (stopped at the session usage limit). Ru
 ## TL;DR
 
 - **M1 Foundations:** 3 of 4 done (tokens, inspector undo fix, `itemChanged`). The fourth, safety indicator #10, isn't started.
-- **M2 Workspace: done** (app shell, specimen card + Workspace page, character set, Letters & figures grid, status store). Tagged `m2-done`.
+- **M2 Workspace: done** (app shell, specimen card + Workspace page, character set, Letters & figures grid, status store). Milestone point: `f6939d7` (`m2-done`; see caveat on tags).
 - **M4 Agent panel:** the message cards are done; the panel itself (#19–#21) isn't started.
 - **Two pre-existing undo bugs fixed** (both protected areas), plus two tooling fixes that let the project install and test on Linux.
 - Every PR went issue → developer agent → QA agent → fixes → re-QA → squash-merge into `dev`. QA failed six rounds across five PRs, and each failure was fixed before merge.
@@ -59,6 +59,7 @@ No `.gs2` serialization changes were made.
 - Specimen Waterfall mode ignores the size slider (QA nit).
 - **Build churn:** `npm run build` rewrites the tracked `dist/` folder and `src/app/app_config.json`. Never commit those.
 - Merged feature branches stay on GitHub, because this cloud session can't delete remote branches.
+- **Milestone tags:** the cloud proxy rejects tag pushes, so `m2-done` exists only in the session. To create it: `git tag m2-done f6939d7 && git push origin m2-done`.
 - Labels were auto-created by GitHub (grey, no descriptions).
 
 ## Models used
