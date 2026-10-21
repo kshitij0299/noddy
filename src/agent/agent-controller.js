@@ -22,6 +22,28 @@ export function requireSelectedGlyph(context) {
 	return context;
 }
 
+const PNG_DATA_URL = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/;
+
+/**
+ * Tool result for the model. A render result carries its PNG as an image
+ * part (so a vision model can look at it), not as base64 text in the JSON.
+ * @param {Object} value - native tool result
+ */
+export function toolOutput(value) {
+	const match =
+		value?.ok && typeof value.image === 'string' ? PNG_DATA_URL.exec(value.image) : null;
+	if (!match) return { type: 'json', value };
+	const rest = { ...value };
+	delete rest.image;
+	return {
+		type: 'content',
+		value: [
+			{ type: 'text', text: JSON.stringify(rest) },
+			{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: match[1] } },
+		],
+	};
+}
+
 export async function requestAgentStep(payload, signal) {
 	const body = JSON.stringify(payload);
 	if (new Blob([body]).size > 8 * 1024 * 1024)
@@ -237,7 +259,7 @@ export function createAgentController({
 							type: 'tool-result',
 							toolCallId: call.toolCallId,
 							toolName: call.toolName,
-							output: { type: 'json', value },
+							output: toolOutput(value),
 						});
 					}
 					messages.push({ role: 'tool', content: outputs });

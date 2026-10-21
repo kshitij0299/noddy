@@ -4,6 +4,8 @@ export const LIMITS = Object.freeze({
 	bodyBytes: 8 * 1024 * 1024,
 	imageBytes: 4 * 1024 * 1024,
 	images: 4,
+	// Rendered glyph PNGs returned by native read tools (render_glyphs / render_text).
+	toolImages: 8,
 	messages: 96,
 	textCharacters: 160000,
 	outputTokens: 4096,
@@ -105,6 +107,43 @@ function image(part) {
 	return { type: 'image', image: part.image, mediaType: match[1] };
 }
 
+const PNG_SIGNATURE = '89504e470d0a1a0a';
+
+// A native render result: JSON text plus PNG image parts. PNG only, inline
+// bytes only, signature checked, same per-image size cap as attachments.
+function toolResultContent(value, count) {
+	if (!Array.isArray(value) || !value.length || value.length > 5) invalid();
+	let text = 0;
+	const parts = value.map((part) => {
+		if (!record(part)) invalid();
+		if (part.type === 'text') {
+			keys(part, ['type', 'text']);
+			text += shortString(part.text, 160000, true).length;
+			return { type: 'text', text: part.text };
+		}
+		if (part.type === 'file') {
+			keys(part, ['type', 'mediaType', 'data']);
+			keys(part.data, ['type', 'data']);
+			if (part.mediaType !== 'image/png' || part.data.type !== 'data') invalid();
+			if (typeof part.data.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(part.data.data))
+				invalid('Invalid rendered image.');
+			const bytes = Buffer.from(part.data.data, 'base64');
+			if (bytes.length > LIMITS.imageBytes) invalid('Rendered image is too large.');
+			if (bytes.subarray(0, 8).toString('hex') !== PNG_SIGNATURE)
+				invalid('Invalid rendered image.');
+			if (count() > LIMITS.toolImages)
+				invalid('Too many rendered images in this conversation. Start a new one.');
+			return {
+				type: 'file',
+				mediaType: 'image/png',
+				data: { type: 'data', data: part.data.data },
+			};
+		}
+		invalid('Unsupported tool result content.');
+	});
+	return { parts, text };
+}
+
 export function validateMessages(
 	messages,
 	toolNames,
@@ -115,6 +154,7 @@ export function validateMessages(
 	}
 	let textSize = 0;
 	let imageCount = 0;
+	let toolImageCount = 0;
 	const calls = new Map();
 	const unresolved = new Set();
 	const result = messages.map((message) => {
@@ -170,6 +210,11 @@ export function validateMessages(
 					invalid('Tool result does not match a pending call.');
 				}
 				keys(part.output, ['type', 'value']);
+				if (part.output.type === 'content') {
+					const content = toolResultContent(part.output.value, () => ++toolImageCount);
+					textSize += content.text;
+					return { ...part, output: { type: 'content', value: content.parts } };
+				}
 				if (!['json', 'text', 'error-json', 'error-text'].includes(part.output.type)) invalid();
 				if (part.output.type.endsWith('text')) shortString(part.output.value, 160000, true);
 				boundedJSON(part.output.value);
@@ -207,6 +252,9 @@ export function validateRequest(body, definitions) {
 			'selection',
 			'writable',
 			'unitsPerEm',
+			'spec',
+			'set',
+			'lock',
 		]);
 		if (
 			body.context.unitsPerEm !== undefined &&
