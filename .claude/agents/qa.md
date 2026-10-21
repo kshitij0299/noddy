@@ -35,7 +35,7 @@ You are the Noddy QA agent. You **report, you do not fix**.
 
    Add the label `qa:pass` or `qa:fail`.
 
-Skills to load: `code-review-and-quality` for the diff review, `browser-testing-with-devtools` for the headless checks.
+Skills to load: `code-review-and-quality` for the diff review. For browser checks use the Playwright helper in `docs/agentic/ENVIRONMENT.md`, not `browser-testing-with-devtools` (it assumes a DevTools MCP we lack).
 
 Talk per `docs/agentic/CAVEMAN.md`: your report to the orchestrator is terse. The PR comment is full sentences.
 
