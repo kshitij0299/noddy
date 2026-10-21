@@ -12,3 +12,5 @@ How to stay lean:
 - Scope: M1–M4 first; stop there if the budget is tight. Don't start a milestone you can't finish within the window.
 
 **Update 2026-10-21 (owner, in the orchestrator session):** the owner restarted the run at 23:11 India time with a **2-hour window**, measured on the cloud container's clock: started 07:42 UTC, **no new work after 09:25 UTC**, and everything paused safely by **09:40 UTC**. "Paused safely" means: branches pushed, open PRs and agent state recorded in MORNING-REPORT.md, no half-merged work. The earlier 02:15/02:30 UTC window is replaced. The weekly caps above (all models ≤ 50%, Fable ≤ 40%) still apply. Small repetitive non-UI jobs may use Sonnet 5.5 (medium) to save usage.
+
+**Update 2026-10-21 11:31 UTC (owner, in the orchestrator session):** the owner restarted the build with "Start and tell me when it's fine to close my laptop." No end time was given. Work continues milestone by milestone (M3, then M4, then M5–M9) until the owner says stop or usage runs out. The weekly caps still apply. At most two agents run at a time. When usage runs out, the orchestrator pushes everything and updates MORNING-REPORT.md before stopping.
