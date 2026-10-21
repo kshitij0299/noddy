@@ -1,6 +1,8 @@
 /* Web Components */
 import { FancyButton } from '../controls/fancy-button/fancy_button.js';
 import { FontPreview } from '../controls/font-preview/font_preview.js';
+import { GlyphGrid } from '../controls/glyph-grid/glyph-grid.js';
+import { GlyphGridTile } from '../controls/glyph-grid/glyph-tile.js';
 import { GlyphTile } from '../controls/glyph-tile/glyph_tile.js';
 import { InfoBubble } from '../controls/info-bubble/info_bubble.js';
 import { InputNumber } from '../controls/input-number/input_number.js';
@@ -81,6 +83,8 @@ function registerCustomComponents() {
 		{ fileName: 'fancy-button', className: FancyButton },
 		{ fileName: 'font-preview', className: FontPreview },
 		{ fileName: 'glyph-tile', className: GlyphTile },
+		{ fileName: 'glyph-grid-tile', className: GlyphGridTile },
+		{ fileName: 'glyph-grid', className: GlyphGrid },
 		{ fileName: 'info-bubble', className: InfoBubble },
 		{ fileName: 'input-number', className: InputNumber },
 		{ fileName: 'edit-canvas', className: EditCanvas },

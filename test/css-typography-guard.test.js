@@ -45,6 +45,7 @@ const GLOBAL_STYLESHEETS = [
 	'src/controls/tabs/tab-control.css',
 	'src/controls/progress-indicator/progress-indicator.css',
 	// Side-effect imports (document-wide once their module loads).
+	'src/controls/glyph-grid/glyph-grid.css',
 	'src/agent/ui/cards/agent-cards.css',
 ];
 
