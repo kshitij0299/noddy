@@ -468,7 +468,13 @@ export function createAgentPanel({
 			return;
 		}
 		const label = STUB_ACTIONS[detail.action];
-		if (label) addStep('info', `${label} is coming in M7`);
+		if (!label) return;
+		// The card already appended its own "done" line (e.g. "Kept 1 glyph");
+		// nothing happened yet, so show only the stub line.
+		const card = /** @type {Element} */ (event.target);
+		const own = card?.lastElementChild;
+		if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
+		addStep('info', `${label} is coming in M7`);
 	});
 
 	// ---- Minimize / restore ----

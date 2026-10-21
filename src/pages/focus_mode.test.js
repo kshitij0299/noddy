@@ -157,6 +157,17 @@ describe('Focus mode: open and close (#16)', () => {
 		expect(document.activeElement).toBe(grid().tiles.get(a));
 	});
 
+	it('Esc on the minimized agent pill closes focus mode and leaves the pill alone', () => {
+		grid().tiles.get(a).click();
+		const pill = document.createElement('button');
+		pill.className = 'agent-pill';
+		document.body.appendChild(pill);
+		key(pill, 'Escape');
+		expect(isFocusModeOpen(editor)).toBe(false);
+		expect(pill.isConnected).toBe(true);
+		pill.remove();
+	});
+
 	it('Esc while a modal dialog is open leaves focus mode open', () => {
 		grid().tiles.get(a).click();
 		const dialog = document.createElement('div');

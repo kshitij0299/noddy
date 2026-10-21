@@ -379,6 +379,7 @@ button.agent-suggestion:focus-visible {
 }
 
 input.agent-connect__input,
+input.agent-connect__input:hover,
 input.agent-connect__input:focus {
 	box-sizing: border-box;
 	width: 100%;
@@ -392,13 +393,11 @@ input.agent-connect__input:focus {
 	box-shadow: none;
 }
 
-input.agent-connect__input:focus {
-	outline: none;
-}
-
+/* Text fields always show the focus ring token on focus (QA #60). */
+input.agent-connect__input:focus,
 input.agent-connect__input:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
 }
 
 input.agent-connect__input.is-invalid {

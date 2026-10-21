@@ -532,7 +532,10 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 		// Esc from the top bar or the agent panel belongs to them.
 		const target = /** @type {Node} */ (event.target);
 		const fromPage = target === document.body || target === document.documentElement;
-		if (!fromPage && !card.contains(target)) return;
+		// The minimized agent pill is not a panel: Esc there closes focus mode
+		// (and leaves the pill and any run alone).
+		const fromPill = !!(/** @type {Element} */ (target).closest?.('.agent-pill'));
+		if (!fromPage && !fromPill && !card.contains(target)) return;
 		// Let Esc close an open dialog or menu first (existing behaviour).
 		if (document.querySelector(OPEN_OVERLAYS)) return;
 		closeFocusMode(editor);

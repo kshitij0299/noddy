@@ -367,6 +367,18 @@ describe('controller wiring (#21)', () => {
 		expect(openGlyph).toHaveBeenCalledWith('glyph-0x61');
 	});
 
+	it('Keep shows only the M7 stub line, not the card\'s own "Kept" line', () => {
+		const panel = panelFixture({ controller: fakeController() });
+		const card = panel.addCard('agent-receipt-card', {
+			cardId: 'r1',
+			glyphs: [{ char: 'a', status: 'changed' }],
+		});
+		card.querySelector('button[data-action="keep"]').click();
+		const lines = [...panel.thread.querySelectorAll('agent-step-line')].map((l) => l.textContent);
+		expect(lines.filter((text) => /Kept/.test(text))).toHaveLength(0);
+		expect(lines.filter((text) => /Keep is coming in M7/.test(text))).toHaveLength(1);
+	});
+
 	it('the connect card hands the key to the controller and never renders or stores it', async () => {
 		const setItem = vi.spyOn(Storage.prototype, 'setItem');
 		const controller = fakeController({ connected: false });
@@ -432,6 +444,26 @@ describe('keyboard isolation', () => {
 		expect(outside).toHaveBeenCalledTimes(1);
 		document.removeEventListener('keydown', outside);
 		document.removeEventListener('keyup', outside);
+	});
+});
+
+describe('layout clear of the pill and panel (QA #60)', () => {
+	const css = (file) => fs.readFileSync(path.resolve(__dirname, '../../..', file), 'utf8');
+	it('the minimized grid takes its full height so the 76px page padding sits below the last row', () => {
+		const text = css('src/pages/workspace.css');
+		expect(text).toMatch(
+			/\[data-agent-panel='minimized'\] \.workspace__page \{\s*padding-bottom: 76px;/
+		);
+		expect(text).toMatch(
+			/\[data-agent-panel='minimized'\] \.workspace__grid \{\s*flex-shrink: 0;\s*min-height: max-content;/
+		);
+	});
+	it('old editor page chrome is positioned inside the left column and lifted above the pill', () => {
+		const text = css('src/app/app.css');
+		expect(text).toMatch(/#app__main-content \{[^}]*position: relative;/);
+		expect(text).toMatch(
+			/\[data-agent-panel='minimized'\] \.editor-page__zoom-area \{\s*bottom: calc\(52px/
+		);
 	});
 });
 
