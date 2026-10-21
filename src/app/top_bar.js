@@ -8,14 +8,19 @@
  * subscription keeps undo/redo and the ring fresh in between.
  */
 
-import { makeElement } from '../common/dom.js';
-import { ioFont_exportDefaultFormat } from '../formats_io/otf/font_export.js';
-import { getCurrentProjectEditor } from './main.js';
+import { insertAfter, makeElement } from '../common/dom.js';
+import { closeEveryTypeOfDialog, makeContextMenu } from '../controls/dialogs/dialogs.js';
+import { getCurrentProjectEditor, getGlyphrStudioApp } from './main.js';
+import { makeFileMenuRows } from './menu.js';
+import { makePage_OpenProject } from './open_project.js';
 import { getSetProgress } from './set_progress.js';
 
 export const TOP_BAR_ID = 'app__top-bar';
 export const THEME_STORAGE_KEY = 'noddy.theme';
 const SUBSCRIBER_ID = 'topBar';
+const EXPORT_MENU_WIDTH = 320;
+/** Same wording as the app's beforeunload confirmation (app.js). */
+const LEAVE_MESSAGE = 'Are you sure you want to exit? Any unsaved data may be lost.';
 const NAME_MAX_LENGTH = 80;
 const MONITOR_MEDIA = '(max-width: 759px)';
 const RING_RADIUS = 6.5;
@@ -27,8 +32,70 @@ const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
  * the bar.
  */
 export const topBarActions = {
-	export: () => ioFont_exportDefaultFormat(),
+	/**
+	 * Export: opens the project file menu (save project, save a copy, export
+	 * OTF/TTF/WOFF/WOFF2/SVG font) anchored under the button. Owner note:
+	 * closest to Figma until the M9 export sheet replaces it.
+	 * @param {HTMLElement} button - the Export button
+	 */
+	export: (button) => openExportMenu(button),
+	/**
+	 * Mark: back to the start screen to open or import another project.
+	 * Asks first when the project has unsaved changes.
+	 */
+	backToStart: () => {
+		if (hasUnsavedChanges() && !window.confirm(LEAVE_MESSAGE)) return;
+		closeEveryTypeOfDialog();
+		getGlyphrStudioApp().appPageNavigate(makePage_OpenProject);
+	},
 };
+
+/**
+ * The editor marks unsaved work with a bullet in the document title
+ * (`setProjectAsUnsaved`); there is no separate flag.
+ * @returns {Boolean}
+ */
+export function hasUnsavedChanges() {
+	return document.title.includes(' •');
+}
+
+/**
+ * Opens the project file menu under the Export button. Esc closes it and
+ * returns focus to the button; rows are keyboard operable (makeContextMenu).
+ * @param {HTMLElement} button - the Export button
+ * @returns {Element | null} the menu
+ */
+export function openExportMenu(button) {
+	if (!button) return null;
+	if (document.querySelector('#context-menu')) {
+		closeEveryTypeOfDialog();
+		button.setAttribute('aria-expanded', 'false');
+		return null;
+	}
+	closeEveryTypeOfDialog();
+	const rect = button.getBoundingClientRect();
+	const menu = makeContextMenu(
+		makeFileMenuRows(),
+		Math.max(0, rect.right - EXPORT_MENU_WIDTH),
+		rect.bottom + 4,
+		EXPORT_MENU_WIDTH
+	);
+	menu.setAttribute('aria-label', 'Export');
+	menu.addEventListener('keydown', (event) => {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			closeEveryTypeOfDialog();
+			button.setAttribute('aria-expanded', 'false');
+			button.focus();
+		}
+	});
+	insertAfter(button, menu);
+	button.setAttribute('aria-expanded', 'true');
+	const firstRow = menu.querySelector('[role="menuitem"]:not([disabled])');
+	if (firstRow instanceof HTMLElement) firstRow.focus();
+	return menu;
+}
 
 // --------------------------------------------------------------
 // Theme
@@ -137,18 +204,21 @@ export function makeAppTopBar() {
 	const right = makeElement({ tag: 'div', className: 'top-bar__right' });
 
 	const mark = makeElement({
-		tag: 'span',
+		tag: 'button',
 		className: 'top-bar__mark',
-		attributes: { role: 'img', 'aria-label': 'Noddy' },
+		title: 'Back to start',
+		attributes: { type: 'button', 'aria-label': 'Back to start' },
+		onClick: () => topBarActions.backToStart(),
 	});
 
 	const name = makeNameField(editor);
 	const progress = makeProgressRing();
 	const status = makeElement({ tag: 'div', className: 'top-bar__status', id: 'top-bar-status' });
-	// The existing compact-tier panel drawer toggle (panels.js) mounts here.
+	// The existing compact-tier panel drawer toggle (panels.js) mounts here;
+	// it sits with the actions so the name is never squeezed.
 	const menus = makeElement({ tag: 'div', className: 'top-bar__menus' });
 
-	left.append(mark, name, progress, status, menus);
+	left.append(mark, name, progress, status);
 
 	const undo = iconButton({
 		id: 'top-bar-undo',
@@ -184,15 +254,25 @@ export function makeAppTopBar() {
 		tag: 'button',
 		id: 'top-bar-export',
 		className: 'button button--secondary top-bar__export',
-		attributes: { type: 'button' },
-		onClick: () => topBarActions.export(),
+		title: 'Export',
+		attributes: { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
+		onClick: () => topBarActions.export(exportButton),
 	});
 	exportButton.append(icon('download'), makeElement({ tag: 'span', content: 'Export' }));
 
-	right.append(undo, redo, theme, exportButton);
+	right.append(menus, undo, redo, theme, exportButton);
 	topBar.append(left, right);
 
-	editor.subscribe({ topic: 'currentItem', subscriberID: SUBSCRIBER_ID, callback: refreshTopBar });
+	// Pub/sub passes the published item as the first argument, so wrap the
+	// refresh (its first parameter is the bar). Both topics cover edits,
+	// undo/redo and agent commits.
+	const refresh = () => refreshTopBar();
+	editor.subscribe({ topic: 'currentItem', subscriberID: SUBSCRIBER_ID, callback: refresh });
+	editor.subscribe({
+		topic: 'itemChanged',
+		subscriberID: `${SUBSCRIBER_ID}-itemChanged`,
+		callback: refresh,
+	});
 
 	refreshTopBar(topBar);
 	return topBar;
@@ -317,6 +397,7 @@ function makeNameField(editor) {
 			const current = getCurrentProjectEditor();
 			current.project.settings.project.name = next;
 			current.setProjectAsUnsaved();
+			refreshTopBar();
 		}
 		previous = next;
 	});

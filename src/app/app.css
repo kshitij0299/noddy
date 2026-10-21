@@ -49,11 +49,31 @@
 	flex: 0 0 auto;
 }
 
-.top-bar__mark {
+/* Mark: a button back to the start screen (paint-only hover) */
+#app__top-bar .top-bar__mark,
+#app__top-bar .top-bar__mark:hover,
+#app__top-bar .top-bar__mark:active,
+#app__top-bar .top-bar__mark:focus {
 	flex: 0 0 auto;
+	box-sizing: content-box;
 	width: 28px;
 	height: 28px;
+	margin: 0;
+	padding: var(--space-1);
+	border: 1px solid transparent;
+	border-radius: var(--radius-md);
 	background: transparent url('../common/graphics/noddy-icon.svg') no-repeat center / 28px 28px;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+#app__top-bar .top-bar__mark:hover {
+	background-color: var(--color-bg-subtle);
+}
+
+#app__top-bar .top-bar__mark:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
 }
 
 /* Font name: Subheading; idle looks like text, hover is paint only */
@@ -150,7 +170,8 @@
 }
 
 /* Mount point for the existing compact-tier "Panel" drawer toggle
-   (panels.js looks for `#app__top-bar .top-bar__menus`). Empty otherwise. */
+   (panels.js looks for `#app__top-bar .top-bar__menus`). Empty otherwise;
+   the toggle is styled as a secondary pill so it reads as a bar control. */
 .top-bar__menus {
 	display: inline-flex;
 	align-items: center;
@@ -159,6 +180,30 @@
 
 .top-bar__menus:empty {
 	display: none;
+}
+
+#app__top-bar .top-bar__menus .noddy-panel-toggle,
+#app__top-bar .top-bar__menus .noddy-panel-toggle:hover,
+#app__top-bar .top-bar__menus .noddy-panel-toggle:active,
+#app__top-bar .top-bar__menus .noddy-panel-toggle:focus {
+	position: static;
+	box-sizing: border-box;
+	height: 36px;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 34px;
+	box-shadow: none;
+}
+
+#app__top-bar .top-bar__menus .noddy-panel-toggle:hover {
+	background-color: var(--color-bg-subtle);
 }
 
 /* Status slot (M1.4 "Not autosaving" chip mounts here); nothing by default */
@@ -274,9 +319,10 @@
 	overflow: auto;
 }
 
-/* The workspace owns the 24px gutters; existing pages drop their own. */
-#app__workspace > #app__main-content > .content__page,
-#app__workspace > #app__main-content > .editor__page {
+/* The workspace owns the 24px gutters; existing pages (wrapped in
+   #app__page) drop their own side padding. */
+#app__workspace .content__page,
+#app__workspace .editor__page {
 	padding-left: 0;
 	padding-right: 0;
 }
@@ -320,6 +366,25 @@
 	#app__top-bar .top-bar__undo,
 	#app__top-bar .top-bar__redo {
 		display: none;
+	}
+
+	/* Export keeps its icon, title and aria-label; the text label goes. */
+	#app__top-bar .top-bar__export {
+		width: 36px;
+		padding: 0;
+		justify-content: center;
+	}
+
+	#app__top-bar .top-bar__export > span:not(.material-symbols-rounded) {
+		display: none;
+	}
+
+	#app__top-bar .top-bar__name {
+		min-width: 7ch;
+	}
+
+	#app__top-bar .top-bar__menus .noddy-panel-toggle {
+		padding: 0 var(--space-2);
 	}
 
 	#app__top-bar {

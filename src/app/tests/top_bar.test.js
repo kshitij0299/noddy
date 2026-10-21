@@ -11,6 +11,11 @@ import {
 	topBarActions,
 } from '../top_bar.js';
 
+// jsdom has no Web Animations; dialogs.js animateRemove() needs it.
+if (!Element.prototype.animate) {
+	Element.prototype.animate = () => ({ onfinish: null, cancel() {} });
+}
+
 const square = [
 	{ x: 0, y: 0 },
 	{ x: 0, y: 500 },
@@ -75,7 +80,7 @@ describe('Top bar: controls', () => {
 	it('renders mark, name, ring, status slot, undo, redo, theme and Export in tab order', () => {
 		expect(bar.id).toBe('app__top-bar');
 		expect(bar.querySelector('.top-bar__mark')).not.toBeNull();
-		expect(bar.querySelector('.top-bar__mark').hasAttribute('tabindex')).toBe(false);
+		expect(bar.querySelector('.top-bar__mark').tagName).toBe('BUTTON');
 		expect(name().value).toBe('Bakery Sans');
 		expect(bar.querySelector('.top-bar__count').textContent).toBe(`0/${LATIN_KERNEL_SIZE}`);
 		const status = bar.querySelector('.top-bar__status');
@@ -87,7 +92,7 @@ describe('Top bar: controls', () => {
 		const order = [...bar.querySelectorAll('input, button')]
 			.filter((element) => !element.classList.contains('noddy-panel-toggle'))
 			.map((element) => element.getAttribute('aria-label') || element.textContent.trim());
-		expect(order).toEqual(['Font name', 'Undo', 'Redo', 'Theme', 'downloadExport']);
+		expect(order).toEqual(['Back to start', 'Font name', 'Undo', 'Redo', 'Theme', 'downloadExport']);
 		const toggle = bar.querySelector('.noddy-panel-toggle');
 		if (toggle) expect(toggle.closest('.top-bar__menus')).not.toBeNull();
 
@@ -102,15 +107,57 @@ describe('Top bar: controls', () => {
 		}
 	});
 
-	it('Export calls through to the default-format export action', () => {
+	it('Export calls through to the export action with its button', () => {
 		const original = topBarActions.export;
 		topBarActions.export = vi.fn();
 		try {
-			/** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__export')).click();
-			expect(topBarActions.export).toHaveBeenCalledTimes(1);
+			const button = /** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__export'));
+			expect(button.title).toBe('Export');
+			button.click();
+			expect(topBarActions.export).toHaveBeenCalledWith(button);
 		} finally {
 			topBarActions.export = original;
 		}
+	});
+
+	it('Export opens the project file menu; Esc closes it and returns focus', () => {
+		const button = /** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__export'));
+		button.click();
+		const menu = document.querySelector('#context-menu');
+		expect(menu).not.toBeNull();
+		expect(button.getAttribute('aria-expanded')).toBe('true');
+		const rows = [...menu.querySelectorAll('[role="menuitem"]')].map((r) => r.textContent);
+		expect(rows.join(' ')).toContain('Save project file');
+		expect(rows.join(' ')).toContain('Export OTF file');
+		expect(rows.join(' ')).toContain('Export WOFF2 file');
+		expect(rows.join(' ')).toContain('Export SVG font file');
+		expect(menu.contains(document.activeElement)).toBe(true);
+
+		menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(button.getAttribute('aria-expanded')).toBe('false');
+		expect(document.activeElement).toBe(button);
+	});
+
+	it('the mark goes back to the start screen, asking first when unsaved', () => {
+		const mark = /** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__mark'));
+		expect(mark.title).toBe('Back to start');
+		const app = getGlyphrStudioApp();
+		const navigate = vi.spyOn(app, 'appPageNavigate').mockImplementation(() => {});
+		const confirm = vi.spyOn(window, 'confirm');
+
+		mark.click();
+		expect(confirm).not.toHaveBeenCalled();
+		expect(navigate).toHaveBeenCalledTimes(1);
+
+		editor.setProjectAsUnsaved();
+		confirm.mockReturnValue(false);
+		mark.click();
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(navigate).toHaveBeenCalledTimes(1);
+
+		confirm.mockReturnValue(true);
+		mark.click();
+		expect(navigate).toHaveBeenCalledTimes(2);
 	});
 });
 
@@ -176,6 +223,27 @@ describe('Top bar: undo / redo', () => {
 		expect(redo().disabled).toBe(false);
 		redo().click();
 		expect(again).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('Top bar: history refresh (regression)', () => {
+	it('enables undo when an edit is published, without a navigate', () => {
+		editor.nav.page = 'Characters';
+		editor.project.glyphs['glyph-0x41'] = makeGlyph(editor, 'glyph-0x41');
+		editor.selectedGlyphID = 'glyph-0x41';
+		expect(undo().disabled).toBe(true);
+		editor.history.addState('Moved a point');
+		editor.publish('currentItem', editor.selectedGlyph);
+		expect(undo().disabled).toBe(false);
+	});
+
+	it('refreshes on itemChanged too (agent commits)', () => {
+		editor.nav.page = 'Characters';
+		editor.project.glyphs['glyph-0x41'] = makeGlyph(editor, 'glyph-0x41');
+		editor.selectedGlyphID = 'glyph-0x41';
+		editor.history.addState('Agent edit');
+		editor.publish('itemChanged', { id: 'glyph-0x41' });
+		expect(undo().disabled).toBe(false);
 	});
 });
 
