@@ -1,0 +1,473 @@
+/* --------------------------------------------------------------
+	Focus mode (issues #16, #17, #18; Figma flow-06, Components 50:78).
+	Tokens only (src/common/colors.css); type via the .text-* roles in
+	resets.css. This stylesheet never sets font properties on glyph art:
+	the canvas draws the outline, and the context strip is an SVG with
+	[data-font-content] rendered from project outlines (Contract 2).
+-------------------------------------------------------------- */
+
+#app__page[data-page='focus'] {
+	box-sizing: border-box;
+	padding-top: var(--space-2);
+}
+
+.focus-mode {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	min-height: 480px;
+	overflow: hidden;
+	border-radius: var(--radius-xl);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	animation: focus-mode-in 120ms ease-out;
+}
+
+@keyframes focus-mode-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.focus-mode {
+		animation: none;
+	}
+}
+
+/* ---- Header: close · prev/next pill · name ---- */
+.focus-mode__header {
+	position: absolute;
+	z-index: 2;
+	top: var(--space-6);
+	left: var(--space-6);
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.focus-mode__stepper {
+	display: inline-flex;
+	align-items: center;
+	height: 36px;
+	padding: 0 2px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+}
+
+.focus-mode__char {
+	min-width: 24px;
+	text-align: center;
+}
+
+.focus-mode__name {
+	color: var(--color-text-secondary);
+}
+
+/* ---- Canvas: the existing <edit-canvas>, between pill and inspector ---- */
+.focus-mode .editor-page__edit-canvas-wrapper.focus-mode__canvas {
+	position: absolute;
+	top: 72px;
+	right: 312px;
+	bottom: 120px;
+	left: 120px;
+	width: auto;
+	height: auto;
+	min-width: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	overflow: hidden;
+}
+
+.focus-guides {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.focus-guides__line {
+	position: absolute;
+	box-sizing: border-box;
+}
+
+.focus-guides__line--h {
+	left: 0;
+	right: 0;
+	height: 0;
+	border-top: 1px solid var(--color-border-default);
+}
+
+.focus-guides__line--h.is-strong {
+	border-top-color: var(--color-glyph-guide);
+}
+
+.focus-guides__line--v {
+	top: 0;
+	bottom: 0;
+	width: 0;
+	border-left: 1px dashed var(--color-glyph-guide);
+}
+
+.focus-guides__label {
+	position: absolute;
+	white-space: nowrap;
+	color: var(--color-text-secondary);
+}
+
+.focus-guides__label--h {
+	left: 0;
+	transform: translateY(calc(-100% - 2px));
+}
+
+.focus-guides__label--v {
+	margin-top: var(--space-3);
+	transform: translateX(-50%);
+}
+
+/* ---- Tool pill (48px wide, vertically centred on the canvas) ---- */
+.focus-pill {
+	position: absolute;
+	z-index: 2;
+	left: var(--space-6);
+	top: calc(50% - 24px);
+	transform: translateY(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	box-sizing: border-box;
+	width: 48px;
+	padding: var(--space-1);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-surface);
+	box-shadow: var(--shadow-sm);
+}
+
+/* ---- Inspector card (264px, top-right) ---- */
+.focus-inspector {
+	position: absolute;
+	z-index: 2;
+	top: var(--space-6);
+	right: var(--space-6);
+	box-sizing: border-box;
+	width: 264px;
+	padding: var(--space-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-surface-raised);
+	box-shadow: var(--shadow-sm);
+}
+
+.focus-inspector__head {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.focus-inspector__code {
+	color: var(--color-text-secondary);
+}
+
+.focus-inspector__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	margin-left: auto;
+	padding: 2px var(--space-3);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.focus-inspector__chip[data-status='draft'] {
+	background: var(--color-status-draft-subtle);
+}
+
+.focus-inspector__chip[data-status='kept'] {
+	background: var(--color-status-kept-subtle);
+}
+
+.focus-inspector__chip[data-status='yours'] {
+	background: var(--color-status-yours-subtle);
+}
+
+.focus-inspector__chip[data-status='failed'] {
+	background: var(--color-status-failed-subtle);
+}
+
+.focus-inspector__fields {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.focus-inspector__field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	min-width: 0;
+	color: var(--color-text-secondary);
+}
+
+.focus-inspector__field input-number {
+	height: 36px;
+}
+
+.focus-inspector__actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-2);
+}
+
+.focus-inspector__actions[hidden] {
+	display: none;
+}
+
+
+/* ---- Context strip (bottom-centre, not interactive) ---- */
+.focus-strip {
+	position: absolute;
+	z-index: 1;
+	left: 50%;
+	bottom: var(--space-6);
+	transform: translateX(-50%);
+	box-sizing: border-box;
+	max-width: 60%;
+	height: 64px;
+	padding: var(--space-2) var(--space-6);
+	display: flex;
+	align-items: center;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	pointer-events: none;
+}
+
+.focus-strip[hidden] {
+	display: none;
+}
+
+.focus-strip__svg {
+	display: block;
+	height: 48px;
+	width: auto;
+	max-width: 100%;
+	overflow: visible;
+}
+
+.focus-strip__ink {
+	fill: var(--color-glyph-ink);
+}
+
+.focus-strip__ink.is-current {
+	fill: var(--color-status-draft);
+}
+
+.focus-strip__ghost {
+	fill: none;
+	stroke: var(--color-glyph-ghost);
+	stroke-width: 1.5px;
+	stroke-dasharray: 4 3;
+	vector-effect: non-scaling-stroke;
+}
+
+.focus-strip__ghost.is-current {
+	stroke: var(--color-status-draft);
+}
+
+@media (max-height: 700px) {
+	.focus-strip {
+		height: 56px;
+	}
+
+	.focus-strip__svg {
+		height: 40px;
+	}
+}
+
+@media (max-width: 1100px) {
+	.focus-inspector {
+		width: 240px;
+	}
+
+	.focus-mode .editor-page__edit-canvas-wrapper.focus-mode__canvas {
+		right: var(--space-6);
+	}
+}
+/* --------------------------------------------------------------
+	Buttons. The legacy reset (resets.css) styles `button`, `button:hover`,
+	`button:focus`, `button:active` and `button[disabled]` with padding,
+	margin, a border, a 4px radius, colours and a shadow. Every state is
+	pinned here at higher specificity, per variant and including its
+	colours (as PR #45's `button.agent-card__button:<state>`), so geometry
+	never changes, hovers are paint-only and focus keeps the variant paint.
+-------------------------------------------------------------- */
+
+/* Geometry, shared by every focus-mode button in every state */
+.focus-mode button.focus-mode__icon-button,
+.focus-mode button.focus-mode__icon-button:hover,
+.focus-mode button.focus-mode__icon-button:focus,
+.focus-mode button.focus-mode__icon-button:active,
+.focus-mode button.focus-mode__icon-button[disabled],
+.focus-mode button.focus-pill__tool,
+.focus-mode button.focus-pill__tool:hover,
+.focus-mode button.focus-pill__tool:focus,
+.focus-mode button.focus-pill__tool:active,
+.focus-mode button.focus-inspector__keep,
+.focus-mode button.focus-inspector__keep:hover,
+.focus-mode button.focus-inspector__keep:focus,
+.focus-mode button.focus-inspector__keep:active,
+.focus-mode button.focus-inspector__revert,
+.focus-mode button.focus-inspector__revert:hover,
+.focus-mode button.focus-inspector__revert:focus,
+.focus-mode button.focus-inspector__revert:active {
+	appearance: none;
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: var(--radius-full);
+	box-shadow: none;
+	outline: none;
+	cursor: pointer;
+}
+
+.focus-mode button.focus-mode__icon-button:focus-visible,
+.focus-mode button.focus-pill__tool:focus-visible,
+.focus-mode button.focus-inspector__keep:focus-visible,
+.focus-mode button.focus-inspector__revert:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+/* ---- Header icon buttons: 36px; 28×32 inside the prev/next pill ---- */
+.focus-mode button.focus-mode__icon-button,
+.focus-mode button.focus-mode__icon-button:hover,
+.focus-mode button.focus-mode__icon-button:focus,
+.focus-mode button.focus-mode__icon-button:active,
+.focus-mode button.focus-mode__icon-button[disabled] {
+	width: 36px;
+	height: 36px;
+	border-color: transparent;
+	background-color: transparent;
+	color: var(--color-text-secondary);
+}
+
+.focus-mode .focus-mode__stepper button.focus-mode__icon-button {
+	width: 28px;
+	height: 32px;
+}
+
+.focus-mode button.focus-mode__icon-button:hover:not([disabled]) {
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.focus-mode .focus-mode__stepper button.focus-mode__icon-button:hover:not([disabled]) {
+	background-color: var(--color-bg-surface);
+}
+
+.focus-mode button.focus-mode__icon-button[disabled] {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* ---- Tool pill: six 40px round buttons, active = accent fill ---- */
+.focus-mode button.focus-pill__tool,
+.focus-mode button.focus-pill__tool:hover,
+.focus-mode button.focus-pill__tool:focus,
+.focus-mode button.focus-pill__tool:active {
+	width: 40px;
+	height: 40px;
+	border-color: transparent;
+	background-color: transparent;
+	color: var(--color-text-primary);
+}
+
+.focus-pill__tool .material-symbols-rounded {
+	font-size: 24px;
+}
+
+.focus-mode button.focus-pill__tool:hover:not(.is-active) {
+	background-color: var(--color-bg-subtle);
+}
+
+.focus-mode button.focus-pill__tool.is-active,
+.focus-mode button.focus-pill__tool.is-active:hover,
+.focus-mode button.focus-pill__tool.is-active:focus,
+.focus-mode button.focus-pill__tool.is-active:active {
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+/* ---- Inspector actions: Keep (primary) and Revert (secondary), 32px ---- */
+.focus-mode button.focus-inspector__keep,
+.focus-mode button.focus-inspector__keep:hover,
+.focus-mode button.focus-inspector__keep:focus,
+.focus-mode button.focus-inspector__keep:active,
+.focus-mode button.focus-inspector__revert,
+.focus-mode button.focus-inspector__revert:hover,
+.focus-mode button.focus-inspector__revert:focus,
+.focus-mode button.focus-inspector__revert:active {
+	gap: var(--space-2);
+	height: 32px;
+	padding: 0 var(--space-3);
+}
+
+.focus-inspector__keep .material-symbols-rounded,
+.focus-inspector__revert .material-symbols-rounded {
+	font-size: 18px;
+}
+
+.focus-mode button.focus-inspector__keep,
+.focus-mode button.focus-inspector__keep:hover,
+.focus-mode button.focus-inspector__keep:focus,
+.focus-mode button.focus-inspector__keep:active {
+	border-color: transparent;
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+.focus-mode button.focus-inspector__keep:hover {
+	background-color: var(--color-bg-accent-hover);
+}
+
+.focus-mode button.focus-inspector__revert,
+.focus-mode button.focus-inspector__revert:hover,
+.focus-mode button.focus-inspector__revert:focus,
+.focus-mode button.focus-inspector__revert:active {
+	border-color: var(--color-border-default);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+.focus-mode button.focus-inspector__revert:hover:not([aria-disabled='true']) {
+	background-color: var(--color-bg-subtle);
+}
+
+.focus-mode button.focus-inspector__revert[aria-disabled='true'],
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:hover,
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:focus,
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:active {
+	border-color: var(--color-border-default);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-secondary);
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* The canvas host is a Tab stop; its 2000px box is clipped, so the ring
+   sits on the visible wrapper, and only for keyboard focus. */
+.focus-mode .focus-mode__canvas.is-keyboard-focus {
+	outline: var(--focus-ring);
+	outline-offset: calc(-1 * var(--focus-ring-width));
+}

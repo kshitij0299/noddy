@@ -6,6 +6,7 @@ import {
 } from '../../project_editor/charset_latin_kernel.js';
 import { GLYPH_STATUS_TOPIC } from '../../project_editor/glyph-status.js';
 import { ITEM_CHANGED_TOPIC, createDebouncedRedraw } from '../../project_editor/item_changed.js';
+import { openFocusMode } from '../../pages/focus_mode.js';
 import './glyph-grid.css';
 import { GlyphGridTile } from './glyph-tile.js';
 import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
@@ -44,17 +45,18 @@ const REFRESH_LEGEND = '*legend';
 let instanceCounter = 0;
 
 /**
- * Opens a glyph for editing. M2: the existing Characters page. M3 replaces
- * the body of this one function with focus mode; nothing else in the grid
- * knows how a glyph is opened.
+ * Opens a glyph for editing in focus mode ([M3], issues #16–#18). Nothing
+ * else in the grid knows how a glyph is opened.
  * @param {String} id - glyph ID, e.g. 'glyph-0x61'
  * @param {Object=} editor - ProjectEditor (defaults to the current one)
+ * @param {Object=} options
+ * @param {String=} options.origin - 'grid' | 'specimen' (where focus returns on close)
+ * @param {Array<String>=} options.order - prev/next order (the grid's visible IDs)
+ * @param {String=} options.view - the grid view at open
  */
-export function openGlyph(id, editor = getCurrentProjectEditor()) {
+export function openGlyph(id, editor = getCurrentProjectEditor(), options = {}) {
 	if (!id || !editor) return;
-	editor.selectedGlyphID = id;
-	editor.nav.page = 'Characters';
-	editor.navigate();
+	openFocusMode(id, { editor, ...options });
 }
 
 export class GlyphGrid extends HTMLElement {
@@ -74,7 +76,8 @@ export class GlyphGrid extends HTMLElement {
 		this._project = null;
 		this._subscriberID = '';
 		this._redraw = createDebouncedRedraw((id) => this._applyRefresh(id));
-		this.openGlyph = (id) => openGlyph(id, this.editor);
+		this.openGlyph = (id) =>
+			openGlyph(id, this.editor, { origin: 'grid', order: this.visibleIDs, view: this.view });
 		this._built = false;
 	}
 

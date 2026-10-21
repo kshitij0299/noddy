@@ -29,6 +29,8 @@ export class Navigator {
 		this.page = 'Workspace';
 		this.panel = 'Attributes';
 		this.pageContents = {};
+		/** Noddy focus mode state (src/pages/focus_mode.js) or null. */
+		this.focus = null;
 	}
 
 	/**
@@ -107,6 +109,13 @@ export class Navigator {
 		// log(`editor.selectedItemID: ${getCurrentProjectEditor().selectedItemID}`);
 
 		closeEveryTypeOfDialog();
+		// Noddy focus mode lives only on the Characters page: leaving for any
+		// other page settles it and drops its subscriptions.
+		if (this.focus && this.page !== 'Characters') {
+			const focus = this.focus;
+			this.focus = null;
+			if (typeof focus.leave === 'function') focus.leave();
+		}
 		const wrapper = document.querySelector('#app__wrapper');
 
 		// log(`wrapper before:`);
