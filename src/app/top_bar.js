@@ -14,13 +14,14 @@ import { getCurrentProjectEditor, getGlyphrStudioApp } from './main.js';
 import { makeFileMenuRows } from './menu.js';
 import { makePage_OpenProject } from './open_project.js';
 import { getSetProgress } from './set_progress.js';
+import { LEAVE_MESSAGE, hasUnsavedChanges, shouldShowNotAutosaving } from './leave_guard.js';
+
+export { hasUnsavedChanges };
 
 export const TOP_BAR_ID = 'app__top-bar';
 export const THEME_STORAGE_KEY = 'noddy.theme';
 const SUBSCRIBER_ID = 'topBar';
 const EXPORT_MENU_WIDTH = 320;
-/** Same wording as the app's beforeunload confirmation (app.js). */
-const LEAVE_MESSAGE = 'Are you sure you want to exit? Any unsaved data may be lost.';
 const NAME_MAX_LENGTH = 80;
 const MONITOR_MEDIA = '(max-width: 759px)';
 const RING_RADIUS = 6.5;
@@ -49,15 +50,6 @@ export const topBarActions = {
 		getGlyphrStudioApp().appPageNavigate(makePage_OpenProject);
 	},
 };
-
-/**
- * The editor marks unsaved work with a bullet in the document title
- * (`setProjectAsUnsaved`); there is no separate flag.
- * @returns {Boolean}
- */
-export function hasUnsavedChanges() {
-	return document.title.includes(' •');
-}
 
 export const EXPORT_MENU_ID = 'top-bar-export-menu';
 const MENU_ICONS = { command_save: 'save', command_export: 'download' };
@@ -368,8 +360,53 @@ export function makeAppTopBar() {
 		callback: refresh,
 	});
 
+	// Saving only changes the document title (setProjectAsSaved), so follow
+	// the title to show or hide the "Not autosaving" chip.
+	observeTitle(() => updateAutosaveChip(topBar));
+
 	refreshTopBar(topBar);
 	return topBar;
+}
+
+let titleObserver;
+
+/**
+ * One observer for the page; each new bar replaces the previous callback.
+ * @param {Function} callback - called when the document title changes
+ */
+function observeTitle(callback) {
+	titleObserver?.disconnect();
+	const title = document.querySelector('title');
+	if (!title || typeof MutationObserver === 'undefined') return;
+	titleObserver = new MutationObserver(() => callback());
+	titleObserver.observe(title, { childList: true, characterData: true, subtree: true });
+}
+
+export const AUTOSAVE_CHIP_TEXT = 'Not autosaving';
+
+/**
+ * Shows the "Not autosaving" chip in the status slot only while autosave is
+ * off and there are unsaved changes; removes it otherwise (the slot hides
+ * while empty).
+ * @param {Element | null} topBar - the bar
+ */
+export function updateAutosaveChip(topBar) {
+	const status = topBar?.querySelector('#top-bar-status');
+	if (!status) return;
+	const existing = status.querySelector('.top-bar__autosave-chip');
+	const show = shouldShowNotAutosaving();
+	if (!show) {
+		existing?.remove();
+		return;
+	}
+	if (existing) return;
+	const chip = makeElement({
+		tag: 'span',
+		className: 'top-bar__autosave-chip text-label',
+		attributes: { role: 'status' },
+	});
+	chip.append(icon('cloud_off'), makeElement({ tag: 'span', content: AUTOSAVE_CHIP_TEXT }));
+	status.appendChild(chip);
 }
 
 /**
@@ -406,6 +443,7 @@ export function refreshTopBar(topBar = document.getElementById(TOP_BAR_ID)) {
 	}
 
 	updateProgressRing(topBar.querySelector('.top-bar__progress'), getSetProgress(editor.project));
+	updateAutosaveChip(topBar);
 }
 
 // --------------------------------------------------------------

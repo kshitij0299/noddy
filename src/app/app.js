@@ -17,6 +17,7 @@ import {
 	getProjectEditorImportTarget,
 	setCurrentProjectEditor,
 } from './main.js';
+import { LEAVE_MESSAGE, shouldWarnBeforeLeaving } from './leave_guard.js';
 import { makePage_OpenProject } from './open_project.js';
 
 /**
@@ -357,14 +358,17 @@ export function updateWindowUnloadEvent() {
 /**
  * handler for onBeforeUnload
  * @param {Event} event - original event
- * @returns {String} - message to show
+ * @returns {String | undefined} - message to show, if any
  */
-function showBeforeUnloadConfirmation(event) {
-	// console.log(`event.type: ${event.type}`);
+export function showBeforeUnloadConfirmation(event) {
+	// Only ask when there is something to lose: unsaved changes or an agent
+	// run in flight. A clean, idle project leaves without a prompt.
+	if (!shouldWarnBeforeLeaving()) return undefined;
 	event.preventDefault();
 	event.stopPropagation();
-	let message = 'Are you sure you want to exit? Any unsaved data may be lost.';
-	return message;
+	// @ts-expect-error 'returnValue is settable on BeforeUnloadEvent'
+	event.returnValue = LEAVE_MESSAGE;
+	return LEAVE_MESSAGE;
 }
 
 // --------------------------------------------------------------

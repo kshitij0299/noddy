@@ -224,6 +224,25 @@
 	display: none;
 }
 
+/* "Not autosaving" chip (issue #10). Text stays primary for AA contrast;
+   the amber is on the icon, border and fill. Paint-only, no hover. */
+.top-bar__autosave-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	padding: 0 var(--space-2);
+	border: 1px solid var(--color-status-warning);
+	border-radius: var(--radius-full);
+	background-color: var(--color-status-warning-subtle);
+	color: var(--color-text-primary);
+	white-space: nowrap;
+}
+
+.top-bar__autosave-chip .material-symbols-rounded {
+	font-size: 16px;
+	color: var(--color-status-warning);
+}
+
 /* IconButton Md 36 */
 #app__top-bar .icon-button {
 	box-sizing: border-box;
