@@ -5,7 +5,8 @@
 2. [WORKFLOW.md](WORKFLOW.md): team roles (orchestrator, developer, UI/UX, QA), git conventions, protected-area process, morning report.
 3. [BUILD-PLAN.md](BUILD-PLAN.md): milestones M1–M9. Each bullet is one issue and one PR.
 4. [FIGMA.md](FIGMA.md): where every design lives (Figma node IDs), plus screen PNGs in [figma/screens/](figma/screens/).
-5. [ARCHITECTURE.md](ARCHITECTURE.md): the codebase map for builders. If it is missing, writing it is the first docs PR.
+5. [CAVEMAN.md](CAVEMAN.md): how agents talk to each other and read less.
+6. [ARCHITECTURE.md](ARCHITECTURE.md): the codebase map for builders. If it is missing, writing it is the first docs PR.
 
 **Specs and research:**
 - [FIGMA-SPEC.md](FIGMA-SPEC.md): tokens, type roles, layout (v2).
