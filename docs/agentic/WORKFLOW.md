@@ -12,6 +12,8 @@
 
 All agents run at medium effort. Agents talk to each other per [CAVEMAN.md](CAVEMAN.md); everything saved to GitHub stays in full sentences.
 
+**Skills:** shared skills live in `.claude/skills/` (developer: TDD, frontend UI, debugging; QA: code review). The rest are generic and optional. `responsive-design` is never used: its patterns conflict with AGENTS.md §1. `browser-testing-with-devtools` assumes a DevTools MCP we lack; use the Playwright helper in ENVIRONMENT.md. For protected-area PRs the orchestrator may add a `code-reviewer` agent pass on top of QA.
+
 **Concurrency:** at most two agents at a time. Cloud and local sessions draw from the same usage pool; parallel agents are what spend it.
 
 **Environment facts** for cloud agents (ports, screenshot helper, proxy, GitHub via MCP) live in [ENVIRONMENT.md](ENVIRONMENT.md).
