@@ -16,6 +16,7 @@ import { makePage_Ligatures } from '../pages/ligatures.js';
 import { livePreviewPageWindowResize, makePage_LivePreview } from '../pages/live_preview.js';
 import { makePage_Overview } from '../pages/overview.js';
 import { makePage_Settings } from '../pages/settings.js';
+import { makePage_Workspace } from '../pages/workspace.js';
 import { makeSingleItemTypeChooserContent } from '../panels/item_chooser.js';
 
 // --------------------------------------------------------------
@@ -24,7 +25,7 @@ import { makeSingleItemTypeChooserContent } from '../panels/item_chooser.js';
 
 export class Navigator {
 	constructor() {
-		this.page = 'Overview';
+		this.page = 'Workspace';
 		this.panel = 'Attributes';
 		this.pageContents = {};
 	}
@@ -34,6 +35,10 @@ export class Navigator {
 	 */
 	get tableOfContents() {
 		return {
+			Workspace: {
+				pageMaker: makePage_Workspace,
+				iconName: 'page_overview',
+			},
 			Overview: {
 				pageMaker: makePage_Overview,
 				iconName: 'page_overview',

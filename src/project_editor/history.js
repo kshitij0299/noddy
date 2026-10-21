@@ -222,10 +222,6 @@ export class History {
 		// log(`nextEntry:`);
 		// log(nextEntry);
 
-		// Clear selections
-		editor.multiSelect.points.clear();
-		editor.multiSelect.shapes.clear();
-
 		// Capture entries being removed from the queue for redo
 		const redoEntries = [q[0]];
 
@@ -247,6 +243,11 @@ export class History {
 			editor.selectedItem = nextEntry.itemState;
 			// log(editor.selectedItem.print());
 		}
+		// Clear selections only after the item is replaced: clearing publishes
+		// selection topics that rebuild the inspector, which must bind to the
+		// restored item, not the one being discarded (#44).
+		editor.multiSelect.points.clear();
+		editor.multiSelect.shapes.clear();
 		editor.publish('currentItem', editor.selectedItem);
 
 		// Index 0 is the previous current state, so remove it
@@ -299,14 +300,14 @@ export class History {
 		const entries = this.redoQueue.shift();
 		const targetEntry = entries[0];
 
-		editor.multiSelect.points.clear();
-		editor.multiSelect.shapes.clear();
-
 		if (targetEntry.wholeProjectSave) {
 			editor._project = targetEntry.itemState;
 		} else {
 			editor.selectedItem = targetEntry.itemState;
 		}
+		// After the replacement, so the rebuilt inspector binds to it (#44)
+		editor.multiSelect.points.clear();
+		editor.multiSelect.shapes.clear();
 		editor.publish('currentItem', editor.selectedItem);
 
 		// Restore the queue entries so subsequent undos behave correctly

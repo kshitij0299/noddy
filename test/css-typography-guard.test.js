@@ -38,10 +38,15 @@ const GLOBAL_STYLESHEETS = [
 	'src/project_editor/pop-out-window.css',
 	'src/pages/editor-pages.css',
 	'src/pages/content-pages.css',
+	'src/pages/workspace.css',
+	'src/controls/specimen-card/specimen-card.css',
 	'src/controls/dialogs/dialogs.css',
 	'src/controls/fancy-slider/fancy-slider.css',
 	'src/controls/tabs/tab-control.css',
 	'src/controls/progress-indicator/progress-indicator.css',
+	// Side-effect imports (document-wide once their module loads).
+	'src/controls/glyph-grid/glyph-grid.css',
+	'src/agent/ui/cards/agent-cards.css',
 ];
 
 // Allowlisted: component-scoped stylesheets (matched by path substring).
