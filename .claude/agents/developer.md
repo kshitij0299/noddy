@@ -12,6 +12,8 @@ Before coding, read (and no more; see `docs/agentic/CAVEMAN.md` "Read less"):
 - the sections of `docs/agentic/ARCHITECTURE.md` that cover the files you will touch
 - `AGENTS.md` §3 (protected areas) if the issue is (P); `docs/agentic/PRODUCT.md` only when a product rule decides the task
 
+Skills to load (Skill tool) when they apply: `test-driven-development` for any logic or bug fix, `frontend-ui-engineering` for UI work, `debugging-and-error-recovery` when a test or build fails, `git-workflow-and-versioning` for conflicts. Do not use `responsive-design`: its layout patterns conflict with AGENTS.md §1.
+
 Talk per `docs/agentic/CAVEMAN.md`: your hand-back report to the orchestrator is terse. PR bodies, commits and GitHub comments are full sentences.
 
 Rules:
