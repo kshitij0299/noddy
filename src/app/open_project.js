@@ -11,8 +11,6 @@ import { importGlyphrProjectFromText } from '../project_editor/import_project.js
 import obleggExampleProject from '../samples/oblegg.gs2?raw';
 import simpleExampleProject from '../samples/simpleExampleProject.json';
 import { updateWindowUnloadEvent } from './app.js';
-import { button, createAgentComposer, element } from '../agent/agent-composer.js';
-import { getAgentWindow } from '../agent/agent-window.js';
 import {
 	addProjectEditorAndSetAsImportTarget,
 	getCurrentProjectEditor,
@@ -163,36 +161,6 @@ export function makeOpenProjectTabs() {
 	});
 
 	addAsChildren(tabContentNew, [inputProjectName, newProjectHelp, buttonStartNewProject]);
-
-	const agentStart = element('div', 'agent-start');
-	agentStart.hidden = true;
-	const composer = createAgentComposer({
-		placeholder: 'Describe the first glyph you want to make…',
-		submitLabel: 'Start with agent',
-		onSubmit: ({ prompt, attachments }) => {
-			if (isSecondProject) addProjectEditorAndSetAsImportTarget();
-			importProjectDataAndNavigate();
-			const editor = getCurrentProjectEditor();
-			editor.selectedGlyphID = 'glyph-0x41';
-			editor.nav.page = 'Characters';
-			editor.navigate();
-			getAgentWindow().start({ prompt, attachments });
-		},
-	});
-	agentStart.append(composer.root);
-	const startAgent = button(
-		'Start from scratch with an agent',
-		() => {
-			agentStart.hidden = !agentStart.hidden;
-			startAgent.setAttribute('aria-expanded', String(!agentStart.hidden));
-			if (!agentStart.hidden) composer.input.focus();
-		},
-		'agent-start-button'
-	);
-	startAgent.setAttribute('aria-expanded', 'false');
-	startAgent.setAttribute('aria-controls', 'open-project__agent-start');
-	agentStart.id = 'open-project__agent-start';
-	tabContentNew.append(startAgent, agentStart);
 
 	// Content for Load tab
 	const tabContentLoad = makeElement({
