@@ -10,3 +10,5 @@ How to stay lean:
 - Prefer Fable for subagents; use Opus only for hard implementation (history/undo, native tools, canvas).
 - Small PRs. One combined QA+UX review per PR unless it's a big UI screen. No repeated full-suite runs beyond what the definition of done needs.
 - Scope: M1–M4 first; stop there if the budget is tight. Don't start a milestone you can't finish within the window.
+
+**Update 2026-10-21 07:40 UTC (owner, in the orchestrator session):** the owner restarted the run after the session limit reset. The 02:15/02:30 UTC time window no longer applies; work may continue. The weekly caps above (all models ≤ 50%, Fable ≤ 40%) still apply. Small repetitive non-UI jobs may use Sonnet 5.5 (medium) to save usage.
