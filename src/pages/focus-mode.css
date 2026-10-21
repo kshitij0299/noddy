@@ -39,14 +39,6 @@
 	}
 }
 
-.focus-mode__sentinel {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	overflow: hidden;
-	opacity: 0;
-}
-
 /* ---- Header: close · prev/next pill · name ---- */
 .focus-mode__header {
 	position: absolute;
@@ -58,40 +50,6 @@
 	gap: var(--space-3);
 }
 
-.focus-mode__icon-button {
-	appearance: none;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 36px;
-	height: 36px;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: var(--radius-full);
-	background: transparent;
-	color: var(--color-text-secondary);
-	cursor: pointer;
-}
-
-.focus-mode__icon-button:hover:not(:disabled) {
-	background: var(--color-bg-subtle);
-	color: var(--color-text-primary);
-}
-
-.focus-mode__icon-button:disabled {
-	opacity: 0.4;
-	cursor: default;
-}
-
-.focus-mode__icon-button:focus-visible,
-.focus-pill__tool:focus-visible,
-.focus-inspector__keep:focus-visible,
-.focus-inspector__revert:focus-visible {
-	outline: var(--focus-ring);
-	outline-offset: var(--focus-ring-offset);
-}
-
 .focus-mode__stepper {
 	display: inline-flex;
 	align-items: center;
@@ -99,15 +57,6 @@
 	padding: 0 2px;
 	border-radius: var(--radius-full);
 	background: var(--color-bg-subtle);
-}
-
-.focus-mode__stepper .focus-mode__icon-button {
-	width: 28px;
-	height: 32px;
-}
-
-.focus-mode__stepper .focus-mode__icon-button:hover:not(:disabled) {
-	background: var(--color-bg-surface);
 }
 
 .focus-mode__char {
@@ -199,35 +148,6 @@
 	box-shadow: var(--shadow-sm);
 }
 
-.focus-pill__tool {
-	appearance: none;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 40px;
-	height: 40px;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: var(--radius-full);
-	background: transparent;
-	color: var(--color-text-primary);
-	cursor: pointer;
-}
-
-.focus-pill__tool .material-symbols-rounded {
-	font-size: 24px;
-}
-
-.focus-pill__tool:hover {
-	background: var(--color-bg-subtle);
-}
-
-.focus-pill__tool.is-active {
-	background: var(--color-bg-accent);
-	color: var(--color-text-on-accent);
-}
-
 /* ---- Inspector card (264px, top-right) ---- */
 .focus-inspector {
 	position: absolute;
@@ -310,50 +230,6 @@
 	display: none;
 }
 
-.focus-inspector__keep,
-.focus-inspector__revert {
-	appearance: none;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--space-2);
-	height: 32px;
-	margin: 0;
-	padding: 0 var(--space-3);
-	border-radius: var(--radius-full);
-	cursor: pointer;
-}
-
-.focus-inspector__keep .material-symbols-rounded,
-.focus-inspector__revert .material-symbols-rounded {
-	font-size: 18px;
-}
-
-.focus-inspector__keep {
-	border: 0;
-	background: var(--color-bg-accent);
-	color: var(--color-text-on-accent);
-}
-
-.focus-inspector__keep:hover {
-	background: var(--color-bg-accent-hover);
-}
-
-.focus-inspector__revert {
-	border: 1px solid var(--color-border-default);
-	background: var(--color-bg-surface);
-	color: var(--color-text-primary);
-}
-
-.focus-inspector__revert:hover:not([aria-disabled='true']) {
-	background: var(--color-bg-subtle);
-}
-
-.focus-inspector__revert[aria-disabled='true'] {
-	color: var(--color-text-secondary);
-	opacity: 0.6;
-	cursor: not-allowed;
-}
 
 /* ---- Context strip (bottom-centre, not interactive) ---- */
 .focus-strip {
@@ -423,4 +299,144 @@
 	.focus-mode .editor-page__edit-canvas-wrapper.focus-mode__canvas {
 		right: var(--space-6);
 	}
+}
+
+/* --------------------------------------------------------------
+	Buttons. The legacy reset (resets.css) styles `button`, `button:hover`,
+	`button:focus`, `button:active` and `button[disabled]` with padding,
+	margin, a border, a 4px radius and a shadow. Every state is pinned here
+	at higher specificity (as in PR #45's `button.agent-card__button`) so
+	geometry never changes and hovers are paint-only.
+-------------------------------------------------------------- */
+.focus-mode button.focus-mode__icon-button,
+.focus-mode button.focus-mode__icon-button:hover,
+.focus-mode button.focus-mode__icon-button:focus,
+.focus-mode button.focus-mode__icon-button:active,
+.focus-mode button.focus-mode__icon-button[disabled],
+.focus-mode button.focus-pill__tool,
+.focus-mode button.focus-pill__tool:hover,
+.focus-mode button.focus-pill__tool:focus,
+.focus-mode button.focus-pill__tool:active,
+.focus-mode button.focus-inspector__keep,
+.focus-mode button.focus-inspector__keep:hover,
+.focus-mode button.focus-inspector__keep:focus,
+.focus-mode button.focus-inspector__keep:active,
+.focus-mode button.focus-inspector__revert,
+.focus-mode button.focus-inspector__revert:hover,
+.focus-mode button.focus-inspector__revert:focus,
+.focus-mode button.focus-inspector__revert:active {
+	appearance: none;
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: var(--radius-full);
+	box-shadow: none;
+	background-color: transparent;
+	color: var(--color-text-primary);
+	outline: none;
+	cursor: pointer;
+}
+
+.focus-mode button.focus-mode__icon-button:focus-visible,
+.focus-mode button.focus-pill__tool:focus-visible,
+.focus-mode button.focus-inspector__keep:focus-visible,
+.focus-mode button.focus-inspector__revert:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+/* Header icon buttons: 36px; 28×32 inside the prev/next pill */
+.focus-mode button.focus-mode__icon-button {
+	width: 36px;
+	height: 36px;
+	color: var(--color-text-secondary);
+}
+
+.focus-mode .focus-mode__stepper button.focus-mode__icon-button {
+	width: 28px;
+	height: 32px;
+}
+
+.focus-mode button.focus-mode__icon-button:hover:not([disabled]) {
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.focus-mode .focus-mode__stepper button.focus-mode__icon-button:hover:not([disabled]) {
+	background-color: var(--color-bg-surface);
+}
+
+.focus-mode button.focus-mode__icon-button[disabled] {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Tool pill: six 40px round buttons, active = accent fill */
+.focus-mode button.focus-pill__tool {
+	width: 40px;
+	height: 40px;
+}
+
+.focus-pill__tool .material-symbols-rounded {
+	font-size: 24px;
+}
+
+.focus-mode button.focus-pill__tool:hover {
+	background-color: var(--color-bg-subtle);
+}
+
+.focus-mode button.focus-pill__tool.is-active,
+.focus-mode button.focus-pill__tool.is-active:hover {
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+
+.focus-mode button.focus-inspector__keep,
+.focus-mode button.focus-inspector__revert {
+	gap: var(--space-2);
+	height: 32px;
+	padding: 0 var(--space-3);
+}
+
+.focus-inspector__keep .material-symbols-rounded,
+.focus-inspector__revert .material-symbols-rounded {
+	font-size: 18px;
+}
+
+.focus-mode button.focus-inspector__keep {
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+.focus-mode button.focus-inspector__keep:hover {
+	background-color: var(--color-bg-accent-hover);
+}
+
+.focus-mode button.focus-inspector__revert {
+	border-color: var(--color-border-default);
+	background-color: var(--color-bg-surface);
+}
+
+.focus-mode button.focus-inspector__revert:hover:not([aria-disabled='true']) {
+	background-color: var(--color-bg-subtle);
+}
+
+.focus-mode button.focus-inspector__revert[aria-disabled='true'],
+.focus-mode button.focus-inspector__revert[aria-disabled='true']:hover {
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-secondary);
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* The canvas host is a Tab stop; its 2000px box is clipped, so the ring
+   sits on the visible wrapper, and only for keyboard focus. */
+.focus-mode .focus-mode__canvas.is-keyboard-focus {
+	outline: var(--focus-ring);
+	outline-offset: calc(-1 * var(--focus-ring-width));
 }

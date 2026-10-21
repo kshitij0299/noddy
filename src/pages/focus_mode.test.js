@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getGlyphrStudioApp, setCurrentProjectEditor } from '../app/main.js';
 import { GlyphGrid, openGlyph } from '../controls/glyph-grid/glyph-grid.js';
@@ -471,5 +473,200 @@ describe('Focus mode: openFocusMode defaults', () => {
 		openFocusMode('glyph-0x21', { editor });
 		expect(editor.nav.focus.view).toBe('all');
 		expect(editor.nav.focus.order.length).toBe(116);
+	});
+});
+
+// --------------------------------------------------------------
+// QA round 1 (PR #57): regressions
+// --------------------------------------------------------------
+
+function tab(shift = false) {
+	const target = document.activeElement || document.body;
+	const event = new KeyboardEvent('keydown', {
+		key: 'Tab',
+		shiftKey: shift,
+		bubbles: true,
+		cancelable: true,
+	});
+	target.dispatchEvent(event);
+	return event;
+}
+
+/** A readable name for the focused control. */
+function focusedName() {
+	const el = document.activeElement;
+	if (!el) return '';
+	if (el.tagName === 'EDIT-CANVAS') return 'canvas';
+	if (el.tagName === 'INPUT-NUMBER') return `field:${el.getAttribute('aria-label')}`;
+	const icon = el.querySelector('.material-symbols-rounded')?.textContent || '';
+	return (
+		el.getAttribute('data-tool') ||
+		el.getAttribute('aria-label') ||
+		el.textContent.replace(icon, '').trim()
+	);
+}
+
+describe('Focus mode: keyboard order and focus (QA #57)', () => {
+	it('opening puts focus inside the card (on the canvas)', () => {
+		const tile = grid().tiles.get(a);
+		grid().select(a, { focus: true });
+		key(tile, 'Enter');
+		expect(focusCard().contains(document.activeElement)).toBe(true);
+		expect(focusedName()).toBe('canvas');
+	});
+
+	it('Tab walks close → prev → next → canvas → pill → fields → Keep/Revert and wraps', () => {
+		editor.glyphStatus.set(n, 'draft', 'agent');
+		grid().tiles.get(n).click();
+		/** @type {HTMLElement} */ (document.querySelector('.focus-mode__close')).focus();
+		const seen = [focusedName()];
+		for (let i = 0; i < 15; i++) {
+			const event = tab();
+			expect(event.defaultPrevented).toBe(true);
+			seen.push(focusedName());
+		}
+		expect(seen).toEqual([
+			'Close',
+			'Previous glyph',
+			'Next glyph',
+			'canvas',
+			'select',
+			'pen',
+			'add-point',
+			'rectangle',
+			'oval',
+			'hand',
+			'field:Advance',
+			'field:Left',
+			'field:Right',
+			'Keep',
+			'Revert',
+			'Close',
+		]);
+		tab(true);
+		expect(focusedName()).toBe('Revert');
+	});
+
+	it('Tab skips disabled prev and hidden Keep/Revert', () => {
+		grid().tiles.get(A).click();
+		/** @type {HTMLElement} */ (document.querySelector('.focus-mode__close')).focus();
+		tab();
+		expect(focusedName()).toBe('Next glyph');
+		/** @type {any} */ (
+			document.querySelector('.focus-mode .singleInput-rightSideBearing')
+		).numberInput.focus();
+		tab();
+		expect(focusedName()).toBe('Close');
+	});
+
+	it('after Keep, focus moves to the Advance field', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		grid().tiles.get(a).click();
+		const keep = /** @type {HTMLElement} */ (document.querySelector('.focus-inspector__keep'));
+		keep.focus();
+		keep.click();
+		expect(focusedName()).toBe('field:Advance');
+	});
+
+	it('Esc with a toast open leaves focus mode open (the toast closes first)', () => {
+		grid().tiles.get(a).click();
+		const toast = document.createElement('div');
+		toast.id = 'toast';
+		document.body.appendChild(toast);
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(focusCard()).toBeTruthy();
+		toast.remove();
+	});
+
+	it('Esc pressed on a pill button still closes focus mode', () => {
+		grid().tiles.get(a).click();
+		key(pillButton('pen'), 'Escape');
+		expect(focusCard()).toBeNull();
+	});
+});
+
+describe('Focus mode: view and live strip (QA #57)', () => {
+	it('prev/next keep the zoom and pan', () => {
+		grid().tiles.get(A).click();
+		editor.view = { dx: 123, dy: 456, dz: 0.75 };
+		/** @type {HTMLButtonElement} */ (document.querySelector('.focus-mode__next')).click();
+		expect(editor.selectedGlyphID).toBe(B);
+		expect(editor.view).toMatchObject({ dx: 123, dy: 456, dz: 0.75 });
+	});
+
+	it('the strip redraws on the same change when a tool only publishes selection topics', async () => {
+		grid().tiles.get(a).click();
+		const strip = document.querySelector('.focus-strip');
+		const before = strip.querySelector('.is-current').getAttribute('d');
+		// What the rectangle tool does on mouseup: add a path, select it, switch tool.
+		const glyph = editor.project.getItem(a);
+		glyph.addOneShape(makeGlyph('glyph-0x7A', editor.project, { x: 400, size: 100 }).shapes[0]);
+		glyph.changed();
+		editor.multiSelect.shapes.select(glyph.shapes[1]);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(strip.querySelector('.is-current').getAttribute('d')).not.toBe(before);
+	});
+});
+
+describe('Focus mode: leaving to another page (QA #57)', () => {
+	it('navigating to any other page clears focus mode and its subscriptions', () => {
+		grid().tiles.get(a).click();
+		const glyph = editor.project.getItem(a);
+		glyph.shapes[0].pathPoints[2].p.y += 50;
+		glyph.changed();
+		editor.nav.page = 'Overview';
+		editor.navigate();
+		expect(editor.nav.focus).toBeFalsy();
+		expect(editor.glyphStatus.getStatus(a)).toBe('yours');
+		const ids = Object.values(editor.subscribers).flatMap((topic) => Object.keys(topic));
+		expect(ids.some((id) => id.startsWith('focusMode'))).toBe(false);
+	});
+});
+
+describe('Focus mode: buttons beat the legacy reset (QA #57)', () => {
+	const css = (rel) => fs.readFileSync(path.resolve(__dirname, rel), 'utf8');
+	const classes = [
+		'focus-mode__icon-button',
+		'focus-pill__tool',
+		'focus-inspector__keep',
+		'focus-inspector__revert',
+	];
+
+	it('every button class pins geometry for base, :hover, :focus and :active', () => {
+		const source = css('./focus-mode.css');
+		classes.forEach((cls) => {
+			const block = source.split('}').find((rule) => rule.includes(`.focus-mode button.${cls}:hover,`));
+			expect(block, cls).toBeTruthy();
+			['', ':focus', ':active'].forEach((state) => {
+				expect(block).toContain(`.focus-mode button.${cls}${state}`);
+			});
+			['padding:', 'margin:', 'border:', 'border-radius:', 'box-shadow:'].forEach((prop) => {
+				expect(block, `${cls} ${prop}`).toContain(prop);
+			});
+		});
+	});
+
+	it('computed geometry is the same at rest and on focus, with the reset loaded', () => {
+		const style = document.createElement('style');
+		style.textContent =
+			css('../common/resets.css').replace(/^@import.*$/gm, '') + css('./focus-mode.css');
+		document.head.appendChild(style);
+		try {
+			grid().tiles.get(a).click();
+			['.focus-mode__close', '.focus-pill__tool'].forEach((selector) => {
+				const button = /** @type {HTMLElement} */ (document.querySelector(selector));
+				const geometry = () => {
+					const s = getComputedStyle(button);
+					return [s.paddingTop, s.paddingLeft, s.marginTop, s.borderTopLeftRadius, s.boxShadow];
+				};
+				const rest = geometry();
+				button.focus();
+				expect(geometry(), selector).toEqual(rest);
+				expect(rest[0], selector).toBe('0px');
+				expect(rest[2], selector).toBe('0px');
+			});
+		} finally {
+			style.remove();
+		}
 	});
 });

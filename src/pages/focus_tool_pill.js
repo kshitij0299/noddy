@@ -90,6 +90,7 @@ export function makeToolPill(editor) {
 	});
 
 	const guard = (event) => {
+		if (event.key === 'Escape') return;
 		if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
 	};
 	pill.addEventListener('keydown', guard);

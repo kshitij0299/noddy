@@ -48,10 +48,22 @@ export const FOCUS_SUBSCRIBER = 'focusMode';
  * @property {String} view - grid view at open ('default' | 'all')
  * @property {Array<String>} order - glyph IDs prev/next walks through
  * @property {{id: String, outline: String} | null} baseline - outline at open
+ * @property {Function=} leave - settles Yours and tears down; Navigator calls it
+ * when navigating to a page other than Characters
  */
 
 /** Open dialogs and menus that get Esc before focus mode does. */
-const OPEN_OVERLAYS = '#modal-dialog, nav, option-chooser[deployed], .export-menu';
+const OPEN_OVERLAYS = [
+	'#modal-dialog',
+	'nav',
+	'option-chooser[deployed]',
+	'.export-menu',
+	'#context-menu',
+	'#toast',
+	'#error',
+	'#bubble',
+	'#notation',
+].join(', ');
 
 /** Document-level listeners for the mounted focus page. */
 let mounted = null;
@@ -151,6 +163,7 @@ export function openFocusMode(id, { editor = getCurrentProjectEditor(), origin =
 	editor.selectedGlyphID = id;
 	editor.nav.page = 'Characters';
 	editor.navigate();
+	mounted?.focusStart?.();
 }
 
 /**
@@ -376,6 +389,8 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	const canvas = document.createElement('edit-canvas');
 	canvas.id = 'editor-page__edit-canvas';
 	canvas.setAttribute('editing-item-id', currentID);
+	canvas.setAttribute('tabindex', '0');
+	canvas.setAttribute('aria-label', 'Glyph canvas');
 	const guides = makeElement({ tag: 'div', className: 'focus-guides', attributes: { 'aria-hidden': 'true' } });
 	wrapper.append(canvas, guides);
 
@@ -383,14 +398,66 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	const inspector = makeInspector(editor);
 	const strip = makeContextStrip();
 
-	// Focus trap: Tab wraps inside the card.
-	const startSentinel = makeSentinel(() => lastFocusable(card).focus());
-	const endSentinel = makeSentinel(() => closeButton.focus());
-	card.append(startSentinel, header, wrapper, pill, inspector, strip, endSentinel);
+	card.append(header, wrapper, pill, inspector, strip);
 
 	// Header keys stay out of the canvas shortcuts.
 	header.addEventListener('keydown', guardKeys);
 	header.addEventListener('keyup', guardKeys);
+
+	// Keyboard order and focus trap. The edit canvas swallows Tab (its inner
+	// <canvas> cancels every keydown; protected code), so the card moves
+	// focus itself, in the capture phase, before the canvas sees the key.
+	const tabStops = () =>
+		/** @type {Array<HTMLElement>} */ ([
+			closeButton,
+			prevButton,
+			nextButton,
+			canvas,
+			...pill.querySelectorAll('button'),
+			...inspector.querySelectorAll('input-number, button'),
+		]).filter(
+			(el) =>
+				el.isConnected &&
+				!(/** @type {HTMLButtonElement} */ (el).disabled) &&
+				!el.closest('[hidden]')
+		);
+	card.addEventListener(
+		'keydown',
+		(event) => {
+			if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) return;
+			event.preventDefault();
+			event.stopPropagation();
+			const stops = tabStops();
+			if (!stops.length) return;
+			const index = stops.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+			const step = event.shiftKey ? -1 : 1;
+			const next =
+				index < 0
+					? stops[event.shiftKey ? stops.length - 1 : 0]
+					: stops[(index + step + stops.length) % stops.length];
+			focusStop(next, true);
+		},
+		true
+	);
+
+	/**
+	 * Focuses a control; the canvas host gets a visible ring only when the
+	 * focus came from the keyboard.
+	 * @param {HTMLElement} el
+	 * @param {Boolean} fromKeyboard
+	 */
+	function focusStop(el, fromKeyboard) {
+		if (!el) return;
+		const inner = /** @type {any} */ (el).numberInput;
+		if (el.tagName === 'INPUT-NUMBER' && inner?.focus) inner.focus({ preventScroll: true });
+		else el.focus({ preventScroll: true });
+		wrapper.classList.toggle('is-keyboard-focus', el === canvas && fromKeyboard);
+	}
+	wrapper.addEventListener('pointerdown', () => wrapper.classList.remove('is-keyboard-focus'));
+	canvas.addEventListener('blur', () => wrapper.classList.remove('is-keyboard-focus'));
+	inspector.addEventListener('focus-mode:kept', () => {
+		focusStop(inspector.querySelector('input-number'), true);
+	});
 
 	function renderHeader() {
 		const index = state.order.indexOf(currentID);
@@ -419,6 +486,11 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	function switchTo(newID) {
 		if (!newID || newID === currentID) return;
 		settleBaseline(editor, state.baseline);
+		// Keep zoom and pan across glyphs (views are stored per item).
+		const previousView = editor._views?.[currentID];
+		if (previousView && !previousView.default) {
+			editor.view = { dx: previousView.dx, dy: previousView.dy, dz: previousView.dz };
+		}
 		currentID = newID;
 		state.baseline = takeBaseline(editor, currentID);
 		removeStopCreatingNewPathButton();
@@ -442,15 +514,18 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	sub(GLYPH_STATUS_TOPIC, 'status', (data) => {
 		if (!data?.id || data.id === currentID) inspector.refreshStatus();
 	});
+	// Some tools change the outline and then publish only selection or tool
+	// topics (rectangle / oval mouseup), so every editor topic schedules a
+	// coalesced redraw, like the edit canvas's own '*' subscription.
+	sub('*', 'any', () => {
+		redraw.schedule('strip');
+		redraw.schedule('guides');
+		redraw.schedule('fields');
+	});
 	sub(ITEM_CHANGED_TOPIC, 'item', () => {
 		redraw.schedule('strip');
 		redraw.schedule('guides');
 	});
-	sub('currentItem', 'item', () => {
-		redraw.schedule('fields');
-		redraw.schedule('guides');
-	});
-	sub('editCanvasView', 'view', () => redraw.schedule('guides'));
 
 	const onKeyDown = (event) => {
 		if (event.key !== 'Escape' || !card.isConnected) return;
@@ -465,14 +540,31 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	const onResize = () => redraw.schedule('guides');
 	document.addEventListener('keydown', onKeyDown, true);
 	window.addEventListener('resize', onResize);
-	mounted = { onKeyDown, onResize, redraw };
+	mounted = { onKeyDown, onResize, redraw, focusStart: () => {} };
+
+	state.leave = () => {
+		settleBaseline(editor, state.baseline);
+		teardownFocusMode(editor);
+	};
 
 	renderAll();
 	if (!editor.project.getItem(currentID)?.shapes?.length) selectTool('newPath');
 	// Guides need the laid-out canvas (auto-fit runs on connect).
 	redraw.schedule('guides');
+	// openFocusMode() calls this once the page is mounted: keyboard focus
+	// starts inside the card, on the canvas, so the canvas shortcuts work.
+	mounted.focusStart = () => {
+		if (card.isConnected) focusStop(canvas, lastInputWasKeyboard);
+	};
 
 	return content;
+}
+
+/** Whether the last user input was a key (for the canvas focus ring). */
+let lastInputWasKeyboard = false;
+if (typeof document !== 'undefined') {
+	document.addEventListener('keydown', () => (lastInputWasKeyboard = true), true);
+	document.addEventListener('pointerdown', () => (lastInputWasKeyboard = false), true);
 }
 
 /**
@@ -502,29 +594,3 @@ function makeIconButton(icon, label, className) {
 	);
 }
 
-/**
- * An invisible focus stop that redirects focus (focus trap).
- * @param {Function} onFocus
- * @returns {HTMLElement}
- */
-function makeSentinel(onFocus) {
-	const sentinel = makeElement({
-		tag: 'span',
-		className: 'focus-mode__sentinel',
-		attributes: { tabindex: '0', 'aria-hidden': 'true' },
-	});
-	sentinel.addEventListener('focus', () => onFocus());
-	return sentinel;
-}
-
-/**
- * The last visible, enabled focusable inside the card (before the end sentinel).
- * @param {HTMLElement} card
- * @returns {HTMLElement}
- */
-function lastFocusable(card) {
-	const candidates = /** @type {Array<HTMLElement>} */ ([
-		...card.querySelectorAll('button, input-number, edit-canvas'),
-	]).filter((el) => !(/** @type {HTMLButtonElement} */ (el).disabled) && !el.closest('[hidden]'));
-	return candidates[candidates.length - 1] || card.querySelector('.focus-mode__close');
-}

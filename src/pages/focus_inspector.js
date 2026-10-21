@@ -94,6 +94,7 @@ export function makeInspector(editor) {
 	);
 
 	const guard = (event) => {
+		if (event.key === 'Escape') return;
 		if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
 	};
 	card.addEventListener('keydown', guard);
@@ -123,7 +124,10 @@ export function makeInspector(editor) {
 		attributes: { type: 'button' },
 		innerHTML: '<span class="material-symbols-rounded" aria-hidden="true">undo</span>Revert',
 	});
-	keepButton.addEventListener('click', () => keepDraft(editor, currentID));
+	keepButton.addEventListener('click', () => {
+		// Keep hides the button; tell the host so focus lands on a stable control.
+		if (keepDraft(editor, currentID)) card.dispatchEvent(new CustomEvent('focus-mode:kept'));
+	});
 	revertButton.addEventListener('click', () => {
 		if (revertButton.getAttribute('aria-disabled') === 'true') return;
 		revertDraft(editor, currentID);
