@@ -5,6 +5,8 @@ export const PROVIDERS = Object.freeze({
 		label: 'OpenCode Zen',
 		protocols: Object.freeze(['responses', 'chat', 'messages']),
 	}),
+	// Anthropic's own API speaks only Messages; there is no Advanced format choice.
+	anthropic: Object.freeze({ label: 'Anthropic', protocols: Object.freeze(['messages']) }),
 });
 
 export const PROTOCOL_LABELS = Object.freeze({
@@ -53,7 +55,10 @@ export class ProviderProtocolError extends Error {
  */
 export function resolveProviderProtocol(provider, model, protocol = 'auto') {
 	if (!Object.hasOwn(PROVIDERS, provider)) {
-		throw new ProviderProtocolError('UNSUPPORTED_PROVIDER', 'Choose OpenAI or OpenCode Zen.');
+		throw new ProviderProtocolError(
+			'UNSUPPORTED_PROVIDER',
+			'Choose OpenAI, OpenCode Zen or Anthropic.'
+		);
 	}
 	if (protocol !== 'auto') {
 		if (!PROVIDERS[provider].protocols.includes(protocol)) {
@@ -65,6 +70,7 @@ export function resolveProviderProtocol(provider, model, protocol = 'auto') {
 		return /** @type {'responses'|'chat'|'messages'} */ (protocol);
 	}
 	if (provider === 'openai') return 'responses';
+	if (provider === 'anthropic') return 'messages';
 	if (typeof model !== 'string' || !model.trim()) {
 		throw new ProviderProtocolError('MODEL_REQUIRED', 'Enter a model ID to choose its API format.');
 	}

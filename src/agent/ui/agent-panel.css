@@ -337,45 +337,83 @@ button.agent-suggestion:focus-visible {
 	display: none;
 }
 
-.agent-connect__providers {
-	display: inline-flex;
-	align-self: flex-start;
-	gap: 2px;
+/* Provider: one labelled dropdown. Label left, field fills the row, so the
+   card stays as short as it was with the old pill row. */
+.agent-connect__provider {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+/* Legacy `label:hover` (resets.css) turns labels black; pin the colour. */
+label.agent-connect__label,
+label.agent-connect__label:hover {
+	flex: none;
 	margin: 0;
-	padding: 2px;
-	border: 0;
-	border-radius: var(--radius-full);
+	color: var(--color-text-secondary);
+}
+
+.agent-connect__select-wrap {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Same box as the Model and API key fields (36px, radius-md, 1px border). */
+select.agent-connect__select,
+select.agent-connect__select:hover,
+select.agent-connect__select:focus {
+	appearance: none;
+	box-sizing: border-box;
+	display: block;
+	width: 100%;
+	height: 36px;
+	margin: 0;
+	padding: 0 calc(var(--space-3) + 20px) 0 var(--space-3);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	cursor: pointer;
+	text-overflow: ellipsis;
+	transition: background-color 120ms ease;
+}
+
+/* Paint-only hover: only the fill changes, never the box. */
+select.agent-connect__select:hover:not(:disabled) {
 	background: var(--color-bg-subtle);
 }
 
-.agent-connect__segment {
-	position: relative;
-	display: inline-flex;
-	align-items: center;
-	height: 28px;
-	padding: 0 var(--space-3);
-	border-radius: var(--radius-full);
-	color: var(--color-text-secondary);
-	cursor: pointer;
-	transition: background-color 120ms ease, color 120ms ease;
+select.agent-connect__select:focus {
+	outline: none;
 }
 
-.agent-connect__segment input {
-	position: absolute;
-	inset: 0;
-	margin: 0;
-	opacity: 0;
-	cursor: pointer;
+select.agent-connect__select:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
 }
 
-.agent-connect__segment:has(input:checked) {
+select.agent-connect__select:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+/* The native list inherits the surface so the dark theme stays readable. */
+select.agent-connect__select option {
 	background: var(--color-bg-surface);
 	color: var(--color-text-primary);
 }
 
-.agent-connect__segment:has(input:focus-visible) {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
+.agent-connect__select-wrap > .material-symbols-rounded {
+	position: absolute;
+	top: 50%;
+	right: var(--space-3);
+	transform: translateY(-50%);
+	font-size: 20px;
+	color: var(--color-text-secondary);
+	pointer-events: none;
 }
 
 input.agent-connect__input,

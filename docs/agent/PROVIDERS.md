@@ -1,8 +1,8 @@
 # Agent providers and local relay
 
-The first implementation connects a user's API key directly to **OpenAI** or **OpenCode Zen**. The browser owns the live font, native tools and permissions. A local Node relay owns provider credentials during each request and invokes one model step. It cannot edit a project, execute code, browse, load local files or register new tools.
+The first implementation connects a user's API key directly to **OpenAI**, **OpenCode Zen** or **Anthropic**. The browser owns the live font, native tools and permissions. A local Node relay owns provider credentials during each request and invokes one model step. It cannot edit a project, execute code, browse, load local files or register new tools.
 
-This uses Vercel AI SDK `ToolLoopAgent` with no server-side tool execution handlers. One step returns typed calls to the existing browser session. The browser validates and executes those calls, then sends the results for the next step. Using the SDK avoids maintaining three incompatible model wire protocols in application code; it does not replace Noddy's command/permission layer. The OpenCode application/daemon SDK is unnecessary for this narrow font agent.
+This uses Vercel AI SDK `ToolLoopAgent` with no server-side tool execution handlers. One step returns typed calls to the existing browser session. The browser validates and executes those calls, then sends the results for the next step. Using the SDK avoids maintaining several incompatible model wire protocols in application code; it does not replace Noddy's command/permission layer. The OpenCode application/daemon SDK is unnecessary for this narrow font agent.
 
 ## Running
 
@@ -16,16 +16,19 @@ The production host needs `server/agent/`, `src/agent/tool-definitions.js`, `src
 
 ## Connections
 
-The user enters a provider, model ID and key. API format defaults to **Automatic**, with an explicit override in Advanced. A saved/selected configuration is not proof the credentials work; only an actual request establishes that. Model IDs are editable because availability changes. No default model is silently selected, no quota is assumed, and failed requests are not retried automatically.
+The user picks a provider from one dropdown (OpenAI, OpenCode Zen, Anthropic), then enters a model ID and key. Choosing a provider fills the Model field with that provider's suggested model (Anthropic: `claude-sonnet-5-5`); the field stays editable and nothing is connected until "Check connection" succeeds. API format defaults to **Automatic**, with an explicit override in Advanced. A saved/selected configuration is not proof the credentials work; only an actual request establishes that. Model IDs are editable because availability changes. No quota is assumed, and failed requests are not retried automatically.
 
-| Provider     | API formats                                     | Fixed provider destination   |
-| ------------ | ----------------------------------------------- | ---------------------------- |
-| OpenAI       | Responses, Chat Completions                     | `https://api.openai.com/v1`  |
-| OpenCode Zen | Responses, Chat Completions, Anthropic Messages | `https://opencode.ai/zen/v1` |
+| Provider     | API formats                                     | Fixed provider destination     |
+| ------------ | ----------------------------------------------- | ------------------------------ |
+| OpenAI       | Responses, Chat Completions                     | `https://api.openai.com/v1`    |
+| OpenCode Zen | Responses, Chat Completions, Anthropic Messages | `https://opencode.ai/zen/v1`   |
+| Anthropic    | Messages                                        | `https://api.anthropic.com/v1` |
 
 Zen's model families do **not** all use Chat Completions. Its [official endpoint table](https://opencode.ai/docs/zen/#endpoints), checked 3 October 2026, assigns GPT/Muse/Grok to Responses, Claude to Messages, and Kimi/GLM/DeepSeek/MiniMax to Chat Completions. Automatic routing follows these documented families. In particular, `muse-spark-1.3-contributor-free` uses **Responses**. Qwen uses exact model mappings: `qwen3.8-max` uses Chat Completions, while the listed Flash/older Max/Plus variants use Messages. Unknown Zen models require an explicit Advanced format choice; the app does not guess or probe endpoints. OpenAI Automatic uses Responses. Explicit supported choices are preserved, even when they differ from the mapping.
 
 Both the browser's help text and the relay use the pure `resolveProviderProtocol(provider, model, protocol='auto')` function in `src/agent/provider-config.js`. The relay resolves `auto` independently before creating a provider or sending a key. This resolves the format, not the model's availability or access rights. Mapping changes need documentation evidence and regression tests. Use the raw provider model ID, without OpenCode's `opencode/` configuration prefix.
+
+Anthropic uses its own Messages API only, so Automatic always resolves to **Messages** whatever the model ID, and an explicit Responses or Chat Completions choice is refused with `UNSUPPORTED_PROTOCOL` before any key leaves the relay. The relay sends the key as the `x-api-key` header with `anthropic-version: 2023-06-01`; it is never sent as a Bearer token or to any other host. (OpenCode Zen's Messages route keeps its own Bearer token.) The model ID is not validated against a list: Anthropic rejects an unknown one, and the card shows its existing "This model can't use tools · Pick another" outcome.
 
 Gemini's Google protocol and Jev's System One protocol are not implemented in this milestone. A model must support function tools; attached pictures additionally require vision support. A provider error identifies these possible mismatches without disclosing raw provider diagnostics.
 
@@ -80,10 +83,10 @@ Stop aborts the fetch and propagates to the provider. A disconnected browser als
 
 ## Verification and extension
 
-Run `npm run typecheck:agent-relay` and `npm run test:agent-relay`. Tests use the real `ToolLoopAgent` and actual installed provider adapters with mocked transports for all five provider/format combinations. They verify images, tool definitions, opaque Responses continuation, native result replay, argument rejection, error redaction, no automatic retries, abort propagation and local HTTP guards. No real key/model call is used in automated tests. Live credential/model compatibility remains a user-key smoke test.
+Run `npm run typecheck:agent-relay` and `npm run test:agent-relay`. Tests use the real `ToolLoopAgent` and actual installed provider adapters with mocked transports for all six provider/format combinations. They verify images, tool definitions, opaque Responses continuation, native result replay, argument rejection, error redaction, no automatic retries, abort propagation and local HTTP guards. No real key/model call is used in automated tests. Live credential/model compatibility remains a user-key smoke test.
 
 The exact Muse Contributor Free regression runs through the real Responses adapter with a mocked upstream and verifies endpoint, model ID, tools, key isolation and no fallback/retry. OpenAI's [documented strict schema subset](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas) does not list `uniqueItems`. The installed SDK sends `strict:false` unless explicitly requested. For compatibility, the relay omits only that keyword from advertised direct-OpenAI/Responses schemas; the unchanged canonical validator still rejects duplicate targets before any browser edit. Tests cover both wire omission and duplicate rejection. This is not a claim of live-provider schema acceptance.
 
-To add a provider, extend `providers.js` with a fixed endpoint and a verified SDK adapter, add protocol serialization/credential/error tests and add the corresponding UI choice. Do not add a browser-supplied `baseURL` or a general-purpose proxy.
+To add a provider, add it to `PROVIDERS` in `src/agent/provider-config.js`, give it a fixed endpoint in `providers.js` and a verified SDK adapter, add protocol serialization/credential/error tests and add the corresponding UI choice. Do not add a browser-supplied `baseURL` or a general-purpose proxy.
 
 The 2 October dependency audit reports four pre-existing, unchanged findings: Vitest/browser/mocker 4.1.10 (moderate), and brace-expansion 5.0.9 (high). The installed SDK/provider adapters have no reported advisory in that audit. Those existing development/lint dependency findings require a separate targeted upgrade; no broad dependency update was folded into this feature.

@@ -10,10 +10,14 @@
 import { PROVIDERS } from '../provider-config.js';
 import { cardButton, cardHeader, el, icon, srOnly } from './cards/card-shell.js';
 
-/** Suggestions only: any model ID the provider accepts can be typed. */
+/**
+ * Suggestions only: any model ID the provider accepts can be typed. The first
+ * entry of each list is that provider's default model.
+ */
 export const MODEL_SUGGESTIONS = Object.freeze({
 	openai: Object.freeze(['gpt-5', 'gpt-5-mini']),
 	'opencode-zen': Object.freeze(['big-pickle', 'qwen3.8-max']),
+	anthropic: Object.freeze(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']),
 });
 
 /** Check outcome → one-line copy (status is icon + text, never colour alone). */
@@ -107,20 +111,28 @@ export function createConnectCard({
 	root.setAttribute('aria-label', 'Connect a model');
 	root.noValidate = true;
 
-	const providers = el('fieldset', 'agent-connect__providers');
-	const legend = el('legend', 'agent-sr-only', 'Provider');
-	providers.append(legend);
-	Object.entries(PROVIDERS).forEach(([value, spec], index) => {
-		const label = el('label', 'agent-connect__segment text-label');
-		const input = /** @type {HTMLInputElement} */ (el('input'));
-		input.type = 'radio';
-		input.name = `${uid}-provider`;
-		input.value = value;
-		input.checked = index === 0;
-		input.addEventListener('change', () => fillSuggestions());
-		label.append(input, el('span', '', spec.label));
-		providers.append(label);
+	// One compact dropdown instead of a button per provider. A native <select>
+	// gives arrow keys, type-ahead, Esc and a screen-reader name for free, and
+	// its list is drawn by the browser, so the panel never clips it.
+	const providerRow = el('div', 'agent-connect__provider');
+	const providerLabel = /** @type {HTMLLabelElement} */ (
+		el('label', 'agent-connect__label text-label', 'Provider')
+	);
+	const providerWrap = el('div', 'agent-connect__select-wrap');
+	const providerSelect = /** @type {HTMLSelectElement} */ (
+		el('select', 'agent-connect__select text-body')
+	);
+	providerSelect.id = `${uid}-provider`;
+	providerLabel.htmlFor = providerSelect.id;
+	Object.entries(PROVIDERS).forEach(([value, spec]) => {
+		const option = /** @type {HTMLOptionElement} */ (el('option', '', spec.label));
+		option.value = value;
+		providerSelect.append(option);
 	});
+	providerSelect.value = 'openai';
+	providerSelect.addEventListener('change', () => fillSuggestions(true));
+	providerWrap.append(providerSelect, icon('expand_more'));
+	providerRow.append(providerLabel, providerWrap);
 
 	const model = /** @type {HTMLInputElement} */ (el('input', 'agent-connect__input text-mono'));
 	model.type = 'text';
@@ -171,7 +183,7 @@ export function createConnectCard({
 
 	root.append(
 		cardHeader('Connect a model', '', 'meta'),
-		providers,
+		providerRow,
 		model,
 		datalist,
 		keyRow,
@@ -180,13 +192,14 @@ export function createConnectCard({
 	);
 
 	function provider() {
-		const checked = /** @type {HTMLInputElement} */ (
-			root.querySelector('input[type=radio]:checked')
-		);
-		return checked?.value || 'openai';
+		return providerSelect.value || 'openai';
 	}
 
-	function fillSuggestions() {
+	/**
+	 * @param {Boolean} [providerChanged] - a model ID belongs to one provider,
+	 *   so choosing another provider always resets the field to its default.
+	 */
+	function fillSuggestions(providerChanged = false) {
 		const list = MODEL_SUGGESTIONS[provider()] || [];
 		datalist.replaceChildren(
 			...list.map((id) => {
@@ -195,13 +208,16 @@ export function createConnectCard({
 				return option;
 			})
 		);
-		if (!model.value.trim() || !list.includes(model.value.trim())) model.value = list[0] || '';
+		if (providerChanged || !model.value.trim() || !list.includes(model.value.trim())) {
+			model.value = list[0] || '';
+		}
 	}
 	fillSuggestions();
 
 	function setLocked(locked) {
-		root.querySelectorAll('input, button').forEach((node) => {
-			/** @type {HTMLInputElement} */ (node).disabled = locked;
+		root.querySelectorAll('input, select, button').forEach((node) => {
+			/** @type {HTMLInputElement | HTMLSelectElement | HTMLButtonElement} */ (node).disabled =
+				locked;
 		});
 		root.toggleAttribute('aria-busy', locked);
 		checkButton.classList.toggle('is-checking', locked);

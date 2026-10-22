@@ -75,6 +75,42 @@ describe('agent runner', () => {
 			protocol: 'auto',
 		});
 	});
+	it('connects to Anthropic, resolves Messages locally and sends Auto to the relay', async () => {
+		const transport = vi.fn().mockResolvedValue(reply('Ready'));
+		const { controller, events } = setup(transport);
+		controller.connect({
+			provider: 'anthropic',
+			protocol: 'auto',
+			model: 'claude-sonnet-5-5',
+			apiKey: 'not-a-real-key',
+		});
+		expect(events.at(-1)).toMatchObject({
+			type: 'connection',
+			connected: true,
+			provider: 'anthropic',
+			model: 'claude-sonnet-5-5',
+			effectiveProtocol: 'messages',
+		});
+		await controller.run('Read this glyph');
+		expect(transport.mock.calls[0][0]).toMatchObject({
+			provider: 'anthropic',
+			model: 'claude-sonnet-5-5',
+			protocol: 'auto',
+		});
+	});
+	it('refuses an Anthropic connection with a format Anthropic does not speak, or an unknown provider', () => {
+		const { controller } = setup(vi.fn());
+		const anthropic = { provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: 'k' };
+		expect(() => controller.connect({ ...anthropic, protocol: 'responses' })).toThrow(
+			'Choose an API format supported by the selected provider.'
+		);
+		expect(() => controller.connect({ ...anthropic, provider: 'anthropic-eu' })).toThrow(
+			'Choose a provider and enter a model ID and API key.'
+		);
+		expect(() => controller.connect({ ...anthropic, provider: '__proto__' })).toThrow(
+			'Choose a provider and enter a model ID and API key.'
+		);
+	});
 	it('rejects Overview requests before contacting the model or consuming attachments', async () => {
 		const transport = vi.fn();
 		const { controller, session, events } = setup(transport);

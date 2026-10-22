@@ -1,5 +1,5 @@
 import { attachmentParts, validateAttachmentSet } from './attachments.js';
-import { resolveProviderProtocol } from './provider-config.js';
+import { PROVIDERS, resolveProviderProtocol } from './provider-config.js';
 
 /**
  * An Error carrying a short machine code ('RELAY_OFFLINE', or the relay's
@@ -123,7 +123,7 @@ export function createAgentController({
 		connect(value) {
 			if (active) throw new Error('Stop the request before changing models.');
 			if (
-				!['openai', 'opencode-zen'].includes(value.provider) ||
+				!Object.hasOwn(PROVIDERS, value.provider) ||
 				!['auto', 'responses', 'chat', 'messages'].includes(value.protocol || 'auto') ||
 				!value.model?.trim() ||
 				!value.apiKey?.trim()
