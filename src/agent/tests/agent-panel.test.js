@@ -390,7 +390,11 @@ describe('controller wiring (#21)', () => {
 			seen.check = config.apiKey;
 			return { ok: true };
 		});
-		const panel = panelFixture({ controller, check });
+		const panel = panelFixture({
+			controller,
+			check,
+			loadModels: async () => ({ ok: false }),
+		});
 		const card = panel.thread.querySelector('.agent-connect');
 		const key = card.querySelector('input[type=password]');
 		key.value = 'sk-very-secret';
@@ -403,6 +407,108 @@ describe('controller wiring (#21)', () => {
 		expect(key.value).toBe('');
 		expect(panel.host.outerHTML).not.toContain('sk-very-secret');
 		expect(setItem).not.toHaveBeenCalled();
+	});
+
+	describe('live model list (#76)', () => {
+		const model = (id, overrides = {}) => ({
+			id,
+			tools: true,
+			vision: false,
+			price: { input: 3, output: 15 },
+			released: '2025-01-01',
+			...overrides,
+		});
+		const LIST = [
+			model('gpt-5', { vision: true }),
+			model('gpt-5-mini'),
+			model('o3'),
+			model('gpt-3.5-turbo', { tools: false }),
+		];
+		const connectedPanel = async (loadModels = vi.fn(async () => ({ ok: true, models: LIST }))) => {
+			const panel = panelFixture({
+				check: vi.fn(async () => ({ ok: true })),
+				loadModels,
+				createSession: () => sessionStub(),
+			});
+			const card = panel.thread.querySelector('.agent-connect');
+			card.querySelector('input[type=password]').value = 'sk-panel-secret';
+			card.requestSubmit();
+			await flush();
+			return { panel, card, loadModels };
+		};
+		const stepLines = (panel) =>
+			[...panel.thread.querySelectorAll('agent-step-line')].map((line) => line.textContent);
+
+		it('keeps the connect card on screen as the key’s model list once connected', async () => {
+			const { panel, card } = await connectedPanel();
+			expect(panel.controller.connected).toBe(true);
+			expect(panel.model).toBe('gpt-5');
+			expect(card.hidden).toBe(false);
+			expect(card.querySelector('[role="listbox"]')).not.toBeNull();
+			// The suggestion chips show too: the agent is ready.
+			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(false);
+			expect(stepLines(panel).filter((text) => /Connected/.test(text))).toHaveLength(1);
+			expect(panel.host.outerHTML).not.toContain('sk-panel-secret');
+		});
+
+		it('choosing another model reconnects with it and updates the one Connected line', async () => {
+			const { panel, card } = await connectedPanel();
+			card.querySelector('[role="option"][data-id="o3"]').click();
+			await flush();
+			expect(panel.controller.connected).toBe(true);
+			expect(panel.model).toBe('o3');
+			expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('o3');
+			const connected = stepLines(panel).filter((text) => /Connected/.test(text));
+			expect(connected).toHaveLength(1);
+			expect(connected[0]).toContain('o3');
+			// A model that cannot use tools is not chosen.
+			card.querySelector('[role="option"][data-id="gpt-3.5-turbo"]').click();
+			await flush();
+			expect(panel.model).toBe('o3');
+		});
+
+		it('without a list the card steps aside as it always did', async () => {
+			const { panel, card } = await connectedPanel(vi.fn(async () => ({ ok: false })));
+			expect(panel.controller.connected).toBe(true);
+			expect(card.hidden).toBe(true);
+			expect(card.querySelector('[role="listbox"]')).toBeNull();
+		});
+
+		it('a disconnect returns the card to the key step and drops the list', async () => {
+			const { panel, card } = await connectedPanel();
+			panel.controller.disconnect();
+			expect(panel.controller.connected).toBe(false);
+			expect(card.hidden).toBe(false);
+			expect(card.querySelector('[role="listbox"]')).toBeNull();
+			expect(card.querySelector('input[aria-label="Model"]').hidden).toBe(false);
+			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
+		});
+
+		it('after the first message the card leaves the thread; clearing the chat brings the list back', async () => {
+			const { panel, card } = await connectedPanel();
+			panel.handleEvent({ type: 'start', prompt: 'Draw a', attachments: [], context });
+			panel.handleEvent({ type: 'finish' });
+			expect(panel.thread.contains(card)).toBe(false);
+			panel.handleEvent({ type: 'clear' });
+			expect(panel.thread.contains(card)).toBe(true);
+			expect(card.hidden).toBe(false);
+			expect(card.querySelector('[role="option"][aria-selected="true"]').dataset.id).toBe('gpt-5');
+		});
+
+		it('Esc on the list minimizes the panel, but Esc that cancels a keyboard move does not', async () => {
+			const { panel, card } = await connectedPanel();
+			const list = card.querySelector('[role="listbox"]');
+			list.focus();
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			list.dispatchEvent(
+				new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+			);
+			expect(panel.mode).toBe('open');
+			list.dispatchEvent(
+				new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+			);
+			expect(panel.mode).toBe('minimized');
+		});
 	});
 
 	it('isAgentRunning follows the panel controller', () => {
