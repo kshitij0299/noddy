@@ -7,6 +7,12 @@ import {
 import { GLYPH_STATUS_TOPIC } from '../../project_editor/glyph-status.js';
 import { ITEM_CHANGED_TOPIC, createDebouncedRedraw } from '../../project_editor/item_changed.js';
 import { openFocusMode } from '../../pages/focus_mode.js';
+import {
+	RETRY_GLYPHS_EVENT,
+	keepGlyphs,
+	preDraftOf,
+	revertGlyph,
+} from '../../agent/run/review.js';
 import './glyph-grid.css';
 import { GlyphGridTile } from './glyph-tile.js';
 import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
@@ -226,10 +232,7 @@ export class GlyphGrid extends HTMLElement {
 		if (!this._built) return;
 		const project = this.project;
 		this._project = project;
-		const status = this.editor.glyphStatus;
-		this.tiles.forEach((tile, id) => {
-			tile.render({ project, status: status ? status.getStatus(id) : 'empty' });
-		});
+		this.tiles.forEach((tile, id) => tile.render(this._tileState(id, project)));
 		this.refreshLegend();
 	}
 
@@ -240,8 +243,14 @@ export class GlyphGrid extends HTMLElement {
 	refreshTile(id) {
 		const tile = this.tiles.get(id);
 		if (!tile) return;
-		const status = this.editor.glyphStatus;
-		tile.render({ project: this.project, status: status ? status.getStatus(id) : 'empty' });
+		tile.render(this._tileState(id, this.project));
+	}
+
+	/** What a tile needs to render: project, status, whether Revert is possible. */
+	_tileState(id, project) {
+		const store = this.editor.glyphStatus;
+		const status = store ? store.getStatus(id) : 'empty';
+		return { project, status, canRevert: status === 'draft' && !!preDraftOf(this.editor, id) };
 	}
 
 	/** Rebuilds the legend from live counts over the visible IDs. */
@@ -391,8 +400,30 @@ export class GlyphGrid extends HTMLElement {
 	_onClick(event) {
 		const tile = this._tileFromEvent(event);
 		if (!tile) return;
+		const actionButton = /** @type {Element} */ (event.target).closest?.('[data-tile-action]');
+		if (actionButton) {
+			event.stopPropagation();
+			this.select(tile.glyphID, { focus: true });
+			this.reviewAction(actionButton.getAttribute('data-tile-action'), tile.glyphID);
+			return;
+		}
 		this.select(tile.glyphID, { focus: true });
 		this.openGlyph(tile.glyphID);
+	}
+
+	/**
+	 * A tile's review action (M7 #29). Keep and Revert are one history entry
+	 * each; Retry is the agent's job, so it is announced for the agent panel.
+	 * @param {'keep' | 'revert' | 'retry'} action
+	 * @param {String} id
+	 */
+	reviewAction(action, id) {
+		if (action === 'keep') keepGlyphs(this.editor, [id]);
+		else if (action === 'revert') revertGlyph(this.editor, id);
+		else if (action === 'retry')
+			this.dispatchEvent(
+				new CustomEvent(RETRY_GLYPHS_EVENT, { bubbles: true, composed: true, detail: { ids: [id] } })
+			);
 	}
 
 	_onFocusIn(event) {

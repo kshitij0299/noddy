@@ -4,7 +4,11 @@
  * with an `error` badge. The summary is built from `glyphs` only, so a model
  * that claimed edits which never landed shows "0 edits applied".
  *
- * data = { cardId, glyphs: [{ char: 'a', status: 'new'|'changed'|'failed' }], project? }
+ * data = { cardId, glyphs: [{ char: 'a', status: 'new'|'changed'|'failed'|'kept' }], project? }
+ * 'new' / 'changed' rows are Drafts waiting for review (they count in
+ * "Keep N"); 'kept' rows were already kept or reverted elsewhere (a tile, the
+ * inspector), so the panel re-renders the card with live statuses and the
+ * label count always matches what Keep will keep.
  * Below the card: Keep N (primary) and Retry k (secondary), per the UX note.
  * actions: 'keep' -> detail.glyphIds (applied) | 'retry' -> detail.glyphIds (failed)
  */
@@ -21,13 +25,15 @@ export function summarizeReceipt(glyphs = []) {
 	const added = rows.filter((g) => g.status === 'new').length;
 	const changed = rows.filter((g) => g.status === 'changed').length;
 	const failed = rows.filter((g) => g.status === 'failed').length;
+	const kept = rows.filter((g) => g.status === 'kept').length;
 	const applied = added + changed;
 	const parts = [];
 	if (added) parts.push(`${added} new`);
 	if (changed) parts.push(`${changed} changed`);
-	if (!applied) parts.push('0 edits applied');
+	if (kept) parts.push(`${kept} reviewed`);
+	if (!applied && !kept) parts.push('0 edits applied');
 	if (failed) parts.push(`${failed} failed`);
-	return { added, changed, failed, applied, summary: parts.join(' · ') };
+	return { added, changed, failed, kept, applied, summary: parts.join(' · ') };
 }
 
 export class AgentReceiptCard extends AgentCard {
@@ -54,7 +60,9 @@ export class AgentReceiptCard extends AgentCard {
 			nodes.push(strip);
 		}
 		const summaryRow = el('div', 'agent-card__row agent-receipt__summary');
-		summaryRow.append(chip(counts.summary, { iconName: counts.applied ? undefined : 'info' }));
+		summaryRow.append(
+			chip(counts.summary, { iconName: counts.applied || counts.kept ? undefined : 'info' })
+		);
 		nodes.push(summaryRow);
 		return nodes;
 	}
@@ -89,7 +97,8 @@ export class AgentReceiptCard extends AgentCard {
 				.filter(test)
 				.map((g) => glyphIdForChar(g.char))
 				.filter(Boolean);
-		if (action === 'keep') return { glyphIds: pick((g) => g.status !== 'failed') };
+		if (action === 'keep')
+			return { glyphIds: pick((g) => g.status === 'new' || g.status === 'changed') };
 		if (action === 'retry') return { glyphIds: pick((g) => g.status === 'failed') };
 		return {};
 	}

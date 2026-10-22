@@ -10,7 +10,14 @@
  *   pill     the minimized form (agent-pill.js)
  *
  * Minimizing, Esc and focus mode never stop a run: nothing here calls
- * `controller.stop()` except the composer's explicit Stop button.
+ * `controller.stop()` except the composer's explicit Stop button, and a
+ * whole-set run (M7) stops only from the run bar's inline "Stop run?".
+ *
+ * M7 runs (#28, #29): a message about the font or a style becomes a plan
+ * (gate 1), the control glyphs n o H O wait at "Approve the style" (gate 2),
+ * then the queue drafts one glyph job at a time (src/agent/run/). A message
+ * that names one glyph ("fix the g") stays a small ask: no plan, no gate,
+ * a receipt only. Receipts offer Keep N (Keep all for the group) and Retry.
  *
  * Plumbing kept from before M4: agent-controller.js (runs, keys in memory),
  * native-tools.js (edits through history), attachments.js.
@@ -24,6 +31,12 @@ import {
 import { GLYPH_STATUS_TOPIC } from '../../project_editor/glyph-status.js';
 import { createAgentController } from '../agent-controller.js';
 import { createNativeToolSession } from '../native-tools.js';
+import { createGlyphDrafter } from '../run/glyph-job.js';
+import { classifyAsk } from '../run/intent.js';
+import { RETRY_GLYPHS_EVENT, charOf, keepGlyphs, revertRun } from '../run/review.js';
+import { createRunController } from '../run/run-controller.js';
+import { formatDollars } from '../run/spend.js';
+import { createCheckpointLine, createRunBar } from './agent-run-bar.js';
 import { CARD_ACTION_EVENT, registerAgentCards } from './cards/index.js';
 import { el, icon, srOnly } from './cards/card-shell.js';
 import {
@@ -62,13 +75,6 @@ export function threadCopyFor(error = {}) {
 	return ERROR_COPY[error.code] || error.message || 'Something went wrong · try again';
 }
 
-/** Actions the controller cannot do yet; they get a visible stub line. */
-const STUB_ACTIONS = Object.freeze({
-	start: 'Starting a plan',
-	adjust: 'Adjusting a plan',
-	approve: 'Approving a style check',
-	keep: 'Keep',
-});
 
 /**
  * 'glyph-0x61' → 'a'.
@@ -85,7 +91,10 @@ export function charForGlyphId(id) {
 	}
 }
 
-const EDIT_TOOLS = new Set(['set_spacing', 'transform_paths', 'add_paths']);
+const EDIT_TOOLS = new Set(['set_spacing', 'transform_paths', 'add_paths', 'submit_glyph']);
+
+/** Spec chips the Plan card shows (Figma flow-03). */
+const PLAN_SPEC_KEYS = ['xHeight', 'capHeight', 'stems'];
 
 /**
  * Plain keys stay in the panel so tool keys, Delete or Space never reach the
@@ -197,11 +206,31 @@ export function createAgentPanel({
 	let lastPrompt = '';
 	/** @type {Map<String, HTMLElement>} */
 	const toolLines = new Map();
-	let runEdits = { changed: false, failed: false, glyphId: '' };
+	let runEdits = { changed: false, failed: false, glyphId: '', submitted: [] };
+	let adjusting = false;
+	let cardCount = 0;
+	/** @type {HTMLElement & {render: Function, acted: String|null} | null} */
+	let approvalCard = null;
+	/** @type {ReturnType<typeof createCheckpointLine> | null} */
+	let checkpointLine = null;
+	/** Receipts whose Keep N follows live statuses until they are acted on. */
+	const liveReceipts = new Set();
 
 	const controller =
 		providedController ||
 		createAgentController({ createSession, transport, onEvent: (event) => onEvent(event) });
+
+	// ---- Runs (M7) ----
+	const runs = createRunController({
+		getEditor,
+		draft: createGlyphDrafter(controller),
+		onEvent: (event) => onRunEvent(event),
+	});
+	const runBar = createRunBar({
+		onPause: () => runs.pause(),
+		onResume: () => runAction(() => runs.resume()),
+		onStop: () => runs.stop(),
+	});
 
 	// ---- Composer ----
 	const composer = createPanelComposer({
@@ -276,7 +305,7 @@ export function createAgentPanel({
 		const follow = atBottom();
 		typing.remove();
 		log.append(node);
-		if (status.running) log.append(typing);
+		if (working()) log.append(typing);
 		if (follow) thread.scrollTop = thread.scrollHeight;
 		return node;
 	}
@@ -332,19 +361,97 @@ export function createAgentPanel({
 		}
 	}
 
+	/** A chat request or a run's glyph job is in flight. */
+	function working() {
+		return (
+			status.running || !!controller.running || ['controls', 'drafting'].includes(runs.state)
+		);
+	}
+
 	function renderStatus() {
-		status.running = !!controller.running || status.running;
-		dot.hidden = !status.running;
-		panel.toggleAttribute('data-running', status.running);
+		const run = runs.view;
+		const drafting = ['controls', 'drafting'].includes(run.state);
+		const running = working();
+		dot.hidden = !running;
+		panel.toggleAttribute('data-running', running);
+		if (!running) typing.remove();
+		else if (!typing.isConnected && !empty.isConnected) {
+			const follow = atBottom();
+			log.append(typing);
+			if (follow) thread.scrollTop = thread.scrollHeight;
+		}
 		const review = reviewCount();
+		const inRun = drafting || run.state === 'paused';
+		const gate = run.state === 'plan' ? 'plan' : run.state === 'style' ? 'style' : undefined;
 		pill.render({
-			phase: derivePillPhase({ ...status, review }),
-			glyph: status.glyph,
-			done: status.done,
-			total: status.total,
+			phase: derivePillPhase({
+				...status,
+				running,
+				paused: status.paused || run.state === 'paused',
+				gate,
+				review,
+			}),
+			glyph: inRun ? run.glyph : status.glyph,
+			done: inRun ? run.done : status.done,
+			total: inRun ? run.total : status.total,
 			review,
+			gate,
+			pauseReason: run.pauseReason,
 			compact: matches(PHONE_QUERY),
 		});
+		runBar.render(run);
+		checkpointLine?.setEnabled((run.drawn || []).length > 0);
+		refreshReceipts();
+	}
+
+	// ---- Receipts follow live statuses (Keep N always matches) ----
+	function receiptRows(ids) {
+		const store = getEditor()?.glyphStatus;
+		return ids.map((id) => {
+			const record = store?.get(id);
+			const status = record?.status;
+			let row = 'kept';
+			if (status === 'draft')
+				row = record.preDraft && record.preDraft.glyph === null ? 'new' : 'changed';
+			else if (status === 'failed') row = 'failed';
+			return { char: charOf(id), status: row };
+		});
+	}
+
+	function refreshReceipts() {
+		for (const entry of liveReceipts) {
+			const { card, ids } = entry;
+			if (!card.isConnected || card.acted) {
+				liveReceipts.delete(entry);
+				continue;
+			}
+			const rows = receiptRows(ids);
+			const key = JSON.stringify(rows);
+			if (key === entry.key) continue;
+			entry.key = key;
+			const focused = /** @type {HTMLElement} */ (document.activeElement);
+			const action = card.contains(focused) ? focused.dataset?.action : null;
+			card.render({ ...card.data, glyphs: rows, project: getEditor()?.project });
+			if (action) card.querySelector(`[data-action="${action}"]`)?.focus();
+		}
+	}
+
+	/**
+	 * A receipt for glyph IDs; its counts follow live statuses until acted on.
+	 * @param {String} kind - 'run' | 'chat'
+	 * @param {Array<String>} ids
+	 */
+	function addReceipt(kind, ids) {
+		const rows = receiptRows(ids);
+		const card = /** @type {any} */ (
+			addCard('agent-receipt-card', {
+				cardId: `${kind}-receipt-${++cardCount}`,
+				glyphs: rows,
+				project: getEditor()?.project,
+			})
+		);
+		liveReceipts.add({ card, ids, key: JSON.stringify(rows) });
+		return card;
 	}
 
 	// ---- Controller events → thread ----
@@ -359,7 +466,12 @@ export function createAgentPanel({
 				status.running = true;
 				status.failed = false;
 				status.glyph = charForGlyphId(event.context?.glyphId);
-				runEdits = { changed: false, failed: false, glyphId: event.context?.glyphId || '' };
+				runEdits = {
+					changed: false,
+					failed: false,
+					glyphId: event.context?.glyphId || '',
+					submitted: [],
+				};
 				lastPrompt = event.prompt;
 				toolLines.clear();
 				composer.clear();
@@ -378,6 +490,9 @@ export function createAgentPanel({
 					if (EDIT_TOOLS.has(event.name)) {
 						if (ok && event.result?.changed) runEdits.changed = true;
 						if (!ok) runEdits.failed = true;
+						const submittedId = event.result?.glyph?.glyphId;
+						if (event.name === 'submit_glyph' && ok && event.result?.changed && submittedId)
+							runEdits.submitted.push(submittedId);
 					}
 					const line = toolLines.get(event.name);
 					const copy = ok
@@ -403,13 +518,18 @@ export function createAgentPanel({
 				status.running = false;
 				typing.remove();
 				composer.setBusy(false);
-				const char = charForGlyphId(runEdits.glyphId);
-				if (char && (runEdits.changed || runEdits.failed)) {
-					addCard('agent-receipt-card', {
-						cardId: `receipt-${Date.now()}`,
-						glyphs: [{ char, status: runEdits.changed ? 'changed' : 'failed' }],
-						project: getEditor()?.project,
-					});
+				// Small asks get a receipt only (no plan, no gate).
+				if (runEdits.submitted.length) {
+					addReceipt('chat', [...new Set(runEdits.submitted)]);
+				} else {
+					const char = charForGlyphId(runEdits.glyphId);
+					if (char && (runEdits.changed || runEdits.failed)) {
+						addCard('agent-receipt-card', {
+							cardId: `chat-receipt-${++cardCount}`,
+							glyphs: [{ char, status: runEdits.changed ? 'changed' : 'failed' }],
+							project: getEditor()?.project,
+						});
+					}
 				}
 				break;
 			}
@@ -436,27 +556,247 @@ export function createAgentPanel({
 			if (online) connect.focus();
 			return;
 		}
+		const runState = runs.state;
+		if (runState === 'controls' || runState === 'drafting') {
+			// The draft stays in the composer.
+			addStep('info', 'The run is drafting · pause it to chat');
+			return;
+		}
+		if (runState === 'style') {
+			// Gate 2: the message is the tweak.
+			userMessage(prompt, attachments);
+			if (approvalCard && !approvalCard.acted) approvalCard.act('tweak');
+			const note = prompt.replace(/^\s*tweak\s*:?\s*/i, '');
+			runAction(() => runs.tweak(note));
+			return;
+		}
+		if (runState === 'plan' || adjusting) {
+			// Gate 1: the message adjusts the plan.
+			const base = runs.run?.plan?.brief || '';
+			const note = prompt.replace(/^\s*adjust\s*:?\s*/i, '');
+			userMessage(prompt, attachments);
+			proposeRun([base, note].filter(Boolean).join('. '), attachments);
+			return;
+		}
+		const ask = classifyAsk(prompt);
+		if (ask.kind === 'run') {
+			userMessage(prompt, attachments);
+			proposeRun(prompt, attachments);
+			return;
+		}
 		try {
-			await controller.run(prompt, attachments);
+			// "Fix the g": job tools draw by glyph ID, so no glyph needs to be open.
+			if (ask.char) await controller.run(prompt, attachments, { requireGlyph: false });
+			else await controller.run(prompt, attachments);
 		} catch (error) {
 			// Rejected before the run started; the draft stays in the composer.
 			addError(error);
 		}
 	}
 
-	// ---- Card actions → controller ----
+	/** The user's message for a run (the chat path adds its own on 'start'). */
+	function userMessage(prompt, attachments = []) {
+		empty.remove();
+		composer.clear();
+		addBubble(prompt, 'user', attachments);
+	}
+
+	function proposeRun(brief, attachments = []) {
+		adjusting = false;
+		try {
+			runs.propose({ brief, attachments });
+		} catch (error) {
+			addError(error);
+		}
+	}
+
+	/** Runs a run-controller call and reports a rejection in the thread. */
+	function runAction(call) {
+		Promise.resolve()
+			.then(call)
+			.catch((error) => addError(error));
+	}
+
+	// ---- Run events → thread ----
+	function onRunEvent(event) {
+		const run = event.run || {};
+		switch (event.type) {
+			case 'plan': {
+				const plan = event.plan;
+				addBubble('Here’s the plan', 'agent');
+				addCard('agent-plan-card', {
+					cardId: `run-plan-${++cardCount}`,
+					spendCap: plan.spendLabel,
+					specs: plan.spec.filter((spec) => PLAN_SPEC_KEYS.includes(spec.key)),
+					order: plan.groups,
+				});
+				break;
+			}
+			case 'checkpoint':
+				checkpointLine = createCheckpointLine({ onRevert: () => revertTheRun() });
+				append(checkpointLine.root);
+				break;
+			case 'gate': {
+				const chars = event.ids.map(charOf);
+				addBubble(`Drew ${chars.join(' ')}. Does this feel right?`, 'agent');
+				approvalCard = /** @type {any} */ (
+					addCard('agent-approval-card', {
+						cardId: `run-style-${++cardCount}`,
+						glyphs: chars,
+						project: getEditor()?.project,
+					})
+				);
+				break;
+			}
+			case 'progress':
+				if (event.phase === 'skipped') {
+					const why = {
+						yours: 'Yours',
+						open: 'open in the editor',
+						taken: 'you took it over',
+					}[event.reason];
+					addStep('yours', `Skipped ${event.char} · ${why || 'locked'}`);
+				}
+				break;
+			case 'group':
+				addBubble(`${event.label} drafted`, 'agent');
+				addReceipt(
+					'run',
+					event.rows.map((row) => row.id)
+				);
+				break;
+			case 'paused':
+				if (event.reason === 'cap')
+					addStep(
+						'info',
+						`Spend cap reached · ${formatDollars(event.spent)} · Resume allows ${formatDollars(
+							runs.run?.plan?.spendCap || 0
+						)} more`
+					);
+				else addStep('info', `Paused · ${run.done}/${run.total}`);
+				break;
+			case 'stopped':
+				addStep('info', `Stopped · ${run.done}/${run.total} · the unfinished draft was discarded`);
+				break;
+			case 'done': {
+				const review = reviewCount();
+				addStep('kept', review ? `Run finished · ${review} to review` : 'Run finished');
+				break;
+			}
+			default:
+				break;
+		}
+		renderStatus();
+	}
+
+	function revertTheRun() {
+		const run = runs.run;
+		if (!run) return;
+		const result = revertRun(getEditor(), run);
+		if (!result.ok) {
+			addError(result.error || {});
+			return;
+		}
+		const kept = result.kept.length ? ` · ${result.kept.length} kept (Yours or edited)` : '';
+		const n = result.reverted.length;
+		checkpointLine?.finish(`Run reverted · ${n} ${n === 1 ? 'glyph' : 'glyphs'}${kept}`);
+	}
+
+	// Retry from a Failed tile (glyph-grid.js).
+	const onRetryGlyphs = (event) => {
+		const ids = /** @type {CustomEvent} */ (event).detail?.ids || [];
+		retryGlyphs(ids);
+	};
+	document.addEventListener(RETRY_GLYPHS_EVENT, onRetryGlyphs);
+
+	function retryGlyphs(ids) {
+		if (!controller.connected) {
+			addError({ code: 'NO_MODEL' });
+			return;
+		}
+		if (status.running) {
+			addStep('info', 'The agent is busy · retry when it finishes');
+			return;
+		}
+		const chars = ids.map(charOf).join(' ');
+		if (chars) addStep('info', `Retrying ${chars}`);
+		runAction(() => runs.retry(ids));
+	}
+
+	// ---- Card actions → run controller / review ----
+	/**
+	 * Re-opens the style gate card after Tweak or Edit by hand, so Approve
+	 * stays available until the tweak is actually sent.
+	 * @param {any} card
+	 * @param {{tone: String, text: String}} line
+	 */
+	function reopenGate(card, line) {
+		if (runs.state !== 'style' || card !== approvalCard) return;
+		card.render({ ...(card.data || {}), project: getEditor()?.project });
+		addStep(line.tone, line.text);
+	}
+
 	host.addEventListener(CARD_ACTION_EVENT, (event) => {
 		const detail = /** @type {CustomEvent} */ (event).detail || {};
+		const card = /** @type {any} */ (event.target);
+		const cardId = String(detail.cardId || '');
+		if (detail.action === 'start') {
+			runAction(() => runs.start());
+			return;
+		}
+		if (detail.action === 'adjust') {
+			runs.adjust();
+			adjusting = true;
+			composer.setValue('Adjust: ');
+			composer.input.focus();
+			return;
+		}
+		if (detail.action === 'approve') {
+			runAction(() => runs.approve());
+			return;
+		}
 		if (detail.action === 'tweak') {
+			reopenGate(card, { tone: 'yours', text: 'Tweak · say what to change and send' });
 			composer.setValue(detail.prefill || 'Tweak: ');
 			composer.input.focus();
 			return;
 		}
 		if (detail.action === 'edit-by-hand') {
+			reopenGate(card, {
+				tone: 'yours',
+				text: detail.char ? `Editing ${detail.char} by hand · Approve when ready` : 'Editing by hand',
+			});
 			if (detail.glyphId) openGlyph(detail.glyphId);
 			return;
 		}
+		if (detail.action === 'keep') {
+			// Keep all for this receipt: Drafts only, one history entry.
+			const result = keepGlyphs(getEditor(), detail.glyphIds || []);
+			const own = card?.lastElementChild;
+			const n = result.kept.length;
+			const text = result.ok
+				? `Kept ${n} ${n === 1 ? 'glyph' : 'glyphs'}`
+				: result.error?.message || 'Not kept';
+			if (own?.tagName === 'AGENT-STEP-LINE')
+				own.render({ tone: result.ok ? 'kept' : 'failed', text });
+			renderStatus();
+			return;
+		}
+		if (detail.action === 'retry' && cardId.startsWith('run-')) {
+			const own = card?.lastElementChild;
+			if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
+			retryGlyphs(detail.glyphIds || []);
+			return;
+		}
 		if (detail.action === 'retry') {
+			const failedIds = detail.glyphIds || [];
+			// A small ask's failed job glyph: retry it as a scoped glyph job.
+			if (failedIds.length && getEditor()?.glyphStatus?.getStatus(failedIds[0]) === 'failed') {
+				const own = card?.lastElementChild;
+				if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
+				retryGlyphs(failedIds);
+				return;
+			}
 			if (!lastPrompt || controller.running || !controller.connected) {
 				addError({
 					code: controller.connected ? undefined : 'NO_MODEL',
@@ -465,16 +805,7 @@ export function createAgentPanel({
 				return;
 			}
 			controller.run(lastPrompt, []).catch((error) => addError(error));
-			return;
 		}
-		const label = STUB_ACTIONS[detail.action];
-		if (!label) return;
-		// The card already appended its own "done" line (e.g. "Kept 1 glyph");
-		// nothing happened yet, so show only the stub line.
-		const card = /** @type {Element} */ (event.target);
-		const own = card?.lastElementChild;
-		if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
-		addStep('info', `${label} is coming in M7`);
 	});
 
 	// ---- Minimize / restore ----
@@ -532,7 +863,7 @@ export function createAgentPanel({
 	};
 	document.addEventListener('keydown', onDocumentKey);
 
-	panel.append(header, thread, composer.root);
+	panel.append(header, thread, runBar.root, composer.root);
 	host.append(scrim, panel, pill.root);
 	showEmpty();
 	applyMode();
@@ -545,6 +876,8 @@ export function createAgentPanel({
 		thread,
 		composer,
 		controller,
+		runs,
+		runBar,
 		addCard,
 		addStep,
 		/** Controller event sink (for a controller built outside the panel). */
@@ -569,6 +902,8 @@ export function createAgentPanel({
 		},
 		dispose() {
 			document.removeEventListener('keydown', onDocumentKey);
+			document.removeEventListener(RETRY_GLYPHS_EVENT, onRetryGlyphs);
+			if (runs.active) runs.stop();
 			connect.clearKey();
 			composer.dispose();
 			controller.disconnect?.();
@@ -610,9 +945,9 @@ export function ensureAgentPanel(options) {
 	return singleton;
 }
 
-/** Read-only: true while the agent has a request in flight. */
+/** Read-only: true while the agent has a request in flight or a run going. */
 export function isAgentRunning() {
-	return !!singleton?.controller.running;
+	return !!singleton?.controller.running || !!singleton?.runs.busy;
 }
 
 /** Test helper: drops the singleton. */

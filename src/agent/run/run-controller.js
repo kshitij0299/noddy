@@ -147,9 +147,15 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 	 * @param {String} options.brief - the user's words
 	 * @param {'letters' | 'all'} [options.scope]
 	 * @param {Number} [options.spendCap]
+	 * @param {Array} [options.attachments] - reference files sent with each job
 	 * @returns {Object} the plan
 	 */
-	function propose({ brief = '', scope = 'letters', spendCap = DEFAULT_SPEND_CAP } = {}) {
+	function propose({
+		brief = '',
+		scope = 'letters',
+		spendCap = DEFAULT_SPEND_CAP,
+		attachments = [],
+	} = {}) {
 		if (run && ['controls', 'drafting'].includes(run.state))
 			throw new Error('A run is drafting. Pause or stop it first.');
 		const editor = getEditor();
@@ -167,6 +173,7 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 		).map((group, index) => ({ id: group.id, label: group.label, selected: index === 0 }));
 		const plan = {
 			brief: String(brief).slice(0, 2000),
+			attachments: Array.isArray(attachments) ? attachments.slice() : [],
 			scope,
 			spec: proposeSpec(project),
 			groups,
@@ -490,6 +497,7 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 				group: item.group,
 				signal: abort.signal,
 				brief: run.plan.brief,
+				attachments: run.plan.attachments || [],
 				spec: run.plan.spec,
 				note: run.note,
 				controls: run.plan.glyphs

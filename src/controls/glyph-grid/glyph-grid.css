@@ -221,6 +221,69 @@ glyph-grid-tile[data-status='draft'] {
 	pointer-events: none;
 }
 
+/* Review actions (M7): bottom-right, always laid out, shown on hover or
+   focus only (visibility, so nothing reflows and hidden buttons take no
+   clicks). States pinned at 0,2,1+ against the legacy global button rules. */
+.glyph-grid-tile__actions {
+	position: absolute;
+	right: var(--space-1);
+	bottom: var(--space-1);
+	display: flex;
+	gap: 2px;
+	visibility: hidden;
+}
+
+.glyph-grid-tile__actions[hidden] {
+	display: none;
+}
+
+glyph-grid-tile:hover .glyph-grid-tile__actions,
+glyph-grid-tile:focus-within .glyph-grid-tile__actions,
+glyph-grid-tile:focus-visible .glyph-grid-tile__actions {
+	visibility: visible;
+}
+
+button.glyph-grid-tile__action,
+button.glyph-grid-tile__action:hover,
+button.glyph-grid-tile__action:focus,
+button.glyph-grid-tile__action:active {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 24px;
+	height: 24px;
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	cursor: pointer;
+	font: inherit;
+}
+
+button.glyph-grid-tile__action:hover {
+	background: var(--color-bg-accent-subtle);
+	border-color: var(--color-border-strong);
+}
+
+button.glyph-grid-tile__action:focus {
+	outline: none;
+}
+
+button.glyph-grid-tile__action:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 1px;
+}
+
+.glyph-grid-tile__action .material-symbols-rounded {
+	font-size: 16px;
+}
+
 /* An empty tile shows the ghost glyph instead of a corner mark */
 glyph-grid-tile[data-status='empty'] .glyph-grid-tile__mark {
 	visibility: hidden;

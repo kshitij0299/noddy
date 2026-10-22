@@ -335,6 +335,45 @@ describe('GlyphStatusStore: yours lock', () => {
 	});
 });
 
+describe('GlyphStatusStore: pre-draft snapshot and restore (M7 #29)', () => {
+	const preDraft = { glyph: { id: 'glyph-0x42', advanceWidth: 300, shapes: [] } };
+
+	it('a Draft carries its pre-draft snapshot, persisted and reloaded', () => {
+		const { store, storage } = makeStore();
+		store.set('glyph-0x42', 'draft', 'agent', { preDraft });
+		expect(store.get('glyph-0x42').preDraft).toEqual(preDraft);
+		const { store: again } = makeStore({ storage });
+		expect(again.get('glyph-0x42').preDraft).toEqual(preDraft);
+	});
+
+	it('a redraw keeps the first snapshot; any other status drops it', () => {
+		const { store } = makeStore();
+		store.set('glyph-0x42', 'draft', 'agent', { preDraft });
+		store.set('glyph-0x42', 'drafting', 'agent');
+		store.set('glyph-0x42', 'draft', 'agent', { preDraft: { glyph: null } });
+		expect(store.get('glyph-0x42').preDraft).toEqual({ glyph: null });
+		store.set('glyph-0x42', 'draft', 'agent');
+		expect(store.get('glyph-0x42').preDraft).toEqual({ glyph: null });
+		store.set('glyph-0x42', 'kept', 'user');
+		expect(store.get('glyph-0x42').preDraft).toBeUndefined();
+	});
+
+	it('restore puts a record back exactly, a derived record clears', () => {
+		const { store, publish } = makeStore();
+		store.set('glyph-0x42', 'draft', 'agent', { preDraft });
+		const draft = store.get('glyph-0x42');
+		store.set('glyph-0x42', 'kept', 'user');
+		publish.mockClear();
+		expect(store.restore('glyph-0x42', draft)).toBe(true);
+		expect(store.get('glyph-0x42')).toMatchObject({ status: 'draft', owner: 'agent', preDraft });
+		expect(publish).toHaveBeenCalledTimes(1);
+		expect(store.restore('glyph-0x42', { status: 'empty', owner: 'user', derived: true })).toBe(
+			true
+		);
+		expect(store.get('glyph-0x42').derived).toBe(true);
+	});
+});
+
 describe('GlyphStatusStore: deleted items', () => {
 	it('ProjectEditor.deleteItem clears the status record', () => {
 		globalThis.localStorage.clear();

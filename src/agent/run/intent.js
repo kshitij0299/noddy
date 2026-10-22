@@ -15,7 +15,7 @@ const NAMED_GLYPH =
 	/(?:^|\s)(?:the|letter|glyph|char(?:acter)?|lowercase|capital|uppercase|figure|digit)\s+['"‘“]?([A-Za-z0-9])['"’”]?(?=$|[\s.,!?;:])/i;
 const QUOTED_GLYPH = /['"‘“]([A-Za-z0-9])['"’”]/;
 const WHOLE_SET =
-	/\b(font|typeface|type ?face|alphabet|whole set|full set|all (?:the )?(?:letters|glyphs|characters)|every (?:letter|glyph)|sans|serif|slab|grotesk|grotesque|geometric|humanist|monospace|mono|didone|script|display|rounded|condensed|style|draw (?:it|them|the set)|start)\b/i;
+	/\b(font|typeface|type ?face|alphabet|whole set|full set|all (?:the )?(?:letters|glyphs|characters)|every (?:letter|glyph)|sans|serif|slab|grotesk|grotesque|geometric|humanist|monospace|mono|didone|script|display|rounded|condensed|style|draw (?:it|them|the set))\b/i;
 
 /**
  * @param {String} prompt

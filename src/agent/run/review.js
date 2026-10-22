@@ -18,6 +18,10 @@
 import { isPreDraft } from '../../project_editor/glyph-status.js';
 import { commitReview } from '../native-tools.js';
 
+/** Bubbles from a tile when the user asks the agent to retry Failed glyphs
+ * (detail: { ids }). The agent panel listens on the document. */
+export const RETRY_GLYPHS_EVENT = 'noddy-retry-glyphs';
+
 /**
  * 'glyph-0x61' → 'a'
  * @param {String} id

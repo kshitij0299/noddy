@@ -14,7 +14,21 @@ import { STATUS_LABELS, makeStatusMark, updateStatusMark } from './status-mark.j
  * Layout: fixed 84px height, art centred, Mono-small char label bottom-left,
  * status mark top-right. Hover is paint only; the selected ring is drawn
  * inset so it is never clipped at the grid edge.
+ *
+ * Review actions (M7 #29): a Draft tile shows Keep and Revert, a Failed tile
+ * Retry, bottom-right. They are always in the layout and only become visible
+ * on hover or focus, so nothing shifts. The grid handles the clicks
+ * (`data-tile-action`); the keyboard path is the inspector and the receipt.
  */
+
+/** Review actions per status: [action, icon, verb]. */
+export const TILE_ACTIONS = Object.freeze({
+	draft: [
+		['keep', 'check', 'Keep'],
+		['revert', 'undo', 'Revert'],
+	],
+	failed: [['retry', 'refresh', 'Retry']],
+});
 
 /** Height of the glyph art in CSS px (UX note: "glyph ~40px centred"). */
 export const TILE_GLYPH_HEIGHT = 40;
@@ -94,10 +108,13 @@ export class GlyphGridTile extends HTMLElement {
 		this.labelEl.textContent = this.label;
 		this.mark = makeStatusMark('empty');
 		this.mark.classList.add('glyph-grid-tile__mark');
+		this.actionsEl = makeElement({ tag: 'span', className: 'glyph-grid-tile__actions' });
+		this._actionsKey = '';
 
 		this.appendChild(this.art);
 		this.appendChild(this.labelEl);
 		this.appendChild(this.mark);
+		this.appendChild(this.actionsEl);
 		this._staged = {
 			role: 'option',
 			tabindex: '-1',
@@ -144,8 +161,9 @@ export class GlyphGridTile extends HTMLElement {
 	 * @param {Object} args
 	 * @param {Object} args.project - current GlyphrStudioProject
 	 * @param {String} args.status - current status from the status store
+	 * @param {Boolean=} args.canRevert - a Draft with a pre-draft snapshot
 	 */
-	render({ project, status }) {
+	render({ project, status, canRevert = false }) {
 		const glyph = project?.getItem ? project.getItem(this.glyphID) : false;
 		const hasOutlines = !!(glyph && glyph.shapes && glyph.shapes.length > 0);
 		const pathData = hasOutlines ? glyph.svgPathData : '';
@@ -173,6 +191,47 @@ export class GlyphGridTile extends HTMLElement {
 		} else if (!this.hasAttribute('data-status')) {
 			this.setAttribute('data-status', status);
 		}
+		this.renderActions(status, canRevert);
 		this.syncAria();
+	}
+
+	/**
+	 * Keep / Revert on a Draft, Retry on a Failed glyph. Rebuilt only when
+	 * the set of actions changes.
+	 * @param {String} status
+	 * @param {Boolean} canRevert
+	 */
+	renderActions(status, canRevert) {
+		const actions = (TILE_ACTIONS[status] || []).filter(
+			([action]) => action !== 'revert' || canRevert
+		);
+		const key = actions.map(([action]) => action).join(',');
+		if (key === this._actionsKey) return;
+		this._actionsKey = key;
+		this.actionsEl.replaceChildren(
+			...actions.map(([action, iconName, verb]) => {
+				const button = makeElement({
+					tag: 'button',
+					className: 'glyph-grid-tile__action',
+					attributes: {
+						type: 'button',
+						tabindex: '-1',
+						'data-tile-action': action,
+						'aria-label': `${verb} ${this.label}`,
+						title: `${verb} ${this.label}`,
+					},
+				});
+				button.appendChild(
+					makeElement({
+						tag: 'span',
+						className: 'material-symbols-rounded',
+						content: iconName,
+						attributes: { 'aria-hidden': 'true' },
+					})
+				);
+				return button;
+			})
+		);
+		this.actionsEl.hidden = !actions.length;
 	}
 }

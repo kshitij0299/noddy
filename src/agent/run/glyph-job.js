@@ -48,7 +48,7 @@ export function glyphJobPrompt({ id, char, brief = '', spec = [], note = '', con
  */
 export function createGlyphDrafter(controller) {
 	return async function draft(job) {
-		const summary = await controller.run(glyphJobPrompt(job), [], {
+		const summary = await controller.run(glyphJobPrompt(job), job.attachments || [], {
 			job: true,
 			scope: [job.id],
 			maxTools: GLYPH_JOB_TOOL_LIMIT,

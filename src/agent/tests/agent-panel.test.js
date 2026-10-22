@@ -129,7 +129,7 @@ describe('composer (#19)', () => {
 		const controller = fakeController();
 		const panel = panelFixture({ controller });
 		const { input } = panel.composer;
-		input.value = 'Clean simple sans';
+		input.value = 'What can you do?';
 		input.dispatchEvent(new Event('input'));
 		input.dispatchEvent(
 			new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true })
@@ -140,7 +140,7 @@ describe('composer (#19)', () => {
 			new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
 		);
 		await flush();
-		expect(controller.run).toHaveBeenCalledWith('Clean simple sans', []);
+		expect(controller.run).toHaveBeenCalledWith('What can you do?', []);
 	});
 
 	it('send is disabled while the input is empty', () => {
@@ -254,7 +254,7 @@ describe('minimize and pill (#20)', () => {
 		const panel = panelFixture({ controller: fakeController(), getEditor: () => editor });
 		panel.minimize();
 		expect(panel.pill.root.dataset.phase).toBe('needs-you');
-		expect(panel.pill.root.textContent).toContain('4 glyphs to review');
+		expect(panel.pill.root.textContent).toContain('Needs you · 4 to review');
 	});
 
 	it('pill shows run progress from setRunStatus', () => {
@@ -342,7 +342,7 @@ describe('controller wiring (#21)', () => {
 		);
 	});
 
-	it('card actions reach the controller, the composer or a visible M7 stub', async () => {
+	it('card actions reach the controller, the composer or the review actions', async () => {
 		const controller = fakeController();
 		const panel = panelFixture({ controller });
 		const fire = (detail) =>
@@ -355,7 +355,7 @@ describe('controller wiring (#21)', () => {
 		fire({ action: 'tweak', prefill: 'Tweak: ' });
 		expect(panel.composer.input.value).toBe('Tweak: ');
 		fire({ action: 'keep', glyphIds: ['glyph-0x61'] });
-		expect(panel.thread.textContent).toContain('Keep is coming in M7');
+		expect(panel.thread.textContent).not.toContain('coming in M7');
 		const openGlyph = vi.fn();
 		const other = panelFixture({ controller: fakeController(), openGlyph });
 		other.thread.dispatchEvent(
@@ -367,7 +367,7 @@ describe('controller wiring (#21)', () => {
 		expect(openGlyph).toHaveBeenCalledWith('glyph-0x61');
 	});
 
-	it('Keep shows only the M7 stub line, not the card\'s own "Kept" line', () => {
+	it('Keep reports what was actually kept (nothing without a project), in one line', () => {
 		const panel = panelFixture({ controller: fakeController() });
 		const card = panel.addCard('agent-receipt-card', {
 			cardId: 'r1',
@@ -375,8 +375,8 @@ describe('controller wiring (#21)', () => {
 		});
 		card.querySelector('button[data-action="keep"]').click();
 		const lines = [...panel.thread.querySelectorAll('agent-step-line')].map((l) => l.textContent);
-		expect(lines.filter((text) => /Kept/.test(text))).toHaveLength(0);
-		expect(lines.filter((text) => /Keep is coming in M7/.test(text))).toHaveLength(1);
+		expect(lines.filter((text) => /Kept/.test(text))).toEqual(['check_circleDone: Kept 0 glyphs']);
+		expect(lines.some((text) => /coming in M7/.test(text))).toBe(false);
 	});
 
 	it('the connect card hands the key to the controller and never renders or stores it', async () => {

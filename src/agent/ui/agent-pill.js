@@ -8,8 +8,9 @@
  * States (status is text + shape, never colour alone):
  *   idle      "Ask the agent"              (phone: "Agent")
  *   running   "Drafting g · 10/62" + ring  (count only when known)
- *   needs-you peach dot + "4 glyphs to review"
- *   paused    `pause` icon + "Paused · 10/62"
+ *   needs-you peach dot + "Needs you · 4 to review", or a waiting gate:
+ *             "Needs you · plan ready" / "Needs you · approve the style"
+ *   paused    `pause` icon + "Paused · 10/62" ("Paused · spend cap · 10/62")
  *   failed    `error` icon + "Stopped · 10/62"
  */
 import { el, icon } from './cards/card-shell.js';
@@ -20,19 +21,21 @@ const RING_RADIUS = 8;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
 /**
- * Picks the pill phase. A live run always wins; then paused, failed, and
- * glyphs waiting for review.
+ * Picks the pill phase. A live run always wins; then paused, failed, a run
+ * waiting at a gate, and glyphs waiting for review.
  * @param {Object} status
  * @param {Boolean} [status.running]
  * @param {Boolean} [status.paused]
  * @param {Boolean} [status.failed]
  * @param {Number} [status.review] - glyphs waiting for review (draft)
+ * @param {String} [status.gate] - 'plan' | 'style' while a run waits at a gate
  * @returns {String} one of PILL_PHASES
  */
-export function derivePillPhase({ running, paused, failed, review } = {}) {
+export function derivePillPhase({ running, paused, failed, review, gate } = {}) {
 	if (running) return 'running';
 	if (paused) return 'paused';
 	if (failed) return 'failed';
+	if (gate) return 'needs-you';
 	if (review > 0) return 'needs-you';
 	return 'idle';
 }
@@ -45,6 +48,8 @@ export function derivePillPhase({ running, paused, failed, review } = {}) {
  * @param {Number} [state.done] - glyphs finished in this run
  * @param {Number} [state.total] - glyphs in this run
  * @param {Number} [state.review] - glyphs waiting for review
+ * @param {String} [state.gate] - 'plan' | 'style': a run waits for the user
+ * @param {String} [state.pauseReason] - 'cap' when the spend cap paused the run
  * @param {Boolean} [state.compact] - phone width
  * @returns {{text: String, icon: String|null, dot: Boolean, ring: Boolean, progress: Number|null}}
  */
@@ -61,11 +66,18 @@ export function pillView(state = { phase: 'idle' }) {
 				progress: hasCount ? Math.min(1, Math.max(0, (state.done || 0) / state.total)) : null,
 			};
 		case 'needs-you': {
+			if (state.gate === 'plan') return { ...base, text: 'Needs you · plan ready', dot: true };
+			if (state.gate === 'style')
+				return { ...base, text: 'Needs you · approve the style', dot: true };
 			const n = Math.max(0, state.review || 0);
-			return { ...base, text: `${n} ${n === 1 ? 'glyph' : 'glyphs'} to review`, dot: true };
+			return { ...base, text: `Needs you · ${n} to review`, dot: true };
 		}
 		case 'paused':
-			return { ...base, text: `Paused${count}`, icon: 'pause' };
+			return {
+				...base,
+				text: `Paused${state.pauseReason === 'cap' ? ' · spend cap' : ''}${count}`,
+				icon: 'pause',
+			};
 		case 'failed':
 			return { ...base, text: `Stopped${count}`, icon: 'error' };
 		default:
