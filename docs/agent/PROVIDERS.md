@@ -16,7 +16,7 @@ The production host needs `server/agent/`, `src/agent/tool-definitions.js`, `src
 
 ## Connections
 
-The user picks a provider from one dropdown (OpenAI, OpenCode Zen, Anthropic), then enters a model ID and key. Choosing a provider fills the Model field with that provider's suggested model (Anthropic: `claude-sonnet-5-5`); the field stays editable and nothing is connected until "Check connection" succeeds. API format defaults to **Automatic**, with an explicit override in Advanced. A saved/selected configuration is not proof the credentials work; only an actual request establishes that. Model IDs are editable because availability changes. No quota is assumed, and failed requests are not retried automatically.
+The user picks a provider from one dropdown (OpenAI, OpenCode Zen, Anthropic), then enters a model ID and key. Choosing a provider fills the Model field with that provider's suggested model (Anthropic: `claude-sonnet-5-5`); the field stays editable and nothing is connected until "Check connection" succeeds. Once it succeeds, the Model field becomes the key's [live model list](#live-model-list) (if the list cannot be loaded, the card connects with the typed model exactly as before). API format defaults to **Automatic**, with an explicit override in Advanced. A saved/selected configuration is not proof the credentials work; only an actual request establishes that. Model IDs are editable because availability changes. No quota is assumed, and failed requests are not retried automatically.
 
 | Provider     | API formats                                     | Fixed provider destination     |
 | ------------ | ----------------------------------------------- | ------------------------------ |
@@ -33,6 +33,37 @@ Anthropic uses its own Messages API only, so Automatic always resolves to **Mess
 Gemini's Google protocol and Jev's System One protocol are not implemented in this milestone. A model must support function tools; attached pictures additionally require vision support. A provider error identifies these possible mismatches without disclosing raw provider diagnostics.
 
 Keys live in the browser's current session and the relay's request memory only. They are not read from OpenCode configuration, logged, stored in localStorage, written to disk, bundled into JavaScript or saved in `.gs2`. Reloading/clearing the session discards them. Native tool arguments and system instructions never contain the key. The relay disables SDK telemetry and warning payload logging, strips raw response headers/errors, and requests `store:false` for OpenAI-compatible Responses. This does not override a provider's independent retention policy; consult its policy before sending private font data. Changing provider/model should start a fresh transcript so opaque provider continuation data is not replayed across providers.
+
+## Live model list
+
+After "Check connection" succeeds, the connect card asks the relay which models the key can use and shows them as a list in place of the Model field, with **Free**, **Paid**, **Tools** and **Vision** badges (an icon plus text each, never colour alone). The browser never calls a provider or models.dev itself; it posts to the relay.
+
+**Route.** `POST /api/agent/models` with exactly `{provider, apiKey}`. There is no URL, header, model or option field; unknown fields are refused with `INVALID_REQUEST` before anything is sent upstream. It has the step route's local Host/Origin/`Sec-Fetch-Site` guards, an uncompressed JSON body capped at 2 KiB, its own concurrency (2) and rate (30 per minute) limits so listing never uses up the step route's, and a 15-second timeout that aborts the upstream call (a disconnected browser aborts it too). It returns `{provider, catalog, models}` where `catalog` is `live`, `cache` or `snapshot` and each model is `{id, tools, vision, price, released}`; `null` always means "not known".
+
+**Fixed destinations.** Each URL is a literal in the relay's allowlist (`MODEL_LIST_URLS`, `CATALOG_URL` in `server/agent/providers.js`); the fetch used for them refuses any other URL, any method but GET and any body, and treats a redirect as an error, so a key cannot be forwarded elsewhere.
+
+| Provider     | Model list URL                                  | Credential                                   |
+| ------------ | ----------------------------------------------- | -------------------------------------------- |
+| OpenAI       | `https://api.openai.com/v1/models`              | `Authorization: Bearer`                      |
+| OpenCode Zen | `https://opencode.ai/zen/v1/models`             | `Authorization: Bearer`                      |
+| Anthropic    | `https://api.anthropic.com/v1/models?limit=1000` | `x-api-key` and `anthropic-version: 2023-06-01` |
+
+The key goes only to its own provider's host. Errors are mapped from the status alone (`PROVIDER_AUTH`, `PROVIDER_LIMIT`, `PROVIDER_REQUEST`, `PROVIDER_UNAVAILABLE`, `CANCELLED`); no upstream text, header or key is returned. A list that is not `{data: [{id}]}`, or is larger than 4 MiB, answers `PROVIDER_UNAVAILABLE`. Only IDs the step route would accept are listed (at most 500).
+
+**Catalog.** Price, tool and vision data come from the open [models.dev](https://models.dev) database that OpenCode also uses (`https://models.dev/api.json`; it receives no credentials). The relay fetches it server-side, keeps the three tracked providers (`openai`, `anthropic`, and `opencode` for Zen) in memory for 6 hours, shares one fetch between concurrent requests and, if models.dev is unreachable, slow (8 s), not 200, larger than 24 MB or not the shape expected, serves the stale cache or else the bundled snapshot `server/agent/model-snapshot.js`. After a failure it does not retry for a minute. A catalog problem never fails the model list; the response's `catalog` field says what was used. Regenerate the snapshot with `npm run models:snapshot` (add `-- --input api.json` to use a saved copy); it keeps only the OpenAI, Anthropic and OpenCode entries and reduces them to the fields below.
+
+| Badge  | Meaning                                                                                      |
+| ------ | -------------------------------------------------------------------------------------------- |
+| Free   | `cost.input` and `cost.output` are both 0                                                    |
+| Paid   | a price is known and not both 0 (shown as input / output dollars per million tokens)        |
+| Tools  | `tool_call` is true. `Tools ?` means the catalog does not say: the model is allowed          |
+| Vision | `modalities.input` includes `image`                                                          |
+
+A model the catalog does not know has no price badge and `Tools ?`; a dated ID (`…-20251001`) or `-latest` alias uses its plain model's entry. Catalog entries typed `embedding`, `image` or `realtime`, and unknown IDs that are plainly not chat models (embedding, whisper, tts, dall-e, moderation, transcribe, realtime, image), count as unable to use tools.
+
+**What the card does with it.** The list is ordered: the provider's suggested models first, then other tool-capable models (newest first), then models with unknown tool support, then models that cannot be chosen. A model with `tools: false` is greyed out, `aria-disabled`, and says "Can't use tools — the agent needs them" in its row. A Zen model whose API format Automatic routing does not know (the card has no Advanced format choice) is greyed out the same way, with its own reason, because choosing it could never connect. Choosing a model the catalog says uses tools reconnects with no billed call, since the key is already verified; choosing a model with unknown tool support, or a **Custom…** ID, first makes the same one tiny billed call as "Check connection". The list is a listbox (arrows, Home/End, Page keys, Enter or Space, type-ahead, Esc) and each row's accessible name includes its badges. Choosing another provider returns to that provider's key step and default model; the previous connection stays until a new check succeeds.
+
+**Keys and cache.** The key is never stored, logged, cached or put in a URL. The card keeps a copy in memory only while the list is shown, so another model can be verified; it is dropped on disconnect, on connecting another provider and when the panel is disposed. The browser holds the list in memory for the session only; the relay caches nothing per key. The list is part of the empty state of the agent panel, so a model is chosen before the first message (clearing the chat brings it back).
 
 ## Browser contract
 
@@ -83,7 +114,7 @@ Stop aborts the fetch and propagates to the provider. A disconnected browser als
 
 ## Verification and extension
 
-Run `npm run typecheck:agent-relay` and `npm run test:agent-relay`. Tests use the real `ToolLoopAgent` and actual installed provider adapters with mocked transports for all six provider/format combinations. They verify images, tool definitions, opaque Responses continuation, native result replay, argument rejection, error redaction, no automatic retries, abort propagation and local HTTP guards. No real key/model call is used in automated tests. Live credential/model compatibility remains a user-key smoke test.
+Run `npm run typecheck:agent-relay` and `npm run test:agent-relay`. Tests use the real `ToolLoopAgent` and actual installed provider adapters with mocked transports for all six provider/format combinations. `server/agent/models.checks.js` covers the model list with mocked upstreams for all three providers and models.dev (live, cached, concurrent, unreachable, malformed, oversized and hung catalog data falling back to the snapshot; allowlist and redirect refusal; key redaction; guards, limits and timeout of `POST /api/agent/models`). The browser side is covered by `src/agent/tests/agent-model-list.test.js` and the live-list cases in `agent-connect-card.test.js` and `agent-panel.test.js`. They verify images, tool definitions, opaque Responses continuation, native result replay, argument rejection, error redaction, no automatic retries, abort propagation and local HTTP guards. No real key/model call is used in automated tests. Live credential/model compatibility remains a user-key smoke test.
 
 The exact Muse Contributor Free regression runs through the real Responses adapter with a mocked upstream and verifies endpoint, model ID, tools, key isolation and no fallback/retry. OpenAI's [documented strict schema subset](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas) does not list `uniqueItems`. The installed SDK sends `strict:false` unless explicitly requested. For compatibility, the relay omits only that keyword from advertised direct-OpenAI/Responses schemas; the unchanged canonical validator still rejects duplicate targets before any browser edit. Tests cover both wire omission and duplicate rejection. This is not a claim of live-provider schema acceptance.
 
