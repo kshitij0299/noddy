@@ -1,6 +1,7 @@
+import { keepGlyphs, revertGlyph } from '../agent/run/review.js';
 import { makeElement } from '../common/dom.js';
 import { STATUS_LABELS, makeStatusMark } from '../controls/glyph-grid/status-mark.js';
-import { Glyph } from '../project_data/glyph.js';
+import { isPreDraft } from '../project_editor/glyph-status.js';
 import { makeSingleInput } from '../panels/cards.js';
 import { charForGlyphID } from './focus_context_strip.js';
 import { guardControlKeys } from './focus_tool_pill.js';
@@ -14,10 +15,11 @@ import { guardControlKeys } from './focus_tool_pill.js';
 	committed edit is one undo step (the M1 fix in panels/cards.js);
 	Keep / Revert only while the glyph is a Draft.
 
-	Revert is a forward commit to the pre-draft outline. The status store
-	does not keep a pre-draft snapshot yet (glyph-status.js records only
-	status, owner, updatedAt), so `preDraftSnapshot()` finds none today and
-	Revert is shown disabled with a tooltip that says why.
+	Keep and Revert are one history entry each (src/agent/run/review.js).
+	Revert is a forward commit to the pre-draft outline the agent job stored
+	on the status record (glyph-status.js `preDraft`). A Draft without one
+	(set by hand in a test or an old session) shows Revert disabled with a
+	tooltip that says why.
 */
 
 export const REVERT_UNAVAILABLE_TOOLTIP =
@@ -35,25 +37,22 @@ export function codePointLabel(id) {
 }
 
 /**
- * The saved pre-draft glyph data on a status record, if any.
+ * The pre-draft snapshot on a status record, if any.
  * @param {Object} record - from editor.glyphStatus.get(id)
- * @returns {Object | null} Glyph save() data
+ * @returns {{glyph: Object | null} | null}
  */
 export function preDraftSnapshot(record) {
-	const snapshot = record?.preDraft;
-	return snapshot && typeof snapshot === 'object' ? snapshot : null;
+	return isPreDraft(record?.preDraft) ? record.preDraft : null;
 }
 
 /**
- * Keep: the user accepts the draft.
+ * Keep: the user accepts the draft (one history entry).
  * @param {Object} editor - ProjectEditor
  * @param {String} id
  * @returns {Boolean} whether the status changed
  */
 export function keepDraft(editor, id) {
-	const store = editor.glyphStatus;
-	if (!store || store.getStatus(id) !== 'draft') return false;
-	return store.set(id, 'kept', 'user');
+	return keepGlyphs(editor, [id]).kept.length === 1;
 }
 
 /**
@@ -64,19 +63,8 @@ export function keepDraft(editor, id) {
  * @returns {Boolean} whether anything was reverted
  */
 export function revertDraft(editor, id) {
-	const store = editor.glyphStatus;
-	if (!store || store.getStatus(id) !== 'draft') return false;
-	const snapshot = preDraftSnapshot(store.get(id));
-	const glyph = editor.project.getItem(id);
-	if (!snapshot || !glyph) return false;
-
-	const restored = new Glyph(snapshot);
-	glyph.shapes = restored.shapes;
-	glyph.advanceWidth = restored.advanceWidth;
-	editor.publish('currentItem', glyph);
-	editor.history.addState(`Reverted draft ${charForGlyphID(id) || id}`);
-	store.set(id, glyph.shapes.length ? 'kept' : 'empty', 'user');
-	return true;
+	if (editor.glyphStatus?.getStatus(id) !== 'draft') return false;
+	return revertGlyph(editor, id).ok;
 }
 
 /**
