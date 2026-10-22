@@ -2,6 +2,8 @@ import { getCurrentProjectEditor } from '../app/main.js';
 import { refreshPanel } from '../panels/panels.js';
 import { Glyph } from '../project_data/glyph.js';
 import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
+import { ioSVG_convertSVGTagsToGlyph } from '../formats_io/svg_outlines/svg_outline_import.js';
+import { queueItemChanged } from '../project_editor/item_changed.js';
 import {
 	codePointToGlyphID,
 	isInLatinKernel,
@@ -31,10 +33,42 @@ let nextSession = 0;
 const activeTransactions = new WeakSet();
 const agentSnapshots = new WeakSet();
 const editorsWithHistoryRefresh = new WeakSet();
+/**
+ * Status flip per job history entry (the post-state entry): the status store
+ * lives outside the project, so whole-project undo/redo cannot carry it.
+ * @type {WeakMap<Object, {id: String, before: Object, state: 'applied' | 'undone'}>}
+ */
+const jobStatusEntries = new WeakMap();
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const jsonSize = (value) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
-const fail = (code, message) => {
-	throw Object.assign(new Error(message), { code });
+const fail = (code, message, details) => {
+	throw Object.assign(new Error(message), { code, ...(details ? { details } : {}) });
+};
+// Glyph jobs (M6 #26): create_glyph / begin_glyph open a private draft, the
+// draft tools edit it, submit_glyph validates and commits it as one entry.
+const JOB_TOOLS = [
+	'create_glyph',
+	'begin_glyph',
+	'submit_glyph',
+	'replace_paths',
+	'delete_paths',
+	'add_svg_path',
+];
+// Legacy write tools edit the job's draft when a job is open for their glyph.
+const DRAFT_TOOLS = ['set_spacing', 'transform_paths', 'add_paths'];
+const MAX_JOBS = 8;
+// check_outlines codes that make geometry invalid. Extents are warnings only.
+const BLOCKING_ISSUES = [
+	'TOO_FEW_POINTS',
+	'DUPLICATE_POINTS',
+	'SELF_INTERSECTION',
+	'SPECK',
+	'WINDING_SAME_AS_CONTAINER',
+];
+const cloneGlyph = (glyph) => {
+	const clone = new Glyph(copy(glyph.save(true)));
+	clone.wasCreatedThisSession = glyph.wasCreatedThisSession;
+	return clone;
 };
 const abortIfNeeded = (signal) => {
 	if (signal?.aborted) fail('CANCELLED', 'The request was stopped.');
@@ -60,6 +94,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 	// The agent's job on the bound glyph. "Take over" aborts it, and every
 	// later write of this session then fails (CANCELLED) at execution time.
 	const job = glyphId ? agentJobSignal(editor, glyphId) : undefined;
+	const boundJobSignal = job;
 	const renderBudget = { used: 0 };
 	const sessionId = `agent-${++nextSession}`;
 	let revision = 0;
@@ -68,6 +103,10 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 	let disposed = false;
 	let lastEdit;
 	const completedCalls = new Map();
+	/** @type {Map<String, {id: String, create: Boolean, candidate: Glyph, base: String | null, signal: AbortSignal}>} */
+	const jobs = new Map();
+	// The Send-time grant covers only the glyph bound to this request.
+	const grantFor = (id) => (id === glyphId ? requestGrant : undefined);
 
 	function assertActive() {
 		if (disposed) fail('SESSION_CLOSED', 'Send a new request to start a session.');
@@ -121,6 +160,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 			error: {
 				code: error.code || 'NATIVE_TOOL_FAILED',
 				message: error.message || 'The edit failed.',
+				...(error.details ? { details: error.details } : {}),
 			},
 			...(context ? { context } : {}),
 		};
@@ -164,6 +204,11 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 					...readTool(name, input, { editor, project, makeCanvas, renderBudget }),
 					ok: true,
 				};
+			} else if (
+				JOB_TOOLS.includes(name) ||
+				(DRAFT_TOOLS.includes(name) && jobs.has(input.glyphId))
+			) {
+				result = runJobTool(name, input, context, signal);
 			} else {
 				if (!context.writable || input.glyphId !== glyphId) {
 					fail(
@@ -205,7 +250,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 				if (JSON.stringify(before.save()) === JSON.stringify(candidate.save())) {
 					result = { ok: true, changed: false, context, glyph: describeGlyph(before, false) };
 				} else {
-					commit(candidate, `Agent: ${commandTitle(name, input)}`, signal);
+					commit(glyphId, candidate, `Agent: ${commandTitle(name, input)}`, signal);
 					logAgentWrite(editor, {
 						tool: name,
 						id: glyphId,
@@ -229,7 +274,156 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 		}
 	}
 
-	function commit(candidate, title, signal) {
+	// ----------------------------------------------------------
+	// Glyph jobs: a detached draft per glyph, one history entry per submit
+	// ----------------------------------------------------------
+
+	function runJobTool(name, input, context, signal) {
+		if (input.expectedRevision !== context.revision) {
+			fail('STALE_REVISION', 'The font or selection changed. Read the glyph again before editing.');
+		}
+		if (name === 'create_glyph') return createJob(input, context);
+		if (name === 'begin_glyph') return beginJob(input.glyphId, context);
+		const job = jobs.get(input.glyphId);
+		if (!job) fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
+		assertJobLive(job);
+		if (name === 'submit_glyph') return submitJob(job, input, context, signal);
+		// Edit a copy so a failed command leaves the draft as it was.
+		const next = cloneGlyph(job.candidate);
+		applyDraftCommand(name, input, next, project);
+		assertGeometry(next);
+		abortIfNeeded(signal);
+		job.candidate = next;
+		return { ok: true, context, job: describeJob(job), glyph: describeGlyph(next, false) };
+	}
+
+	// Read at execution time: a Take over or a newly opened glyph stops the job.
+	function assertJobLive(job) {
+		if (job.signal.aborted) {
+			jobs.delete(job.id);
+			fail('CANCELLED', 'You took this glyph over, so the agent stopped. The draft was discarded.');
+		}
+		assertAgentMayWrite(editor, job.id, { grant: grantFor(job.id), job: job.signal });
+	}
+
+	function openJob(id, candidate, create, context) {
+		if (!jobs.has(id) && jobs.size >= MAX_JOBS)
+			fail('JOB_LIMIT', `Submit an open glyph job first (at most ${MAX_JOBS} at once).`);
+		const job = {
+			id,
+			create,
+			candidate,
+			base: create ? null : JSON.stringify(project.glyphs[id].save()),
+			// The bound glyph keeps the session's signal, so a Take over before
+			// begin_glyph still cancels; other glyphs get their current signal.
+			signal: id === glyphId ? boundJobSignal : agentJobSignal(editor, id),
+		};
+		const restarted = jobs.has(id);
+		jobs.set(id, job);
+		return { ok: true, context, glyphId: id, restarted, job: describeJob(job) };
+	}
+
+	function createJob(input, context) {
+		const id = codePointToGlyphID(input.codePoint);
+		if (!id || !isInLatinKernel(id))
+			fail('OUT_OF_SET', "Not in this font's character set (Latin Kernel).");
+		if (project.glyphs[id]) fail('GLYPH_EXISTS', 'This glyph exists. Use begin_glyph to edit it.');
+		assertAgentMayWrite(editor, id, {
+			grant: grantFor(id),
+			job: id === glyphId ? boundJobSignal : undefined,
+		});
+		// Same starting state as the native auto-create (new Glyph({ id })),
+		// but kept off the project until submit: never getItem(id, true).
+		return openJob(id, new Glyph({ id }), true, context);
+	}
+
+	function beginJob(id, context) {
+		assertInSet(project, [id]);
+		const before = project.glyphs[id];
+		if (!before) fail('GLYPH_MISSING', 'This glyph does not exist yet. Use create_glyph.');
+		assertAgentMayWrite(editor, id, {
+			grant: grantFor(id),
+			job: id === glyphId ? boundJobSignal : undefined,
+		});
+		assertNoDependents(project, before);
+		if (before.shapes.some((shape) => shape.objType !== 'Path')) {
+			fail(
+				'UNSUPPORTED_COMPONENT',
+				'Agent edits to glyphs containing component instances are not supported yet.'
+			);
+		}
+		return openJob(id, cloneGlyph(before), false, context);
+	}
+
+	function submitJob(job, input, context, signal) {
+		if (lastState.length > 8_000_000)
+			fail(
+				'PROJECT_TOO_LARGE',
+				'This project exceeds the first version’s native history snapshot limit.'
+			);
+		if (activeTransactions.has(editor))
+			fail('EDITOR_BUSY', 'Another native command is editing this project.');
+		const current = project.glyphs[job.id];
+		const stale = job.create
+			? Boolean(current)
+			: !current || JSON.stringify(current.save()) !== job.base;
+		if (stale) {
+			jobs.delete(job.id);
+			fail('JOB_STALE', 'This glyph changed since the job began. Begin the job again.');
+		}
+		if (current) assertNoDependents(project, current);
+		const candidate = job.candidate;
+		assertGeometry(candidate);
+		const check = checkGlyphOutlines(candidate, fontMetrics(project));
+		const blocking = check.issues.filter((issue) => BLOCKING_ISSUES.includes(issue.code));
+		const warnings = check.issues.filter((issue) => !BLOCKING_ISSUES.includes(issue.code));
+		if (blocking.length) {
+			fail(
+				'INVALID_OUTLINES',
+				'The draft has outline problems, so nothing was written. Fix them and submit again.',
+				{ issues: blocking.slice(0, 32) }
+			);
+		}
+		abortIfNeeded(signal);
+		if (!job.create && JSON.stringify(candidate.save()) === job.base) {
+			jobs.delete(job.id);
+			return { ok: true, changed: false, context, glyph: describeGlyph(current, false), warnings };
+		}
+		// Re-check right before commit: the lock state is read at execution time.
+		assertJobLive(job);
+		const char = glyphChar(job.id);
+		commit(job.id, candidate, `Agent · ${char}`, signal, { create: job.create });
+		jobs.delete(job.id);
+		try {
+			const before = editor.glyphStatus?.get(job.id);
+			// assertJobLive passed, so a Yours glyph here carries the user's consent.
+			editor.glyphStatus?.set(job.id, 'draft', 'agent', { consent: true });
+			if (before)
+				jobStatusEntries.set(editor.history.queue[0], { id: job.id, before, state: 'applied' });
+		} catch {
+			// Status bookkeeping never undoes a committed edit.
+		}
+		const note = input.note ? String(input.note).trim() : '';
+		logAgentWrite(editor, {
+			tool: 'submit_glyph',
+			id: job.id,
+			summary: `${job.create ? 'create' : 'edit'} ${char}${note ? `: ${note}` : ''}`,
+			historyEntryRef: editor.history.queue[0],
+		});
+		const result = {
+			ok: true,
+			changed: true,
+			created: job.create,
+			context: getContext(),
+			glyph: describeGlyph(project.glyphs[job.id], false),
+			warnings,
+			undoAvailable: true,
+		};
+		lastEdit = { entry: editor.history.queue[0], state: lastState };
+		return result;
+	}
+
+	function commit(targetId, candidate, title, signal, { create = false } = {}) {
 		const history = editor.history;
 		const queue = [...history.queue];
 		const redoQueue = [...history.redoQueue];
@@ -240,7 +434,13 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 			const element = document.getElementById(id);
 			return { element, disabled: element?.hasAttribute('disabled') };
 		});
-		const originalGlyph = project.glyphs[glyphId];
+		const originalGlyph = project.glyphs[targetId];
+		// Only the selected glyph is on screen: its panel and selection follow
+		// the new native objects. Any other glyph changes without touching the
+		// user's selection, view or focus.
+		const isSelected = Boolean(originalGlyph) && editor.selectedItemID === targetId;
+		const rangeCounts = project.settings.project.characterRanges.map((range) => range.count);
+		const rangeTotal = project.settings.project.characterRanges.length;
 		const shapeSelection = [...editor.multiSelect.shapes.members];
 		const pointSelection = [...editor.multiSelect.points.members];
 		const detached = [];
@@ -260,31 +460,47 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 			history.addWholeProjectChangePreState(title);
 			captureHistorySnapshot(history.queue[0], project);
 			abortIfNeeded(signal);
-			candidate.parent = project;
-			project.glyphs[glyphId] = candidate;
+			if (create) {
+				// The native creation path, inside this transaction's entry.
+				project.addItemByType(candidate, 'Glyph', targetId);
+			} else {
+				candidate.parent = project;
+				project.glyphs[targetId] = candidate;
+			}
 			candidate.changed();
-			// Rebind selection by index to the new native objects; no stale refs.
-			editor.multiSelect.shapes.members = shapeSelection
-				.map((shape) => candidate.shapes[originalGlyph.shapes.indexOf(shape)])
-				.filter(Boolean);
-			editor.multiSelect.points.members = pointSelection
-				.map((point) => {
-					const pathIndex = originalGlyph.shapes.indexOf(point.parent);
-					return candidate.shapes[pathIndex]?.pathPoints[point.parent.pathPoints.indexOf(point)];
-				})
-				.filter(Boolean);
+			if (isSelected) {
+				// Rebind selection by index to the new native objects; no stale refs.
+				editor.multiSelect.shapes.members = shapeSelection
+					.map((shape) => candidate.shapes[originalGlyph.shapes.indexOf(shape)])
+					.filter(Boolean);
+				editor.multiSelect.points.members = pointSelection
+					.map((point) => {
+						const pathIndex = originalGlyph.shapes.indexOf(point.parent);
+						return candidate.shapes[pathIndex]?.pathPoints[point.parent.pathPoints.indexOf(point)];
+					})
+					.filter(Boolean);
+			}
 			history.addWholeProjectChangePostState();
 			captureHistorySnapshot(history.queue[0], project);
 			abortIfNeeded(signal);
-			editor.publish('currentItem', candidate);
-			// Inspector change handlers capture native object references. Rebuild
-			// the panel after replacing a glyph, not just its displayed values.
-			refreshPanel();
+			if (isSelected) {
+				editor.publish('currentItem', candidate);
+				// Inspector change handlers capture native object references. Rebuild
+				// the panel after replacing a glyph, not just its displayed values.
+				refreshPanel();
+			} else {
+				// Tiles and the specimen re-fetch by ID; nothing else moves.
+				queueItemChanged(editor, targetId);
+			}
 			// The native pre-state hook autosaves the old state; run the same
 			// native hook after successful commit so autosave contains the edit.
 			history.updateAfterSaveState();
 		} catch (error) {
-			project.glyphs[glyphId] = originalGlyph;
+			if (originalGlyph) project.glyphs[targetId] = originalGlyph;
+			else delete project.glyphs[targetId];
+			const ranges = project.settings.project.characterRanges;
+			ranges.length = rangeTotal;
+			rangeCounts.forEach((count, index) => (ranges[index].count = count));
 			history.queue = queue;
 			history.redoQueue = redoQueue;
 			history.initialProject = initialProject;
@@ -297,8 +513,10 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 			editor.multiSelect.points.members = pointSelection;
 			for (const entry of detached) entry.itemState = project;
 			try {
-				editor.publish('currentItem', originalGlyph);
-				refreshPanel();
+				if (isSelected) {
+					editor.publish('currentItem', originalGlyph);
+					refreshPanel();
+				}
 			} catch {
 				// Preserve the original failure if a UI subscriber also fails during rollback.
 			}
@@ -334,6 +552,8 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 		dispose: () => {
 			disposed = true;
 			completedCalls.clear();
+			// An unsubmitted draft is thrown away: nothing was written.
+			jobs.clear();
 		},
 	};
 }
@@ -556,11 +776,55 @@ function ensureHistoryPanelRefresh(editor) {
 		subscriberID: 'agent-history-project-restoration',
 		callback: () => {
 			if (editor.project === previousProject) return;
+			const replaced = previousProject;
 			previousProject = editor.project;
 			if (getCurrentProjectEditor() === editor) refreshPanel();
+			// A whole-project undo/redo publishes currentItem for the selected
+			// item only. Announce every glyph whose data differs, so tiles and
+			// the specimen redraw an agent job's glyph that is not selected.
+			for (const id of changedItemIds(replaced, editor.project)) queueItemChanged(editor, id);
+			// History publishes before it moves the entries between its queues.
+			queueMicrotask(() => syncJobStatus(editor));
 		},
 	});
 	editorsWithHistoryRefresh.add(editor);
+}
+
+/**
+ * After a whole-project undo or redo, put the job glyph's status back
+ * (undo) or mark it Draft again (redo). Only the entry just undone (head of
+ * the redo queue) or just redone (head of the undo queue) is touched.
+ */
+function syncJobStatus(editor) {
+	const store = editor.glyphStatus;
+	if (!store) return;
+	const undone = jobStatusEntries.get(editor.history.redoQueue[0]?.[0]);
+	const redone = jobStatusEntries.get(editor.history.queue[0]);
+	try {
+		if (undone?.state === 'applied') {
+			undone.state = 'undone';
+			if (undone.before.derived) store.clear(undone.id);
+			else store.set(undone.id, undone.before.status, undone.before.owner, { consent: true });
+		} else if (redone?.state === 'undone') {
+			redone.state = 'applied';
+			store.set(redone.id, 'draft', 'agent', { consent: true });
+		}
+	} catch {
+		// Status bookkeeping never blocks undo or redo.
+	}
+}
+
+function changedItemIds(before, after) {
+	const ids = [];
+	for (const group of ['glyphs', 'components', 'ligatures']) {
+		const a = before?.[group] || {};
+		const b = after?.[group] || {};
+		for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) {
+			if (!a[id] || !b[id] || JSON.stringify(a[id].save()) !== JSON.stringify(b[id].save()))
+				ids.push(id);
+		}
+	}
+	return ids;
 }
 
 function getSelection(editor, glyph) {
@@ -665,25 +929,171 @@ function applyCommand(name, input, glyph) {
 		}
 		glyph[input.metric] = input.value;
 	} else if (name === 'transform_paths') {
-		for (const index of input.pathIndices) {
+		const shapes = input.pathIndices.map((index) => {
 			const shape = glyph.shapes[index];
 			if (!shape) fail('MISSING_PATH', `Path ${index} no longer exists. Read the glyph again.`);
+			return shape;
+		});
+		applyLinearTransform(shapes, input);
+		for (const shape of shapes) {
 			assertMoveAllowed(shape, input.dx, input.dy);
 			shape.updateShapePosition(input.dx, input.dy);
 		}
 	} else if (name === 'add_paths') {
-		for (const path of input.paths) {
-			glyph.addOneShape({
-				name: path.name,
-				pathPoints: path.points.map((point) => ({
-					type: 'corner',
-					p: { coord: { x: point.x, y: point.y } },
-					h1: { coord: point.h1 || { x: point.x, y: point.y }, use: point.h1 !== null },
-					h2: { coord: point.h2 || { x: point.x, y: point.y }, use: point.h2 !== null },
-				})),
-			});
-		}
+		for (const path of input.paths) glyph.addOneShape(contourShape(path));
 	} else fail('UNKNOWN_TOOL', 'This tool has no native implementation.');
+}
+
+function contourShape(path) {
+	return {
+		name: path.name,
+		pathPoints: path.points.map((point) => ({
+			type: 'corner',
+			p: { coord: { x: point.x, y: point.y } },
+			h1: { coord: point.h1 || { x: point.x, y: point.y }, use: point.h1 !== null },
+			h2: { coord: point.h2 || { x: point.x, y: point.y }, use: point.h2 !== null },
+		})),
+	};
+}
+
+function pathIndicesOrAll(glyph, indices) {
+	const list = indices ?? glyph.shapes.map((_, index) => index);
+	for (const index of list) {
+		const shape = glyph.shapes[index];
+		if (!shape) fail('MISSING_PATH', `Path ${index} no longer exists. Read the glyph again.`);
+		assertUnlocked(shape);
+	}
+	return list;
+}
+
+function assertUnlocked(shape) {
+	if (shape.objType !== 'Path')
+		fail('UNSUPPORTED_COMPONENT', 'Only ordinary paths can be changed.');
+	const controls = shape.pathPoints.flatMap((point) => [point.p, point.h1, point.h2]);
+	if (
+		shape.xLock ||
+		shape.yLock ||
+		shape.wLock ||
+		shape.hLock ||
+		controls.some((control) => control.xLock || control.yLock)
+	) {
+		fail(
+			'LOCKED_GEOMETRY',
+			'A path or point coordinate is locked. Unlock it in the editor before requesting this edit.'
+		);
+	}
+}
+
+/** Draft-only commands (replace_paths, delete_paths, add_svg_path) and the legacy ones. */
+function applyDraftCommand(name, input, glyph, project) {
+	if (name === 'delete_paths') {
+		const remove = new Set(pathIndicesOrAll(glyph, input.pathIndices));
+		glyph._shapes = glyph.shapes.filter((_, index) => !remove.has(index));
+		glyph.changed();
+	} else if (name === 'replace_paths') {
+		const indices = pathIndicesOrAll(glyph, input.pathIndices);
+		const remove = new Set(indices);
+		const at = indices.length ? Math.min(...indices) : glyph.shapes.length;
+		const kept = glyph.shapes.filter((_, index) => !remove.has(index));
+		const before = kept.filter((shape) => glyph.shapes.indexOf(shape) < at);
+		const after = kept.filter((shape) => glyph.shapes.indexOf(shape) > at);
+		glyph._shapes = [];
+		const added = input.paths.map((path) => glyph.addOneShape(contourShape(path)));
+		glyph._shapes = [...before, ...added, ...after];
+		glyph.changed();
+	} else if (name === 'add_svg_path') {
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg"><path d="${input.d}"/></svg>`;
+		let imported;
+		try {
+			imported = ioSVG_convertSVGTagsToGlyph(svg, false, project.settings.font.upm);
+		} catch {
+			imported = null;
+		}
+		if (!imported?.shapes.length)
+			fail('INVALID_SVG', 'The SVG path data has no drawable contours.');
+		if (imported.shapes.length > 16) fail('GEOMETRY_LIMIT', 'Send at most 16 contours per call.');
+		// SVG is y-down. Mirror about baselineY / 2 (y -> baselineY - y) and fix
+		// contour direction, exactly as SVG paste does (events_drag_drop_paste.js).
+		const baseline = input.baselineY ?? project.settings.font.ascent;
+		imported.flipNS(baseline / 2);
+		imported.reverseWinding();
+		const start = glyph.shapes.length;
+		imported.shapes.forEach((shape, index) => {
+			const data = copy(shape.save());
+			data.name = `SVG ${start + index + 1}`;
+			glyph.addOneShape(data);
+		});
+	} else applyCommand(name, input, glyph);
+}
+
+const rad = (degrees) => (degrees * Math.PI) / 180;
+const round = (value) => Math.round(value * 1000) / 1000;
+
+/** scale, skew, rotate and flip about one origin, as a 2x2 matrix. */
+function linearMatrix({ scaleX, scaleY, skewX, skewY, rotate, flip }) {
+	const multiply = (m, n) => [
+		m[0] * n[0] + m[1] * n[2],
+		m[0] * n[1] + m[1] * n[3],
+		m[2] * n[0] + m[3] * n[2],
+		m[2] * n[1] + m[3] * n[3],
+	];
+	let m = [scaleX ?? 1, 0, 0, scaleY ?? 1];
+	m = multiply([1, Math.tan(rad(skewX ?? 0)), Math.tan(rad(skewY ?? 0)), 1], m);
+	const angle = rad(rotate ?? 0);
+	m = multiply([Math.cos(angle), -Math.sin(angle), Math.sin(angle), Math.cos(angle)], m);
+	const fx = flip === 'horizontal' || flip === 'both' ? -1 : 1;
+	const fy = flip === 'vertical' || flip === 'both' ? -1 : 1;
+	return multiply([fx, 0, 0, fy], m);
+}
+
+function applyLinearTransform(shapes, input) {
+	const m = linearMatrix(input);
+	if (m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1) return;
+	const determinant = m[0] * m[3] - m[1] * m[2];
+	if (Math.abs(determinant) < 1e-6)
+		fail('INVALID_TRANSFORM', 'This transform collapses the paths.');
+	let origin = input.origin;
+	if (!origin) {
+		const bounds = shapes.map((shape) => shape.maxes);
+		const xMin = Math.min(...bounds.map((b) => b.xMin));
+		const xMax = Math.max(...bounds.map((b) => b.xMax));
+		const yMin = Math.min(...bounds.map((b) => b.yMin));
+		const yMax = Math.max(...bounds.map((b) => b.yMax));
+		origin = { x: (xMin + xMax) / 2, y: (yMin + yMax) / 2 };
+	}
+	for (const shape of shapes) {
+		assertUnlocked(shape);
+		for (const point of shape.pathPoints) {
+			for (const control of [point.p, point.h1, point.h2]) {
+				const x = control.coord.x - origin.x;
+				const y = control.coord.y - origin.y;
+				control.coord.x = round(origin.x + m[0] * x + m[1] * y);
+				control.coord.y = round(origin.y + m[2] * x + m[3] * y);
+			}
+		}
+		// A mirror reverses contour direction; reverse the points back, as
+		// Path.flipNS / flipEW do, so counters stay counters.
+		if (determinant < 0) shape.reverseWinding();
+		shape.changed();
+	}
+}
+
+function glyphChar(id) {
+	const entry = latinKernelEntry(id);
+	if (entry?.char) return entry.char;
+	const codePoint = parseInt(id.slice('glyph-'.length), 16);
+	return Number.isInteger(codePoint) ? String.fromCodePoint(codePoint) : id;
+}
+
+function describeJob(job) {
+	return {
+		glyphId: job.id,
+		char: glyphChar(job.id),
+		creating: job.create,
+		pathCount: job.candidate.shapes.length,
+		pointCount: job.candidate.pointCount,
+		advanceWidth: job.candidate.advanceWidth,
+	};
 }
 
 function assertGeometry(glyph) {
@@ -713,6 +1123,11 @@ function assertGeometry(glyph) {
 
 function commandTitle(name, input) {
 	if (name === 'set_spacing') return `set ${input.metric} to ${input.value}`;
-	if (name === 'transform_paths') return `move ${input.pathIndices.length} paths`;
+	if (name === 'transform_paths') {
+		const linear = ['scaleX', 'scaleY', 'skewX', 'skewY', 'rotate', 'flip'].some(
+			(key) => input[key] !== null && input[key] !== undefined
+		);
+		return `${linear ? 'transform' : 'move'} ${input.pathIndices.length} paths`;
+	}
 	return `add ${input.paths.length} paths`;
 }
