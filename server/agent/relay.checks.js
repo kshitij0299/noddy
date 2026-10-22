@@ -115,6 +115,38 @@ test('shared automatic protocol routing follows documented Zen families and Qwen
 	);
 });
 
+test('Anthropic always resolves to Messages and refuses other formats', () => {
+	// The model ID does not decide the format for Anthropic's own API.
+	assert.equal(resolveProviderProtocol('anthropic', 'claude-sonnet-5-5'), 'messages');
+	assert.equal(resolveProviderProtocol('anthropic', 'any-model', 'auto'), 'messages');
+	assert.equal(resolveProviderProtocol('anthropic', 'claude-sonnet-5-5', 'messages'), 'messages');
+	for (const protocol of ['responses', 'chat']) {
+		assert.throws(() => resolveProviderProtocol('anthropic', 'claude-sonnet-5-5', protocol), {
+			code: 'UNSUPPORTED_PROTOCOL',
+		});
+	}
+	assert.throws(() => resolveProviderProtocol('anthropic-eu', 'claude-sonnet-5-5'), {
+		code: 'UNSUPPORTED_PROVIDER',
+	});
+	const anthropic = { ...base, provider: 'anthropic', model: 'claude-sonnet-5-5' };
+	assert.equal(
+		validateRequest({ ...anthropic, protocol: 'auto' }, definitions).protocol,
+		'messages'
+	);
+	assert.equal(
+		validateRequest({ ...anthropic, protocol: 'messages' }, definitions).provider,
+		'anthropic'
+	);
+	for (const protocol of ['responses', 'chat'])
+		assert.throws(() => validateRequest({ ...anthropic, protocol }, definitions), {
+			code: 'UNSUPPORTED_PROTOCOL',
+		});
+	// A destination can never be supplied by the browser, for any provider.
+	assert.throws(() =>
+		validateRequest({ ...anthropic, baseURL: 'https://evil.example/v1' }, definitions)
+	);
+});
+
 test('server resolves auto and rejects an unknown Zen format before model/key transfer', async () => {
 	assert.equal(validateRequest({ ...base, protocol: 'auto' }, definitions).protocol, 'responses');
 	assert.equal(
@@ -449,6 +481,7 @@ for (const [provider, protocol] of [
 	['opencode-zen', 'responses'],
 	['opencode-zen', 'chat'],
 	['opencode-zen', 'messages'],
+	['anthropic', 'messages'],
 ]) {
 	test(`actual SDK ${provider}/${protocol} serializes key, image, tools and resumed results through fixed transport`, async () => {
 		const requests = [];
@@ -487,13 +520,24 @@ for (const [provider, protocol] of [
 		);
 		assert.equal(second.text, 'Done.');
 		assert.equal(requests.length, 2);
-		const endpoint = `${
-			provider === 'openai' ? 'https://api.openai.com/v1' : 'https://opencode.ai/zen/v1'
-		}/${protocol === 'chat' ? 'chat/completions' : protocol}`;
+		const origins = {
+			openai: 'https://api.openai.com/v1',
+			'opencode-zen': 'https://opencode.ai/zen/v1',
+			anthropic: 'https://api.anthropic.com/v1',
+		};
+		const endpoint = `${origins[provider]}/${protocol === 'chat' ? 'chat/completions' : protocol}`;
 		for (const req of requests) {
 			assert.equal(String(req.url), endpoint);
 			assert.equal(req.redirect, 'error');
-			assert.equal(req.headers.get('authorization'), `Bearer ${base.apiKey}`);
+			if (provider === 'anthropic') {
+				// Anthropic's own API: x-api-key, never a Bearer token.
+				assert.equal(req.headers.get('x-api-key'), base.apiKey);
+				assert.equal(req.headers.get('authorization'), null);
+				assert.equal(req.headers.get('anthropic-version'), '2023-06-01');
+			} else {
+				assert.equal(req.headers.get('authorization'), `Bearer ${base.apiKey}`);
+				assert.equal(req.headers.get('x-api-key'), null);
+			}
 			assert.equal(JSON.stringify(req.body).includes(base.apiKey), false);
 			assert.equal(req.body.tools.length, 1);
 		}
@@ -505,6 +549,86 @@ for (const [provider, protocol] of [
 		}
 	});
 }
+
+test('Anthropic "Check connection" request works through the HTTP relay with a mocked upstream', async () => {
+	// Exactly the body the connect card's checkConnection() posts for Anthropic.
+	const checkBody = {
+		provider: 'anthropic',
+		protocol: 'auto',
+		model: 'claude-sonnet-5-5',
+		apiKey: base.apiKey,
+		messages: [{ role: 'user', content: 'Reply with OK.' }],
+	};
+	const upstream = [];
+	let status = 200;
+	const transport = async (url, init) => {
+		upstream.push({
+			url: String(url),
+			headers: new Headers(init.headers),
+			body: JSON.parse(init.body),
+		});
+		if (status !== 200) {
+			return new Response(
+				JSON.stringify({
+					type: 'error',
+					error: { type: 'authentication_error', message: `echo ${base.apiKey}` },
+				}),
+				{ status, headers: { 'Content-Type': 'application/json' } }
+			);
+		}
+		return new Response(
+			JSON.stringify({ ...providerResponse('messages', false), model: 'claude-sonnet-5-5' }),
+			{
+				headers: { 'Content-Type': 'application/json' },
+			}
+		);
+	};
+	const relay = createServer(
+		createAgentMiddleware({
+			loadRegistry: async () => registry,
+			generateStep: (body, loaded, { signal }) =>
+				generateAgentStep(body, loaded, {
+					signal,
+					modelFactory: (settings) => createProviderModel(settings, transport),
+				}),
+		})
+	);
+	relay.listen(0, '127.0.0.1');
+	await once(relay, 'listening');
+	const relayOrigin = `http://127.0.0.1:${relay.address().port}`;
+	const post = () =>
+		fetch(relayOrigin + '/api/agent/step', {
+			method: 'POST',
+			headers: { Origin: relayOrigin, 'Content-Type': 'application/json' },
+			body: JSON.stringify(checkBody),
+		});
+	try {
+		// The health probe lists Anthropic as a provider.
+		const config = await (await fetch(relayOrigin + '/api/agent/config')).json();
+		assert.equal(config.providers.anthropic.label, 'Anthropic');
+		assert.deepEqual(config.providers.anthropic.protocols, ['messages']);
+
+		const ok = await post();
+		assert.equal(ok.status, 200);
+		assert.equal((await ok.json()).text, 'Done.');
+		assert.equal(upstream.length, 1, 'One tiny billed call, no fallback or retry');
+		assert.equal(upstream[0].url, 'https://api.anthropic.com/v1/messages');
+		assert.equal(upstream[0].body.model, 'claude-sonnet-5-5');
+		assert.equal(upstream[0].headers.get('x-api-key'), base.apiKey);
+		assert.equal(JSON.stringify(upstream[0].body).includes(base.apiKey), false);
+
+		// A rejected key reaches the card as PROVIDER_AUTH, without echoing the key.
+		status = 401;
+		const rejected = await post();
+		assert.equal(rejected.status, 401);
+		const text = await rejected.text();
+		assert.equal(JSON.parse(text).error.code, 'PROVIDER_AUTH');
+		assert.equal(text.includes(base.apiKey), false);
+		assert.equal(upstream.length, 2, 'A rejected key is not retried');
+	} finally {
+		await new Promise((resolve) => relay.close(resolve));
+	}
+});
 
 test('provider errors have no retries and never expose credentials or echoed source', async () => {
 	let attempts = 0;

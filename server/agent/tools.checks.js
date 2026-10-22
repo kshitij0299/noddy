@@ -211,6 +211,7 @@ for (const [provider, protocol] of [
 	['openai', 'responses'],
 	['opencode-zen', 'responses'],
 	['opencode-zen', 'messages'],
+	['anthropic', 'messages'],
 ]) {
 	test(`actual SDK ${provider}/${protocol} sends a rendered PNG tool result as an image`, async () => {
 		const registry = await loadNativeRegistry();
