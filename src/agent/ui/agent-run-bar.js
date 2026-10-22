@@ -142,7 +142,7 @@ export function createRunBar({ onPause, onResume, onStop }) {
 export function createCheckpointLine({ onRevert }) {
 	const root = el('div', 'agent-checkpoint');
 	const line = /** @type {any} */ (document.createElement('agent-step-line'));
-	line.render({ tone: 'info', icon: 'history', text: 'Before run · checkpoint saved' });
+	line.render({ tone: 'info', icon: 'history', text: 'Before run · checkpoint' });
 	const revert = cardButton({ label: 'Revert run', action: 'revert-run', iconName: 'undo', variant: 'ghost' });
 	revert.disabled = true;
 	revert.addEventListener('click', () => onRevert());

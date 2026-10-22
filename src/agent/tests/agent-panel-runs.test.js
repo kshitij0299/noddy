@@ -102,7 +102,7 @@ describe('whole-set run in the panel', () => {
 		await send(panel, 'Clean simple sans');
 		button(lastCard(panel, 'agent-plan-card'), 'start').click();
 		await vi.waitFor(() => expect(panel.runs.state).toBe('style'));
-		expect(panel.thread.textContent).toContain('Before run · checkpoint saved');
+		expect(panel.thread.textContent).toContain('Before run · checkpoint');
 		const gate = lastCard(panel, 'agent-approval-card');
 		expect(gate.textContent).toContain('Style check');
 		expect(panel.thread.textContent).toContain('Drew n o H O. Does this feel right?');
@@ -271,7 +271,10 @@ describe('small asks and review', () => {
 		expect(editor.glyphStatus.getStatus(id('a'))).toBe('kept');
 		expect(editor.glyphStatus.getStatus(id('b'))).toBe('yours');
 		expect(editor.glyphStatus.getStatus(id('k'))).toBe('failed');
-		expect(receipt.textContent).toContain('Kept 22 glyphs');
+		expect(panel.thread.textContent).toContain('Kept 22 glyphs');
+		// The receipt stays usable: Retry k is still there after Keep.
+		expect(button(receipt, 'retry').disabled).toBe(false);
+		expect(button(receipt, 'keep')).toBeNull();
 	});
 
 	it('Retry from a Failed tile re-queues the glyph', async () => {

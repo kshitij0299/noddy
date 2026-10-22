@@ -411,7 +411,8 @@ export function createAgentPanel({
 			const record = store?.get(id);
 			const status = record?.status;
 			let row = 'kept';
-			if (status === 'draft')
+			if (status === 'queued' || status === 'drafting') row = 'working';
+			else if (status === 'draft')
 				row = record.preDraft && record.preDraft.glyph === null ? 'new' : 'changed';
 			else if (status === 'failed') row = 'failed';
 			return { char: charOf(id), status: row };
@@ -421,10 +422,12 @@ export function createAgentPanel({
 	function refreshReceipts() {
 		for (const entry of liveReceipts) {
 			const { card, ids } = entry;
-			if (!card.isConnected || card.acted) {
+			if (!card.isConnected) {
 				liveReceipts.delete(entry);
 				continue;
 			}
+			// Mid-action (Keep / Retry): reopenReceipt redraws it right after.
+			if (card.acted) continue;
 			const rows = receiptRows(ids);
 			const key = JSON.stringify(rows);
 			if (key === entry.key) continue;
@@ -736,6 +739,28 @@ export function createAgentPanel({
 		addStep(line.tone, line.text);
 	}
 
+	/**
+	 * A live receipt stays usable after Keep or Retry (Keep N and Retry k are
+	 * separate jobs): it is redrawn from live statuses and the result line
+	 * goes to the thread.
+	 * @param {any} card
+	 * @param {{tone: String, text: String} | null} line
+	 * @returns {Boolean} whether the card was a live receipt
+	 */
+	function reopenReceipt(card, line) {
+		const entry = [...liveReceipts].find((item) => item.card === card);
+		if (!entry) return false;
+		const rows = receiptRows(entry.ids);
+		entry.key = JSON.stringify(rows);
+		card.render({ ...card.data, glyphs: rows, project: getEditor()?.project });
+		const next =
+			card.querySelector('button[data-action="retry"]') ||
+			card.querySelector('button[data-action="keep"]');
+		if (next) next.focus();
+		if (line) addStep(line.tone, line.text);
+		return true;
+	}
+
 	host.addEventListener(CARD_ACTION_EVENT, (event) => {
 		const detail = /** @type {CustomEvent} */ (event).detail || {};
 		const card = /** @type {any} */ (event.target);
@@ -772,19 +797,22 @@ export function createAgentPanel({
 		if (detail.action === 'keep') {
 			// Keep all for this receipt: Drafts only, one history entry.
 			const result = keepGlyphs(getEditor(), detail.glyphIds || []);
-			const own = card?.lastElementChild;
 			const n = result.kept.length;
-			const text = result.ok
-				? `Kept ${n} ${n === 1 ? 'glyph' : 'glyphs'}`
-				: result.error?.message || 'Not kept';
-			if (own?.tagName === 'AGENT-STEP-LINE')
-				own.render({ tone: result.ok ? 'kept' : 'failed', text });
+			const line = {
+				tone: result.ok ? 'kept' : 'failed',
+				text: result.ok
+					? `Kept ${n} ${n === 1 ? 'glyph' : 'glyphs'}`
+					: result.error?.message || 'Not kept',
+			};
+			if (!reopenReceipt(card, line)) {
+				const own = card?.lastElementChild;
+				if (own?.tagName === 'AGENT-STEP-LINE') own.render(line);
+			}
 			renderStatus();
 			return;
 		}
 		if (detail.action === 'retry' && cardId.startsWith('run-')) {
-			const own = card?.lastElementChild;
-			if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
+			reopenReceipt(card, null);
 			retryGlyphs(detail.glyphIds || []);
 			return;
 		}
@@ -792,8 +820,10 @@ export function createAgentPanel({
 			const failedIds = detail.glyphIds || [];
 			// A small ask's failed job glyph: retry it as a scoped glyph job.
 			if (failedIds.length && getEditor()?.glyphStatus?.getStatus(failedIds[0]) === 'failed') {
-				const own = card?.lastElementChild;
-				if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
+				if (!reopenReceipt(card, null)) {
+					const own = card?.lastElementChild;
+					if (own?.tagName === 'AGENT-STEP-LINE') own.remove();
+				}
 				retryGlyphs(failedIds);
 				return;
 			}
