@@ -16,7 +16,8 @@ The owner opened the M1–M4 build and found UI drift, then approved a one-PR re
 ## TL;DR
 
 - **M5 Start screen: done** (PR #62): the flow-01 start screen (name, set chip, Start with agent / Draw myself / From a font file) and font-file import subsetted to the Kernel with a licence note. Milestone point `5addc8b` (`m5-done`). Two QA rounds.
-- **M6 in progress:** read tools + ownership lock (one PR), then atomic writes (#26, protected, own PR).
+- **M6 Agent tools v2: done.** PR #64: read tools (`get_font_spec`, `get_set_status`, `render_glyphs`, `render_text`, `check_outlines`, `get_mutation_log`), ownership lock (agent can't touch Yours or the open glyph; Take over / Hand to agent), mutation log. PR #65 (protected: undo behaviour): atomic per-glyph writes, one history entry per job, Draft status. Milestone point `126746a` (`m6-done`).
+- **M7 Runs in progress:** plan → approve the style → queue → review.
 
 - **M3 Editor focus mode: done** (PR #57). Clicking a letter opens the Figma editor: close ×, prev/next pill, metric guides, floating tool pill, inspector card with Keep / Revert, live context strip. Milestone point `5f3ba04` (`m3-done`).
 - **M4 Agent panel: done** (PR #60). Full-height right panel with minimize only, empty state, composer with attachments, minimized pill, model connect card, wired to the existing controller and relay. **The old Codex floating window and welcome composer are deleted.** Milestone point `f020e18` (`m4-done`).
@@ -40,6 +41,7 @@ All merged after QA PASS with adversarial undo/history tests. Each is a small, s
 | [#48](https://github.com/kshitij0299/noddy/pull/48) | Fixes [#44](https://github.com/kshitij0299/noddy/issues/44): after undo, typing in the inspector edited a stale copy of the glyph | `src/project_editor/history.js` |
 | [#53](https://github.com/kshitij0299/noddy/pull/53) | Fixes [#52](https://github.com/kshitij0299/noddy/issues/52): on the Workspace page (no glyph selected), Undo/Redo used the history entry up without changing the glyph. They now restore the glyph the entry recorded. Editing pages behave as before. | `src/project_editor/history.js` |
 | [#51](https://github.com/kshitij0299/noddy/pull/51) | Fixes [#49](https://github.com/kshitij0299/noddy/issues/49): Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl+Y now work on the Workspace page. Typing in the font-name field keeps normal text undo. Side effect: Ctrl+S/E/G/O also work there. | `src/edit_canvas/events_keyboard.js`, `src/pages/workspace.js` |
+| [#65](https://github.com/kshitij0299/noddy/pull/65) | [M6] Atomic agent writes: `create_glyph`, `begin_glyph`/`submit_glyph`, `replace_paths`, `delete_paths`, extended `transform_paths`, `add_svg_path`. One job = one undo step; failed submits leave history unchanged. No protected file edited; counted as protected because undo behaviour changes. QA ran 14 adversarial undo tests, all pass. | `src/agent/*` only |
 | [#4](https://github.com/kshitij0299/noddy/pull/4) | Test-only: SVG import tests now load on Linux (fixture filename case) | `src/formats_io/…/svg_outline.test.js` |
 
 No `.gs2` serialization changes were made.
@@ -52,6 +54,8 @@ No `.gs2` serialization changes were made.
 | [#57](https://github.com/kshitij0299/noddy/pull/57) | [#16](https://github.com/kshitij0299/noddy/issues/16) [#17](https://github.com/kshitij0299/noddy/issues/17) [#18](https://github.com/kshitij0299/noddy/issues/18) | [M3] Focus mode editor. Three QA rounds (legacy button styles, keyboard tab trap, zoom reset on prev/next, modifier keys swallowed). No protected files: it is the Characters page with new chrome around the unchanged canvas. |
 | [#56](https://github.com/kshitij0299/noddy/pull/56) | — | Wire the shared skills you pushed into the developer and QA roles |
 | [#55](https://github.com/kshitij0299/noddy/pull/55) | — | Model roles, combined PRs, CAVEMAN.md |
+| [#64](https://github.com/kshitij0299/noddy/pull/64) | [#25](https://github.com/kshitij0299/noddy/issues/25) [#27](https://github.com/kshitij0299/noddy/issues/27) | [M6] Read tools, ownership lock, mutation log. Two QA rounds (a result-field collision and Take over not cancelling writes, both fixed). |
+| [#62](https://github.com/kshitij0299/noddy/pull/62) | [#23](https://github.com/kshitij0299/noddy/issues/23) [#24](https://github.com/kshitij0299/noddy/issues/24) | [M5] Start screen and start from a font file. Two QA rounds. |
 | [#50](https://github.com/kshitij0299/noddy/pull/50) | [#10](https://github.com/kshitij0299/noddy/issues/10) | [M1] "Not autosaving" chip in the top bar (only when autosave is off and there are unsaved changes), plus a leave-page warning when there are unsaved changes or an agent run is active. Owner note: if you turned off "stop page navigation", nothing warns, not even during a run. |
 | [#42](https://github.com/kshitij0299/noddy/pull/42) | [#11](https://github.com/kshitij0299/noddy/issues/11) | [M2] App shell: 56px top bar (mark → Back to start, editable font name, `n/116` ring, undo, redo, theme, Export menu), persistent 384px agent panel slot, responsive tiers. Passed QA on the third round: undo enable, file actions, start-screen layout and keyboard menu were fixed first. |
 | [#47](https://github.com/kshitij0299/noddy/pull/47) | [#14](https://github.com/kshitij0299/noddy/issues/14) | [M2] Letters & figures grid: `62 · All 116` switch, legend counts, status marks (shape + colour + label), keyboard nav (arrows wrap, Home/End, Enter opens), live tile refresh. 13 / 10 / 6 columns by width. |
@@ -86,6 +90,7 @@ No `.gs2` serialization changes were made.
 
 ## Small things to decide when you look at it
 
+- M6: a Send from the focus editor lifts the open-glyph lock for that one request (otherwise every edit from there would fail). Yours stays locked.
 - M5: imported glyphs default to **Kept**; you may prefer Yours. The font keeps its own name, not the typed one. Card says "OTF, TTF or SVG" (no UFO importer). Ligatures are dropped on import. Fonts opened via Open a file / drag-drop skip the Kernel subset and licence note (only the "From a font file" card does them).
 
 - Inspector fields still show number-input spinner arrows (hiding them changes a shared control).
@@ -106,7 +111,7 @@ No `.gs2` serialization changes were made.
 - Specimen Waterfall mode ignores the size slider (QA nit).
 - **Build churn:** `npm run build` rewrites the tracked `dist/` folder and `src/app/app_config.json`. Never commit those.
 - Merged feature branches stay on GitHub, because this cloud session can't delete remote branches.
-- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git tag m3-done 5f3ba04 && git tag m4-done f020e18 && git tag m5-done 5addc8b && git push origin m1-done m2-done m3-done m4-done m5-done`.
+- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git tag m3-done 5f3ba04 && git tag m4-done f020e18 && git tag m5-done 5addc8b && git tag m6-done 126746a && git push origin m1-done m2-done m3-done m4-done m5-done m6-done`.
 - Labels were auto-created by GitHub (grey, no descriptions).
 
 ## Models used
