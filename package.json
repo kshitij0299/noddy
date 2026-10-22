@@ -16,6 +16,7 @@
 		"fix": "eslint src --fix",
 		"ci:versions": "node scripts/check-versions.mjs",
 		"agent:serve": "node server/agent/serve.js",
+		"models:snapshot": "node scripts/build-model-snapshot.mjs",
 		"test:agent-relay": "node --test server/agent/*.checks.js",
 		"typecheck:agent-relay": "tsc -p server/agent/tsconfig.json"
 	},
