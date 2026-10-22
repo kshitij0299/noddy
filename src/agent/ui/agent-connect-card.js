@@ -17,9 +17,13 @@
  * succeeds, then only in memory: the controller's, and a copy here so another
  * model can be verified while the list is shown. It is never written to
  * storage, the project, the DOM text, attributes, logs or URLs, the field is
- * cleared after a successful check, and the copy is dropped when the card is
- * reset, disposed or connected to another provider. The model list is held in
- * memory for this session only.
+ * cleared after a successful check, and the copy is dropped, together with the
+ * list, when the provider is changed, the card is reset or disposed, or another
+ * connection replaces it. The model list is held in memory for this session only.
+ *
+ * Focus: Check connection leaves keyboard focus on the list (the panel does not
+ * pull it to the composer while the list is showing), and so does choosing a
+ * model from it, so the owner can keep browsing; Tab goes on to the composer.
  */
 import { MODEL_ID_PATTERN, PROVIDERS } from '../provider-config.js';
 import {
@@ -187,6 +191,9 @@ export function createConnectCard({
 	});
 	providerSelect.value = 'openai';
 	providerSelect.addEventListener('change', () => {
+		// A list and the key copy kept for it belong to one provider: leaving it drops both.
+		dropSession();
+		closeCustom();
 		fillSuggestions(true);
 		showResult(null);
 		showStep();
@@ -261,9 +268,11 @@ export function createConnectCard({
 	custom.append(customInput, customButton);
 	customInput.addEventListener('keydown', (event) => {
 		if (event.key !== 'Escape' || event.ctrlKey || event.metaKey || event.altKey) return;
-		// Esc closes the field and returns to the list; it does not reach the panel.
+		// Esc closes the field and returns to the list; it does not reach the panel. A
+		// failure shown for the ID that was being typed goes with the field.
 		event.preventDefault();
 		event.stopPropagation();
+		showResult(null);
 		closeCustom(true);
 	});
 	// Not in the card until a list exists, so before connecting the card is what it always was.
@@ -377,6 +386,7 @@ export function createConnectCard({
 	function dropSession() {
 		if (session) session.apiKey = '';
 		session = null;
+		modelList.clear();
 	}
 
 	// ---- Step 2: choose, or enter, another model ----

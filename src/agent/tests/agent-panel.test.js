@@ -467,6 +467,46 @@ describe('controller wiring (#21)', () => {
 			expect(panel.model).toBe('o3');
 		});
 
+		it('keyboard focus stays on the list after Check connection and after choosing a model', async () => {
+			const { panel, card } = await connectedPanel();
+			const list = card.querySelector('[role="listbox"]');
+			expect(document.activeElement).toBe(list);
+			expect(document.activeElement).not.toBe(panel.composer.input);
+			// Arrow to a model and press Enter: it is chosen and the list keeps focus.
+			const key = (name) =>
+				list.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
+			key('ArrowDown');
+			key('ArrowDown');
+			key('Enter');
+			await flush();
+			expect(panel.model).toBe('o3');
+			expect(document.activeElement).toBe(list);
+			expect(list.getAttribute('aria-activedescendant')).toBe(
+				card.querySelector('[role="option"][data-id="o3"]').id
+			);
+		});
+
+		it('focus goes to the composer when focus was elsewhere or there is no list', async () => {
+			const noList = await connectedPanel(vi.fn(async () => ({ ok: false })));
+			expect(document.activeElement).toBe(noList.panel.composer.input);
+			noList.panel.dispose();
+			// With a list, but the owner moved on while the check ran.
+			const panel = panelFixture({
+				check: vi.fn(async () => ({ ok: true })),
+				loadModels: vi.fn(async () => ({ ok: true, models: LIST })),
+				createSession: () => sessionStub(),
+			});
+			const card = panel.thread.querySelector('.agent-connect');
+			card.querySelector('input[type=password]').value = 'sk-panel-secret';
+			card.requestSubmit();
+			const elsewhere = document.createElement('button');
+			document.body.append(elsewhere);
+			elsewhere.focus();
+			await flush();
+			expect(panel.model).toBe('gpt-5');
+			expect(document.activeElement).toBe(panel.composer.input);
+		});
+
 		it('without a list the card steps aside as it always did', async () => {
 			const { panel, card } = await connectedPanel(vi.fn(async () => ({ ok: false })));
 			expect(panel.controller.connected).toBe(true);

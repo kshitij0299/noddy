@@ -643,6 +643,35 @@ describe('live model list (#76)', () => {
 		document.body.removeEventListener('keydown', outer);
 	});
 
+	it('Esc in the custom field also clears a failure shown for the ID that was typed', async () => {
+		const check = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: false, outcome: 'no-tools' });
+		const { card } = await connected({ check });
+		card.root.querySelector('[data-custom="true"]').click();
+		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
+		input.value = 'some-chat-model';
+		card.root.requestSubmit();
+		await flush();
+		expect(card.root.textContent).toContain("This model can't use tools");
+		expect(card.root.textContent).toContain('Pick another');
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(card.root.querySelector('.agent-connect__custom').hidden).toBe(true);
+		expect(card.root.textContent).not.toContain("This model can't use tools");
+		expect(card.root.textContent).not.toContain('Pick another');
+		expect(card.root.querySelector('.agent-connect__result').childElementCount).toBe(0);
+		expect(document.activeElement).toBe(listbox(card));
+		// The same goes for an ID that never reached the check.
+		card.root.querySelector('[data-custom="true"]').click();
+		input.value = 'has space';
+		card.root.requestSubmit();
+		await flush();
+		expect(card.root.textContent).toContain('Enter a valid model ID');
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(card.root.textContent).not.toContain('Enter a valid model ID');
+	});
+
 	it('the key is never in the DOM, attributes, storage or any URL while the list is shown', async () => {
 		const setItem = vi.spyOn(Storage.prototype, 'setItem');
 		const check = vi.fn(async () => ({ ok: true }));
@@ -712,20 +741,53 @@ describe('live model list (#76)', () => {
 		expect(card.root.textContent).toContain(NO_FORMAT_REASON);
 	});
 
-	it('the provider dropdown stays; another provider goes back to its own key step and default model', async () => {
+	it('the provider dropdown stays; another provider drops the list and goes back to its own key step', async () => {
 		const { card, onConnected } = await connected();
 		choose(card, 'anthropic');
 		expect(card.showsModels).toBe(false);
 		expect(listbox(card)).toBeNull();
+		// The rows themselves are gone, not just hidden.
+		expect(card.root.querySelectorAll('[role="option"]')).toHaveLength(0);
 		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
 		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('claude-sonnet-5-5');
 		expect(card.root.querySelector('.agent-connect__key').hidden).toBe(false);
 		expect(card.root.textContent).toContain('Connect a model');
-		// Back to the provider the list belongs to: the list is still there, unchanged.
+		// Back to the first provider: its list was dropped with the change, so it asks for the key again.
 		choose(card, 'openai');
-		expect(card.showsModels).toBe(true);
-		expect(selectedId(card)).toBe('gpt-5');
+		expect(card.showsModels).toBe(false);
+		expect(listbox(card)).toBeNull();
+		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('gpt-5');
+		expect(card.root.querySelector('input[aria-label="API key"]').value).toBe('');
+		card.root.requestSubmit();
+		await flush();
+		expect(card.root.textContent).toContain('Enter a model ID and an API key');
+		// The connection the first check made was never touched.
 		expect(onConnected).toHaveBeenCalledOnce();
+	});
+
+	it('changing provider forgets the key copy: nothing can be verified with it any more', async () => {
+		const { card, check } = await connected();
+		check.mockClear();
+		choose(card, 'anthropic');
+		choose(card, 'openai');
+		// No list, no Custom… and no billed call with the first key.
+		expect(card.root.querySelector('[data-custom="true"]')).toBeNull();
+		card.root.requestSubmit();
+		await flush();
+		expect(check).not.toHaveBeenCalled();
+		expect(document.body.innerHTML).not.toContain(SECRET);
+	});
+
+	it('changing provider while Custom… is open closes it', async () => {
+		const { card } = await connected();
+		card.root.querySelector('[data-custom="true"]').click();
+		const custom = card.root.querySelector('.agent-connect__custom');
+		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
+		input.value = 'half-typed';
+		expect(custom.hidden).toBe(false);
+		choose(card, 'anthropic');
+		expect(custom.hidden).toBe(true);
+		expect(input.value).toBe('');
 	});
 
 	it('connecting another provider replaces the list and forgets the first key', async () => {
@@ -749,24 +811,22 @@ describe('live model list (#76)', () => {
 			model: 'claude-sonnet-5-5',
 			apiKey: 'sk-ant-second',
 		});
-		// The first provider's list is gone; its key is no longer used to verify anything.
+		// Leaving a provider drops its list and key copy, however it got there.
 		choose(card, 'openai');
 		expect(card.showsModels).toBe(false);
+		expect(card.root.querySelectorAll('[role="option"]')).toHaveLength(0);
 		check.mockClear();
 		choose(card, 'anthropic');
-		card.root.querySelector('[data-custom="true"]').click();
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		input.value = 'claude-haiku-5-5';
+		expect(card.showsModels).toBe(false);
+		expect(card.root.querySelector('[data-custom="true"]')).toBeNull();
 		card.root.requestSubmit();
 		await flush();
-		expect(check).toHaveBeenCalledWith({
-			provider: 'anthropic',
-			model: 'claude-haiku-5-5',
-			apiKey: 'sk-ant-second',
-		});
+		expect(check).not.toHaveBeenCalled();
+		expect(document.body.innerHTML).not.toContain('sk-ant-second');
+		expect(document.body.innerHTML).not.toContain(SECRET);
 	});
 
-	it('a failed check for another provider keeps the first connection and its list', async () => {
+	it('a failed check for another provider leaves the first connection alone', async () => {
 		const check = vi
 			.fn()
 			.mockResolvedValueOnce({ ok: true })
@@ -777,10 +837,9 @@ describe('live model list (#76)', () => {
 		card.root.requestSubmit();
 		await flush();
 		expect(card.root.textContent).toContain('Key not accepted');
+		expect(card.showsModels).toBe(false);
+		// No new connection was made, so the controller still holds the first one.
 		expect(onConnected).toHaveBeenCalledOnce();
-		choose(card, 'openai');
-		expect(card.showsModels).toBe(true);
-		expect(selectedId(card)).toBe('gpt-5');
 	});
 
 	it('reset and clearKey drop the list and its key copy and return to the key step', async () => {

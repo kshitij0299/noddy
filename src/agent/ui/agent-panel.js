@@ -565,7 +565,12 @@ export function createAgentPanel({
 					} else {
 						connectedLine = addStep('kept', text);
 					}
-					composer.input.focus();
+					// While the key's model list is on screen and focus is in it, stay there so
+					// the list can be browsed (Tab goes on to the composer). Otherwise the
+					// composer is next, as before the list existed.
+					if (!(connect.showsModels && connect.root.contains(document.activeElement))) {
+						composer.input.focus();
+					}
 				} else {
 					connectedLine = null;
 				}

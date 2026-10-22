@@ -103,23 +103,25 @@ export function priceSpoken(model) {
 
 /**
  * Badges, in display order. Each has an icon and text, so none depends on colour.
- * A model that cannot use tools gets none: its row shows the reason instead.
+ * Price (Free / Paid) and Vision are facts about the model, so every row shows them.
+ * A model that cannot be chosen shows no Tools badge: its row gives the reason instead
+ * (a model the agent cannot route to still says Tools when the catalog says it has them).
  * @param {ListedModel} model
  * @returns {Array<{kind: 'free'|'paid'|'tools'|'tools-unknown'|'vision', label: string, icon: string, spoken?: string}>}
  */
 export function badgesFor(model) {
-	if (!isSelectable(model)) return [];
 	const badges = [];
 	if (isFree(model)) badges.push({ kind: 'free', label: 'Free', icon: 'money_off' });
 	else if (isPaid(model)) badges.push({ kind: 'paid', label: 'Paid', icon: 'paid' });
 	if (model.tools === true) badges.push({ kind: 'tools', label: 'Tools', icon: 'build' });
-	else
+	else if (isSelectable(model)) {
 		badges.push({
 			kind: 'tools-unknown',
 			label: 'Tools ?',
 			icon: 'help',
 			spoken: 'Tool support unknown',
 		});
+	}
 	if (model.vision === true) badges.push({ kind: 'vision', label: 'Vision', icon: 'visibility' });
 	return badges;
 }

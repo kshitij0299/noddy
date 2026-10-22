@@ -15,6 +15,11 @@
  * new selection once the model is really in use, so a failed check never leaves
  * a wrong row marked.
  *
+ * A press on a row also gives the list focus, and that focus must not scroll: the
+ * list would jump to the selected row between mouse-down and mouse-up, the row
+ * under the pointer would move away and the click would be lost. Only keyboard
+ * focus scrolls the active row into view.
+ *
  * Every string is set as text; nothing here parses HTML.
  */
 import { badgesFor, isSelectable, priceSpoken, priceText, reasonFor } from '../model-list.js';
@@ -57,6 +62,8 @@ export function createModelList({
 	let busy = false;
 	let typed = '';
 	let typedTimer = 0;
+	/** A mouse press that is about to focus the list (see the focus handler). */
+	let pressFocus = false;
 
 	function selectedIndex() {
 		return rows.findIndex((row) => row.model && row.model.id === selectedId);
@@ -67,11 +74,11 @@ export function createModelList({
 		rows.forEach((row, i) => row.node.classList.toggle('is-active', i === active));
 	}
 
-	function setActive(index) {
+	function setActive(index, { scroll = true } = {}) {
 		if (!rows.length) return;
 		markActive(index);
 		list.setAttribute('aria-activedescendant', rows[active].node.id);
-		rows[active].node.scrollIntoView?.({ block: 'nearest' });
+		if (scroll) rows[active].node.scrollIntoView?.({ block: 'nearest' });
 	}
 
 	function buildBadges(model, meta) {
@@ -107,15 +114,14 @@ export function createModelList({
 			line.append(shown, srOnly(priceSpoken(model)));
 		}
 		body.append(line);
-		// Line 2: badges, or the one-line reason the model cannot be chosen.
+		// Line 2: what the model is (badges). A model that cannot be chosen says why first.
 		const meta = el('span', 'agent-model__meta text-body-small');
-		if (isSelectable(model)) {
-			buildBadges(model, meta);
-		} else {
+		if (!isSelectable(model)) {
 			node.setAttribute('aria-disabled', 'true');
 			node.classList.add('is-disabled');
 			meta.append(el('span', 'agent-model__reason', reasonFor(model)));
 		}
+		buildBadges(model, meta);
 		body.append(meta);
 		node.append(icon('check', 'agent-model__mark'), body);
 		return { node, model, text: model.id.toLowerCase() };
@@ -203,8 +209,23 @@ export function createModelList({
 		if (index >= 0) activate(index);
 	});
 
+	// Mouse-down comes right before the focus it causes. Remember that this focus is a
+	// press, so the handler below leaves the scroll position alone for the click.
+	list.addEventListener('mousedown', () => {
+		pressFocus = document.activeElement !== list;
+	});
+	list.addEventListener('click', () => {
+		pressFocus = false;
+	});
+	list.addEventListener('blur', () => {
+		pressFocus = false;
+	});
+
 	list.addEventListener('focus', () => {
-		if (rows.length) setActive(active < 0 ? Math.max(selectedIndex(), 0) : active);
+		if (!rows.length) return;
+		const scroll = !pressFocus;
+		pressFocus = false;
+		setActive(active < 0 ? Math.max(selectedIndex(), 0) : active, { scroll });
 	});
 
 	return {
@@ -217,14 +238,30 @@ export function createModelList({
 		 */
 		render(models, selected = '') {
 			selectedId = selected;
+			const scrollTop = list.scrollTop;
 			rows = [...models.map(buildRow), buildCustomRow(models.length)];
 			list.replaceChildren(...rows.map((row) => row.node));
 			rows.forEach((row) =>
 				row.node.setAttribute('aria-selected', String(!!row.model && row.model.id === selectedId))
 			);
-			// The active row is announced once the list has focus (see the focus handler).
-			list.removeAttribute('aria-activedescendant');
 			markActive(Math.max(selectedIndex(), 0));
+			// Drawing again never moves the list under the pointer.
+			list.scrollTop = scrollTop;
+			// A focused list keeps announcing its active row; otherwise the focus handler does.
+			if (document.activeElement === list) {
+				list.setAttribute('aria-activedescendant', rows[active].node.id);
+			} else {
+				list.removeAttribute('aria-activedescendant');
+			}
+		},
+		/** Forget the rows (the card drops the list when its provider changes). */
+		clear() {
+			rows = [];
+			active = -1;
+			selectedId = '';
+			typed = '';
+			list.replaceChildren();
+			list.removeAttribute('aria-activedescendant');
 		},
 		/** While a check runs the list ignores input and says so. */
 		setBusy(value) {

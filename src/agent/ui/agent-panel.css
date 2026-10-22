@@ -517,7 +517,7 @@ input.agent-connect__input.is-invalid {
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: var(--space-1);
 	max-height: min(320px, 45vh);
 	margin: 0;
 	padding: var(--space-1);
@@ -553,7 +553,7 @@ input.agent-connect__input.is-invalid {
 	gap: var(--space-2);
 	flex: none;
 	box-sizing: border-box;
-	padding: 6px var(--space-2);
+	padding: var(--space-1) var(--space-2);
 	border-radius: var(--radius-sm);
 	background: transparent;
 	color: var(--color-text-primary);
@@ -575,7 +575,7 @@ input.agent-connect__input.is-invalid {
 /* The keyboard position is drawn only while the list has focus. */
 .agent-models__list:focus-visible .agent-model.is-active {
 	outline: var(--focus-ring);
-	outline-offset: -2px;
+	outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .agent-models__list .agent-model.is-disabled {
@@ -586,7 +586,6 @@ input.agent-connect__input.is-invalid {
 
 .agent-model__mark {
 	flex: none;
-	margin-top: 1px;
 	visibility: hidden;
 }
 
@@ -603,7 +602,7 @@ input.agent-connect__input.is-invalid {
 	display: flex;
 	flex-direction: column;
 	flex: 1 1 auto;
-	gap: 2px;
+	gap: var(--space-1);
 	min-width: 0;
 }
 
@@ -641,8 +640,10 @@ input.agent-connect__input.is-invalid {
 	color: var(--color-text-secondary);
 }
 
-/* The reason keeps full contrast: it is information, not a disabled control. */
+/* The reason keeps full contrast: it is information, not a disabled control. It takes its
+   own line, so the badges of a model that cannot be chosen sit below it. */
 .agent-model__reason {
+	flex: 1 0 100%;
 	color: var(--color-text-secondary);
 }
 
@@ -650,9 +651,9 @@ input.agent-connect__input.is-invalid {
 .agent-badge {
 	display: inline-flex;
 	align-items: center;
-	gap: 2px;
-	height: 20px;
-	padding: 0 var(--space-2) 0 6px;
+	gap: var(--space-1);
+	height: var(--space-5);
+	padding: 0 var(--space-2) 0 var(--space-1);
 	border-radius: var(--radius-full);
 	background: var(--color-bg-subtle);
 	color: var(--color-text-primary);
@@ -663,7 +664,7 @@ input.agent-connect__input.is-invalid {
 }
 
 .agent-badge__icon {
-	font-size: 14px;
+	font-size: var(--space-4);
 }
 
 .agent-badge--free {
@@ -679,6 +680,13 @@ input.agent-connect__input.is-invalid {
 .agent-model[aria-selected='true']
 	.agent-badge:not(.agent-badge--free):not(.agent-badge--tools-unknown) {
 	background: var(--color-bg-surface);
+}
+
+/* A model that cannot be chosen: its badges say what it is, outlined and quiet. */
+.agent-model.is-disabled .agent-badge {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--color-border-default);
+	color: var(--color-text-secondary);
 }
 
 button.agent-card__button.is-checking {

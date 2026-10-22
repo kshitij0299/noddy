@@ -60,10 +60,17 @@ describe('model badges (#76)', () => {
 		expect(priceText(unknown)).toBe('');
 	});
 
-	it('a model that cannot use tools is not selectable, has no badges and gives its reason', () => {
+	it('a model that cannot use tools is not selectable, gives its reason and has no Tools badge', () => {
 		const blocked = model('gpt-3.5-turbo', { tools: false });
 		expect(isSelectable(blocked)).toBe(false);
-		expect(badgesFor(blocked)).toEqual([]);
+		// It still says what it is (Paid / Free, Vision), just not "Tools": the reason covers that.
+		expect(badgesFor(blocked).map((badge) => badge.kind)).toEqual(['paid']);
+		expect(
+			badgesFor(
+				model('free-blocked', { tools: false, price: { input: 0, output: 0 }, vision: true })
+			).map((badge) => badge.kind)
+		).toEqual(['free', 'vision']);
+		expect(badgesFor(model('unpriced', { tools: false, price: null, vision: null }))).toEqual([]);
 		expect(reasonFor(blocked)).toBe(NO_TOOLS_REASON);
 		expect(NO_TOOLS_REASON).toBe("Can't use tools — the agent needs them");
 		expect(reasonFor(model('ok'))).toBe('');
@@ -188,7 +195,11 @@ describe('API-format check (#76)', () => {
 		expect(unsupported.unsupported).toBe(true);
 		expect(isSelectable(unsupported)).toBe(false);
 		expect(reasonFor(unsupported)).toBe(NO_FORMAT_REASON);
-		expect(badgesFor(unsupported)).toEqual([]);
+		// A model Noddy cannot route to keeps the facts the catalog gives, and no "Tools ?".
+		expect(badgesFor(unsupported).map((badge) => badge.kind)).toEqual(['paid', 'tools']);
+		expect(
+			badgesFor({ ...unsupported, tools: null, price: null }).map((badge) => badge.kind)
+		).toEqual([]);
 		// A model with no tool calling reports that reason first.
 		expect(reasonFor({ ...unsupported, tools: false })).toBe(NO_TOOLS_REASON);
 	});
@@ -302,7 +313,13 @@ describe('model listbox (#76)', () => {
 		expect(noTools.getAttribute('aria-disabled')).toBe('true');
 		expect(noTools.classList.contains('is-disabled')).toBe(true);
 		expect(noTools.textContent).toContain("Can't use tools — the agent needs them");
-		expect(noTools.querySelector('.agent-badge')).toBeNull();
+		// The reason comes first on its line; no Tools badge, and no price on the ID line.
+		expect(noTools.querySelector('.agent-model__meta').firstElementChild.className).toBe(
+			'agent-model__reason'
+		);
+		expect(noTools.querySelector('[data-badge="tools"]')).toBeNull();
+		expect(noTools.querySelector('[data-badge="tools-unknown"]')).toBeNull();
+		expect(noTools.querySelector('.agent-model__price')).toBeNull();
 		const noFormat = optionFor('beam-free');
 		expect(noFormat.getAttribute('aria-disabled')).toBe('true');
 		expect(noFormat.textContent).toContain(NO_FORMAT_REASON);
@@ -322,11 +339,141 @@ describe('model listbox (#76)', () => {
 		expect(optionFor('o3').getAttribute('aria-disabled')).toBeNull();
 	});
 
+	it('a greyed row still shows what the model is: Free or Paid, and Vision', () => {
+		list.render(
+			[
+				model('gpt-5'),
+				model('free-no-tools', { tools: false, price: { input: 0, output: 0 }, vision: true }),
+				model('paid-no-tools', { tools: false }),
+				model('beam-free', { unsupported: true, price: { input: 0, output: 0 } }),
+			],
+			'gpt-5'
+		);
+		const kinds = (id) =>
+			[...optionFor(id).querySelectorAll('.agent-badge')].map((badge) => badge.dataset.badge);
+		expect(kinds('free-no-tools')).toEqual(['free', 'vision']);
+		expect(kinds('paid-no-tools')).toEqual(['paid']);
+		// A model Noddy cannot route to says Free and Tools (the catalog knows both).
+		expect(kinds('beam-free')).toEqual(['free', 'tools']);
+		for (const id of ['free-no-tools', 'paid-no-tools', 'beam-free']) {
+			expect(optionFor(id).getAttribute('aria-disabled')).toBe('true');
+			// Badge text is part of the row's accessible name, after the reason.
+			expect(optionFor(id).textContent).toMatch(/Free|Paid/);
+		}
+		optionFor('free-no-tools').click();
+		expect(onSelect).not.toHaveBeenCalled();
+	});
+
 	it('focus puts the active row on the selected model and announces it', () => {
 		listbox().focus();
 		expect(document.activeElement).toBe(listbox());
 		expect(listbox().getAttribute('aria-activedescendant')).toBe(optionFor('gpt-5').id);
 		expect(activeId()).toBe('gpt-5');
+	});
+
+	describe('focus and scrolling', () => {
+		const mouse = (type, target = listbox()) =>
+			target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }));
+		let scrollIntoView;
+
+		beforeEach(() => {
+			// jsdom has no layout: a spy stands in for "the list scrolled".
+			scrollIntoView = vi.fn();
+			HTMLElement.prototype.scrollIntoView = scrollIntoView;
+		});
+
+		afterEach(() => {
+			delete HTMLElement.prototype.scrollIntoView;
+		});
+
+		it('keyboard focus scrolls the active row into view', () => {
+			listbox().focus();
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+			expect(scrollIntoView.mock.contexts[0]).toBe(optionFor('gpt-5'));
+			scrollIntoView.mockClear();
+			listbox().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		});
+
+		it('the focus a mouse press causes does not scroll, so the row under the pointer stays put', () => {
+			// Wheel-scrolled away from the selected row, list not focused, then a press on a row.
+			mouse('mousedown', optionFor('o3'));
+			listbox().focus();
+			expect(scrollIntoView).not.toHaveBeenCalled();
+			// The list is focused and announces its active row, without moving.
+			expect(document.activeElement).toBe(listbox());
+			expect(listbox().getAttribute('aria-activedescendant')).toBe(optionFor('gpt-5').id);
+			// The click that follows still lands on the row and chooses it.
+			optionFor('o3').click();
+			expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'o3' }));
+		});
+
+		it('only that one focus is a press: the next keyboard focus scrolls again', () => {
+			mouse('mousedown', optionFor('o3'));
+			listbox().focus();
+			optionFor('o3').click();
+			listbox().blur();
+			scrollIntoView.mockClear();
+			listbox().focus();
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		});
+
+		it('a press that never focuses the list does not leave the next Tab-in unscrolled', () => {
+			mouse('mousedown', optionFor('o3'));
+			mouse('click', optionFor('o3'));
+			scrollIntoView.mockClear();
+			listbox().focus();
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		});
+
+		it('a press on an already focused list changes nothing for later focus', () => {
+			listbox().focus();
+			mouse('mousedown', optionFor('o3'));
+			listbox().blur();
+			scrollIntoView.mockClear();
+			listbox().focus();
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		});
+
+		it('drawing the rows again keeps the scroll position and the focused list keeps announcing', () => {
+			let top = 0;
+			Object.defineProperty(listbox(), 'scrollTop', {
+				configurable: true,
+				get: () => top,
+				// A real list clamps to its content, which is gone for a moment in a redraw.
+				set: (value) => (top = value),
+			});
+			// Replacing every row empties the box for a moment, which resets a real scroll offset.
+			const replace = listbox().replaceChildren.bind(listbox());
+			listbox().replaceChildren = (...nodes) => {
+				top = 0;
+				replace(...nodes);
+			};
+			top = 120;
+			listbox().focus();
+			scrollIntoView.mockClear();
+			list.render(MODELS, 'o3');
+			expect(top).toBe(120);
+			expect(scrollIntoView).not.toHaveBeenCalled();
+			expect(listbox().getAttribute('aria-activedescendant')).toBe(optionFor('o3').id);
+			// Not focused: nothing is announced until the list gets focus.
+			listbox().blur();
+			list.render(MODELS, 'o3');
+			expect(listbox().hasAttribute('aria-activedescendant')).toBe(false);
+		});
+
+		it('clear forgets the rows and the active descendant', () => {
+			listbox().focus();
+			list.clear();
+			expect(options()).toHaveLength(0);
+			expect(listbox().hasAttribute('aria-activedescendant')).toBe(false);
+			expect(list.selectedId).toBe('');
+			expect(list.activeId).toBe('');
+			// Keys and focus on an empty list are harmless.
+			listbox().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			listbox().blur();
+			listbox().focus();
+		});
 	});
 
 	it('arrow keys, Home, End and Page keys move the active row and stay in range', () => {
