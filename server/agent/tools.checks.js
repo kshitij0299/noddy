@@ -19,6 +19,12 @@ const EXPECTED_TOOLS = [
 	'set_spacing',
 	'transform_paths',
 	'add_paths',
+	'create_glyph',
+	'begin_glyph',
+	'submit_glyph',
+	'replace_paths',
+	'delete_paths',
+	'add_svg_path',
 ];
 const pngBase64 =
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
