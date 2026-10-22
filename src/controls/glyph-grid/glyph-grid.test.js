@@ -372,3 +372,55 @@ describe('GlyphGrid: live updates', () => {
 		expect(editor.subscribers.glyphStatusChanged?.[grid._subscriberID]).toBeUndefined();
 	});
 });
+
+describe('GlyphGrid: review actions on tiles (M7 #29)', () => {
+	const tileOf = (id) => grid.tiles.get(id);
+	const actions = (id) =>
+		[...tileOf(id).querySelectorAll('[data-tile-action]')].map((b) =>
+			b.getAttribute('data-tile-action')
+		);
+
+	it('a Draft tile offers Keep (and Revert with a pre-draft outline); Failed offers Retry', () => {
+		editor.glyphStatus.set(A, 'draft', 'agent');
+		grid.refreshTile(A);
+		expect(actions(A)).toEqual(['keep']);
+		editor.glyphStatus.set(A, 'draft', 'agent', { preDraft: { glyph: null } });
+		grid.refreshTile(A);
+		expect(actions(A)).toEqual(['keep', 'revert']);
+		editor.glyphStatus.set(a, 'failed', 'agent');
+		grid.refreshTile(a);
+		expect(actions(a)).toEqual(['retry']);
+		expect(actions(N)).toEqual([]);
+		const keep = tileOf(A).querySelector('[data-tile-action="keep"]');
+		expect(keep.getAttribute('aria-label')).toBe('Keep A');
+		expect(keep.getAttribute('tabindex')).toBe('-1');
+	});
+
+	it('Keep on a tile is one history entry and never opens the glyph', () => {
+		const open = vi.spyOn(grid, 'openGlyph');
+		editor.glyphStatus.set(A, 'draft', 'agent');
+		grid.refreshTile(A);
+		const before = editor.history.length;
+		/** @type {HTMLButtonElement} */ (tileOf(A).querySelector('[data-tile-action="keep"]')).click();
+		expect(editor.glyphStatus.getStatus(A)).toBe('kept');
+		expect(editor.history.length).toBe(before + 1);
+		expect(open).not.toHaveBeenCalled();
+	});
+
+	it('a Failed tile says why in its tooltip', () => {
+		editor.glyphStatus.set(a, 'failed', 'agent', { reason: 'outline problems' });
+		grid.refreshTile(a);
+		expect(tileOf(a).getAttribute('title')).toBe('Failed · outline problems');
+	});
+
+	it('Retry on a tile is announced for the agent panel', () => {
+		const seen = vi.fn();
+		document.addEventListener('noddy-retry-glyphs', seen);
+		editor.glyphStatus.set(a, 'failed', 'agent');
+		grid.refreshTile(a);
+		/** @type {HTMLButtonElement} */ (tileOf(a).querySelector('[data-tile-action="retry"]')).click();
+		document.removeEventListener('noddy-retry-glyphs', seen);
+		expect(seen).toHaveBeenCalledTimes(1);
+		expect(seen.mock.calls[0][0].detail).toEqual({ ids: [a] });
+	});
+});

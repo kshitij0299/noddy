@@ -739,3 +739,85 @@ button.agent-pill:focus-visible {
 		height: 44px;
 	}
 }
+
+/* ---- Run bar (M7 #28): own row above the composer ---- */
+.agent-run-bar {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex: none;
+	min-height: 48px;
+	padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+	box-sizing: border-box;
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.agent-run-bar[hidden] {
+	display: none;
+}
+
+.agent-run-bar__lead {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	flex: none;
+}
+
+.agent-run-bar__icon {
+	font-size: 16px;
+}
+
+/* A ring with a gap (the Drafting mark), spinning; static when motion is reduced */
+.agent-run-bar__spinner {
+	width: 12px;
+	height: 12px;
+	box-sizing: border-box;
+	border: 2px solid var(--color-status-draft);
+	border-right-color: transparent;
+	border-radius: var(--radius-full);
+	animation: agent-pill-spin 1.2s linear infinite;
+}
+
+.agent-run-bar__text {
+	flex: 1 1 auto;
+	min-width: 0;
+	/* Wraps rather than truncating the status words. */
+	overflow-wrap: anywhere;
+}
+
+.agent-run-bar__actions {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-run-bar__spinner {
+		animation: none;
+	}
+}
+
+/* ---- "Before run" checkpoint: a step line with one action ---- */
+.agent-checkpoint {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	width: 352px;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.agent-checkpoint > agent-step-line {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: auto;
+}
+
+.agent-checkpoint > button {
+	flex: none;
+}

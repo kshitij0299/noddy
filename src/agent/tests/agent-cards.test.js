@@ -233,6 +233,20 @@ describe('<agent-receipt-card>', () => {
 		expect(summarizeReceipt([{ char: 'g', status: 'changed' }]).summary).toBe('1 changed');
 		expect(summarizeReceipt(rows('ab', 'ab')).summary).toBe('0 edits applied · 2 failed');
 		expect(summarizeReceipt([]).summary).toBe('0 edits applied');
+		// M7: rows already kept or reverted elsewhere are not counted in Keep N.
+		const live = [
+			{ char: 'a', status: 'new' },
+			{ char: 'b', status: 'kept' },
+			{ char: 'k', status: 'failed' },
+		];
+		expect(summarizeReceipt(live)).toMatchObject({ applied: 1, kept: 1, failed: 1 });
+		expect(summarizeReceipt(live).summary).toBe('1 new · 1 kept · 1 failed');
+		expect(
+			summarizeReceipt([
+				{ char: 'a', status: 'yours' },
+				{ char: 'b', status: 'reverted' },
+			]).summary
+		).toBe('1 Yours · 1 reverted');
 	});
 
 	it('renders the strip from outlines, marks the failed glyph and offers Keep N / Retry k', () => {

@@ -34,9 +34,11 @@ const activeTransactions = new WeakSet();
 const agentSnapshots = new WeakSet();
 const editorsWithHistoryRefresh = new WeakSet();
 /**
- * Status flip per job history entry (the post-state entry): the status store
- * lives outside the project, so whole-project undo/redo cannot carry it.
- * @type {WeakMap<Object, {id: String, before: Object, state: 'applied' | 'undone'}>}
+ * Status flips per history entry (the post-state entry of an agent job, or of
+ * a Keep / Keep all / Revert): the status store lives outside the project, so
+ * whole-project undo/redo cannot carry it. `before` / `after` are records as
+ * GlyphStatusStore.get() returns them.
+ * @type {WeakMap<Object, {changes: Array<{id: String, before: Object, after: Object}>, state: 'applied' | 'undone'}>}
  */
 const jobStatusEntries = new WeakMap();
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -79,7 +81,11 @@ const abortIfNeeded = (signal) => {
  * arbitrary property writes, and no model-controlled permissions. The UI should
  * create a new session per Send and retain the last one for its inline Undo.
  */
-export function createNativeToolSession({ getEditor = getCurrentProjectEditor, makeCanvas } = {}) {
+export function createNativeToolSession({
+	getEditor = getCurrentProjectEditor,
+	makeCanvas,
+	jobScope,
+} = {}) {
 	const editor = getEditor();
 	const project = editor?.project;
 	if (!project) fail('NO_PROJECT', 'Open a project before asking the agent to edit.');
@@ -107,6 +113,12 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 	const jobs = new Map();
 	// The Send-time grant covers only the glyph bound to this request.
 	const grantFor = (id) => (id === glyphId ? requestGrant : undefined);
+	// A run job (M7) may write only the glyph(s) the run queued for it.
+	const scope = Array.isArray(jobScope) ? new Set(jobScope) : null;
+	function assertInJobScope(id) {
+		if (scope && !scope.has(id))
+			fail('OUT_OF_SCOPE', `This run job draws ${[...scope].map(glyphChar).join(' ')} only.`);
+	}
 
 	function assertActive() {
 		if (disposed) fail('SESSION_CLOSED', 'Send a new request to start a session.');
@@ -210,6 +222,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 			) {
 				result = runJobTool(name, input, context, signal);
 			} else {
+				assertInJobScope(input.glyphId);
 				if (!context.writable || input.glyphId !== glyphId) {
 					fail(
 						'OUT_OF_SCOPE',
@@ -282,8 +295,14 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 		if (input.expectedRevision !== context.revision) {
 			fail('STALE_REVISION', 'The font or selection changed. Read the glyph again before editing.');
 		}
-		if (name === 'create_glyph') return createJob(input, context);
-		if (name === 'begin_glyph') return beginJob(input.glyphId, context);
+		if (name === 'create_glyph') {
+			assertInJobScope(codePointToGlyphID(input.codePoint));
+			return createJob(input, context);
+		}
+		if (name === 'begin_glyph') {
+			assertInJobScope(input.glyphId);
+			return beginJob(input.glyphId, context);
+		}
 		const job = jobs.get(input.glyphId);
 		if (!job) fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
 		assertJobLive(job);
@@ -395,11 +414,18 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor, m
 		commit(job.id, candidate, `Agent · ${char}`, signal, { create: job.create });
 		jobs.delete(job.id);
 		try {
-			const before = editor.glyphStatus?.get(job.id);
+			const store = editor.glyphStatus;
+			const before = store?.get(job.id);
+			// The outline before the agent drew it, for Revert (a redraw of a
+			// Draft keeps the first snapshot inside the store).
+			const preDraft = { glyph: job.create ? null : JSON.parse(job.base) };
 			// assertJobLive passed, so a Yours glyph here carries the user's consent.
-			editor.glyphStatus?.set(job.id, 'draft', 'agent', { consent: true });
+			store?.set(job.id, 'draft', 'agent', { consent: true, preDraft });
 			if (before)
-				jobStatusEntries.set(editor.history.queue[0], { id: job.id, before, state: 'applied' });
+				jobStatusEntries.set(editor.history.queue[0], {
+					changes: [{ id: job.id, before, after: store.get(job.id) }],
+					state: 'applied',
+				});
 		} catch {
 			// Status bookkeeping never undoes a committed edit.
 		}
@@ -791,9 +817,10 @@ function ensureHistoryPanelRefresh(editor) {
 }
 
 /**
- * After a whole-project undo or redo, put the job glyph's status back
- * (undo) or mark it Draft again (redo). Only the entry just undone (head of
- * the redo queue) or just redone (head of the undo queue) is touched.
+ * After a whole-project undo or redo, put the statuses an entry changed back
+ * (undo) or apply them again (redo): an agent job's Draft, a Keep, a Revert.
+ * Only the entry just undone (head of the redo queue) or just redone (head of
+ * the undo queue) is touched.
  */
 function syncJobStatus(editor) {
 	const store = editor.glyphStatus;
@@ -803,14 +830,120 @@ function syncJobStatus(editor) {
 	try {
 		if (undone?.state === 'applied') {
 			undone.state = 'undone';
-			if (undone.before.derived) store.clear(undone.id);
-			else store.set(undone.id, undone.before.status, undone.before.owner, { consent: true });
+			for (const change of undone.changes) store.restore(change.id, change.before);
 		} else if (redone?.state === 'undone') {
 			redone.state = 'applied';
-			store.set(redone.id, 'draft', 'agent', { consent: true });
+			for (const change of redone.changes) store.restore(change.id, change.after);
 		}
 	} catch {
 		// Status bookkeeping never blocks undo or redo.
+	}
+}
+
+// --------------------------------------------------------------
+// Review commits (M7 #29): Keep, Keep all, Revert, Revert run
+// --------------------------------------------------------------
+
+/**
+ * One history entry for a review action, made by a user action in the UI
+ * (never by a model tool). Replaces the listed glyphs with the given data
+ * (a forward commit, not history time travel) and sets the listed statuses.
+ * Undo / redo of the entry puts both the outlines and the statuses back.
+ * Same transaction shape as an agent job: a whole-project pre/post pair with
+ * detached snapshots, rolled back fully on error.
+ * @param {Object} editor - ProjectEditor
+ * @param {Object} change
+ * @param {String} change.title - history title, e.g. 'Keep · 22 glyphs'
+ * @param {Object<String, Object | null>=} change.glyphs - id → Glyph save()
+ *   data to put back, or null for an empty outline
+ * @param {Array<{id: String, record: Object}>=} change.statuses - records to
+ *   set (as GlyphStatusStore.get() returns them)
+ * @returns {{ok: true, entry: Object} | {ok: false, error: {code: String, message: String}}}
+ */
+export function commitReview(editor, { title, glyphs = {}, statuses = [] }) {
+	const project = editor?.project;
+	if (!project) return { ok: false, error: { code: 'NO_PROJECT', message: 'Open a project first.' } };
+	if (activeTransactions.has(editor))
+		return {
+			ok: false,
+			error: { code: 'EDITOR_BUSY', message: 'Another edit is in progress. Try again.' },
+		};
+	const history = editor.history;
+	const queue = [...history.queue];
+	const redoQueue = [...history.redoQueue];
+	const initialProject = history.initialProject;
+	const projectSaved = editor.projectSaved;
+	const documentTitle = document.title;
+	const store = editor.glyphStatus;
+	const originals = {};
+	const detached = [];
+	const ids = Object.keys(glyphs).filter((id) => project.glyphs[id]);
+	const selectedChanged = ids.includes(editor.selectedItemID);
+	const shapeSelection = [...editor.multiSelect.shapes.members];
+	const pointSelection = [...editor.multiSelect.points.members];
+	const applied = [];
+	activeTransactions.add(editor);
+	try {
+		ensureHistoryPanelRefresh(editor);
+		if (history.initialProject === project) history.initialProject = snapshot(project);
+		for (const entry of [...queue, ...redoQueue.flat()]) {
+			if (!agentSnapshots.has(entry) && entry.itemState === project) {
+				detached.push(entry);
+				entry.itemState = snapshot(project);
+			}
+		}
+		history.addWholeProjectChangePreState(title);
+		captureHistorySnapshot(history.queue[0], project);
+		for (const id of ids) {
+			const original = project.glyphs[id];
+			originals[id] = original;
+			const data = glyphs[id] ? copy(glyphs[id]) : { id };
+			const candidate = new Glyph({ ...data, id });
+			candidate.wasCreatedThisSession = original.wasCreatedThisSession;
+			candidate.parent = project;
+			project.glyphs[id] = candidate;
+			candidate.changed();
+		}
+		if (selectedChanged) {
+			editor.multiSelect.shapes.members = [];
+			editor.multiSelect.points.members = [];
+		}
+		history.addWholeProjectChangePostState();
+		captureHistorySnapshot(history.queue[0], project);
+		const changes = [];
+		for (const { id, record } of statuses) {
+			const before = store?.get(id);
+			if (!store || !before) continue;
+			store.restore(id, record);
+			applied.push({ id, before });
+			changes.push({ id, before, after: store.get(id) });
+		}
+		if (changes.length) jobStatusEntries.set(history.queue[0], { changes, state: 'applied' });
+		for (const id of ids) {
+			if (id === editor.selectedItemID) {
+				editor.publish('currentItem', project.glyphs[id]);
+				if (getCurrentProjectEditor() === editor) refreshPanel();
+			} else queueItemChanged(editor, id);
+		}
+		history.updateAfterSaveState();
+		return { ok: true, entry: history.queue[0] };
+	} catch (error) {
+		for (const id of Object.keys(originals)) project.glyphs[id] = originals[id];
+		for (const { id, before } of applied.reverse()) store.restore(id, before);
+		history.queue = queue;
+		history.redoQueue = redoQueue;
+		history.initialProject = initialProject;
+		editor.projectSaved = projectSaved;
+		document.title = documentTitle;
+		editor.multiSelect.shapes.members = shapeSelection;
+		editor.multiSelect.points.members = pointSelection;
+		for (const entry of detached) entry.itemState = project;
+		return {
+			ok: false,
+			error: { code: error.code || 'REVIEW_FAILED', message: error.message || 'The change failed.' },
+		};
+	} finally {
+		activeTransactions.delete(editor);
 	}
 }
 

@@ -365,16 +365,15 @@ describe('Focus mode: inspector (#17)', () => {
 	it('Revert with a snapshot is one forward history entry, not time travel', () => {
 		editor.nav.page = 'Characters';
 		editor.selectedGlyphID = a;
-		const preDraft = makeGlyph(a, editor.project, { size: 100, advance: 300 }).save();
-		editor.glyphStatus.set(a, 'draft', 'agent');
-		const realGet = editor.glyphStatus.get.bind(editor.glyphStatus);
-		vi.spyOn(editor.glyphStatus, 'get').mockImplementation((id) => ({ ...realGet(id), preDraft }));
-		const before = editor.history.queue.length;
+		const preDraft = { glyph: makeGlyph(a, editor.project, { size: 100, advance: 300 }).save() };
+		editor.glyphStatus.set(a, 'draft', 'agent', { preDraft });
+		const before = editor.history.length;
 		expect(revertDraft(editor, a)).toBe(true);
 		const glyph = editor.project.getItem(a);
 		expect(glyph.advanceWidth).toBe(300);
 		expect(glyph.maxes.xMax).toBe(140);
-		expect(editor.history.queue.length).toBe(before + 1);
+		expect(editor.history.length).toBe(before + 1);
+		expect(editor.history.queue[1].title).toBe('Revert · a');
 		expect(editor.glyphStatus.getStatus(a)).toBe('kept');
 	});
 });

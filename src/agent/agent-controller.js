@@ -168,26 +168,53 @@ export function createAgentController({
 				}
 			);
 		},
-		async run(prompt, attachments = []) {
-			if (active) throw new Error('An agent request is already running.');
+		/**
+		 * One request. A job resolves to a summary once it ends:
+		 * { completed, changed, submitted: [glyph IDs], usage: [per step], error };
+		 * a chat request resolves to undefined.
+		 * @param {String} prompt
+		 * @param {Array} [attachments]
+		 * @param {Object} [options]
+		 * @param {Boolean} [options.job] - a run job (M7): no chat memory, no
+		 *   'start'/'text'/'finish' events on the panel's listener (they go to
+		 *   options.onEvent), and the session is scoped to options.scope
+		 * @param {Array<String>} [options.scope] - glyph IDs the job may write
+		 * @param {Boolean} [options.requireGlyph] - false: no selected glyph needed
+		 *   (job tools write by glyph ID)
+		 * @param {Number} [options.maxTools]
+		 * @param {AbortSignal} [options.signal] - aborts like Stop
+		 * @param {(event: Object) => void} [options.onEvent] - job events
+		 */
+		async run(prompt, attachments = [], options = {}) {
+			const job = options.job === true;
+			const requireGlyph = options.requireGlyph !== false && !job;
+			const toolLimit = Number.isInteger(options.maxTools) ? options.maxTools : maxTools;
+			const send = job ? (type, data = {}) => options.onEvent?.({ type, ...data }) : emit;
+			if (active) throw agentError('An agent request is already running.', 'AGENT_BUSY');
 			if (!connection)
-				throw new Error('Connect a model before sending. Your prompt and files are still here.');
+				throw agentError(
+					'Connect a model before sending. Your prompt and files are still here.',
+					'NO_MODEL'
+				);
 			if (!prompt.trim() && !attachments.length) return;
 			if (prompt.length > 12000) throw new Error('Keep the message under 12,000 characters.');
-			const session = createSession();
+			const session = job ? createSession({ jobScope: options.scope || [] }) : createSession();
 			let context;
 			try {
 				context = session.getContext();
-				requireSelectedGlyph(context);
+				if (requireGlyph) requireSelectedGlyph(context);
 			} catch (error) {
 				session.dispose();
 				throw error;
 			}
-			if (context.projectId !== projectId) {
+			if (!job && context.projectId !== projectId) {
+				// A different project: forget the old chat. The first request of a
+				// session has nothing to clear (a run's cards may already be there).
+				const switched = projectId !== undefined;
 				conversation = [];
 				references = [];
 				projectId = context.projectId;
-				emit('clear');
+				if (switched) emit('clear');
 			}
 			const nextReferences = [...references, ...attachments];
 			try {
@@ -196,33 +223,43 @@ export function createAgentController({
 				session.dispose();
 				throw error;
 			}
-			references = nextReferences;
+			if (!job) references = nextReferences;
 			const abort = new AbortController();
 			active = abort;
+			const onOuterAbort = () => abort.abort('stopped');
+			if (options.signal?.aborted) abort.abort('stopped');
+			else options.signal?.addEventListener('abort', onOuterAbort, { once: true });
 			const config = { ...connection };
 			const timer = setTimeout(() => abort.abort('timeout'), timeoutMs);
 			const userText = prompt.trim() || 'Please inspect the attached reference files.';
 			const messages = [
-				...conversation.flat(),
+				...(job ? [] : conversation.flat()),
 				{
 					role: 'user',
-					content: [{ type: 'text', text: userText }, ...attachmentParts(references)],
+					content: [
+						{ type: 'text', text: userText },
+						...attachmentParts(job ? attachments : references),
+					],
 				},
 			];
-			emit('start', { prompt: userText, attachments, context });
+			send('start', { prompt: userText, attachments, context });
 			let calls = 0;
 			let finalText = '';
 			let completed = false;
 			let changed = false;
+			let failure = null;
+			const submitted = [];
+			const usage = [];
 			try {
-				for (let step = 0; step <= maxTools; step++) {
+				for (let step = 0; step <= toolLimit; step++) {
 					abort.signal.throwIfAborted();
 					const result = await transport({ ...config, messages, context }, abort.signal);
 					abort.signal.throwIfAborted();
+					usage.push(result.usage || null);
 					messages.push(...result.messages);
 					if (result.text) {
 						finalText += `${result.text}\n`;
-						emit('text', { text: result.text });
+						send('text', { text: result.text });
 					}
 					if (result.finishReason === 'length')
 						throw new Error(
@@ -234,7 +271,7 @@ export function createAgentController({
 						completed = true;
 						break;
 					}
-					if (calls + result.toolCalls.length > maxTools)
+					if (calls + result.toolCalls.length > toolLimit)
 						throw new Error(
 							'This request reached its tool limit. Completed edits are kept; send a follow-up to continue.'
 						);
@@ -242,13 +279,21 @@ export function createAgentController({
 					for (const call of result.toolCalls) {
 						abort.signal.throwIfAborted();
 						calls++;
-						emit('tool', { name: call.toolName, state: 'running' });
+						send('tool', { name: call.toolName, state: 'running' });
 						const value = await session.execute(call.toolName, call.input, {
 							callId: call.toolCallId,
 							signal: abort.signal,
 						});
 						if (value.ok && value.changed) changed = true;
-						emit('tool', {
+						if (
+							call.toolName === 'submit_glyph' &&
+							value.ok &&
+							value.changed &&
+							value.glyph?.glyphId
+						)
+							submitted.push(value.glyph.glyphId);
+						if (!value.ok && value.error?.code) failure = value.error;
+						send('tool', {
 							name: call.toolName,
 							state: value.ok ? 'done' : 'error',
 							result: value,
@@ -270,7 +315,7 @@ export function createAgentController({
 					finalText = changed
 						? 'The tool edits were applied. The model returned no explanation.'
 						: 'The model returned no message. No font edits were made.';
-					emit('text', { text: finalText });
+					send('text', { text: finalText });
 				}
 			} catch (error) {
 				const message = abort.signal.aborted
@@ -284,9 +329,11 @@ export function createAgentController({
 						: 'STOPPED'
 					: error.code;
 				finalText += message;
-				emit('error', { message, code });
+				failure = { message, code };
+				send('error', { message, code });
 			} finally {
 				clearTimeout(timer);
+				options.signal?.removeEventListener('abort', onOuterAbort);
 				config.apiKey = '';
 				active = undefined;
 				let finalContext;
@@ -295,18 +342,30 @@ export function createAgentController({
 				} catch {
 					/* Project may have closed while the model was running. */
 				}
-				if (changed) {
+				if (changed && !job) {
 					undoSession?.dispose();
 					undoSession = session;
 				} else session.dispose();
-				// Keep a small text-only conversation. References are attached once per request.
-				conversation.push([
-					{ role: 'user', content: userText },
-					{ role: 'assistant', content: finalText.slice(0, 6000) },
-				]);
-				conversation = conversation.slice(-3);
-				emit('finish', { context: finalContext });
+				if (!job) {
+					// Keep a small text-only conversation. References are attached once per request.
+					conversation.push([
+						{ role: 'user', content: userText },
+						{ role: 'assistant', content: finalText.slice(0, 6000) },
+					]);
+					conversation = conversation.slice(-3);
+				}
+				send('finish', { context: finalContext });
 			}
+			// Chat requests keep their old contract (resolve to undefined).
+			if (!job) return undefined;
+			return {
+				completed,
+				changed,
+				submitted,
+				usage,
+				error: completed ? null : failure,
+				lastError: failure,
+			};
 		},
 	};
 }

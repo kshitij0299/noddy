@@ -19,11 +19,22 @@ describe('pill state → copy (#20)', () => {
 
 	it('needs you shows a dot and the review count, no ring', () => {
 		expect(pillView({ phase: 'needs-you', review: 4 })).toMatchObject({
-			text: '4 glyphs to review',
+			text: 'Needs you · 4 to review',
 			dot: true,
 			ring: false,
 		});
-		expect(pillView({ phase: 'needs-you', review: 1 }).text).toBe('1 glyph to review');
+		expect(pillView({ phase: 'needs-you', review: 1 }).text).toBe('Needs you · 1 to review');
+	});
+
+	it('a run waiting at a gate needs you (M7)', () => {
+		expect(derivePillPhase({ gate: 'style' })).toBe('needs-you');
+		expect(pillView({ phase: 'needs-you', gate: 'plan' }).text).toBe('Needs you · plan ready');
+		expect(pillView({ phase: 'needs-you', gate: 'style', review: 4 }).text).toBe(
+			'Needs you · approve the style'
+		);
+		expect(pillView({ phase: 'paused', done: 9, total: 62, pauseReason: 'cap' }).text).toBe(
+			'Paused · spend cap · 9/62'
+		);
 	});
 
 	it('paused and failed carry an icon, not colour alone', () => {
@@ -50,7 +61,7 @@ describe('pill state → copy (#20)', () => {
 		const pill = createAgentPill({ onExpand });
 		pill.render({ phase: 'needs-you', review: 4 });
 		expect(pill.root.querySelector('.agent-pill__dot')).not.toBeNull();
-		expect(pill.root.getAttribute('aria-label')).toContain('4 glyphs to review');
+		expect(pill.root.getAttribute('aria-label')).toContain('Needs you · 4 to review');
 		pill.root.click();
 		expect(onExpand).toHaveBeenCalledTimes(1);
 	});

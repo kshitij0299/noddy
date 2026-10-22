@@ -29,6 +29,12 @@
 	Known limitation: undo/redo does NOT revert status. Whole-project undo
 	snapshots come from project.save(), and status lives outside the project.
 
+	Pre-draft snapshot (M7 #29): a 'draft' record may carry `preDraft`,
+	{ glyph: <Glyph save() data> | null }, the outline from before the agent
+	first drafted the glyph (null: the glyph did not exist). Revert puts it
+	back as a forward commit. It is kept while the glyph stays a Draft
+	(a redraw keeps the first snapshot) and dropped on any other status.
+
 	Yours lock: set(id, status, 'agent') throws when the glyph is currently
 	'yours', unless the caller passes { consent: true } (explicit user consent).
 
@@ -58,6 +64,19 @@ export const PERSISTED_GLYPH_STATUSES = Object.freeze(['draft', 'kept', 'yours',
 export const GLYPH_STATUS_STORAGE_PREFIX = 'noddy.glyphStatus.';
 
 const STORAGE_FORMAT_VERSION = 1;
+
+/**
+ * @param {any} value
+ * @returns {Boolean} whether value is a { glyph: Object | null } pre-draft snapshot
+ */
+export function isPreDraft(value) {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		'glyph' in value &&
+		(value.glyph === null || typeof value.glyph === 'object')
+	);
+}
 
 /**
  * Returns window.localStorage, or null when it is missing or access throws.
@@ -139,6 +158,10 @@ export class GlyphStatusStore {
 				status: rec.status,
 				owner: rec.owner,
 				updatedAt: Number(rec.updatedAt) || 0,
+				...(rec.status === 'draft' && isPreDraft(rec.preDraft) ? { preDraft: rec.preDraft } : {}),
+				...(rec.status === 'failed' && typeof rec.reason === 'string'
+					? { reason: rec.reason.slice(0, 200) }
+					: {}),
 			};
 		});
 	}
@@ -242,9 +265,12 @@ export class GlyphStatusStore {
 	 * to change a 'yours' glyph. Without it, an agent-owned change to a glyph
 	 * whose current status is 'yours' throws (like every other rejected input).
 	 * User-owned changes are always allowed.
+	 * @param {Object=} options.preDraft - { glyph } snapshot for a 'draft'
+	 * record; when omitted, a redraw of a Draft keeps its first snapshot.
+	 * @param {String=} options.reason - why a 'failed' glyph failed (tooltip)
 	 * @returns {Boolean} whether anything changed
 	 */
-	set(id, status, owner, { consent = false } = {}) {
+	set(id, status, owner, { consent = false, preDraft, reason } = {}) {
 		if (!id || typeof id !== 'string') throw new Error('Glyph status needs an item ID');
 		if (!GLYPH_STATUSES.includes(status)) throw new Error(`Unknown glyph status: ${status}`);
 		if (!GLYPH_STATUS_OWNERS.includes(owner))
@@ -264,13 +290,78 @@ export class GlyphStatusStore {
 			delete this._records[id];
 		} else {
 			const prev = this._records[id];
-			if (prev && prev.status === status && prev.owner === owner) return false;
-			this._records[id] = { status, owner, updatedAt: this._now() };
+			let snapshot;
+			if (status === 'draft') {
+				if (isPreDraft(preDraft)) snapshot = preDraft;
+				else if (prev?.status === 'draft' && prev.preDraft) snapshot = prev.preDraft;
+			}
+			const why =
+				status === 'failed' && typeof reason === 'string' && reason
+					? reason.slice(0, 200)
+					: undefined;
+			if (
+				prev &&
+				prev.status === status &&
+				prev.owner === owner &&
+				prev.preDraft === snapshot &&
+				prev.reason === why
+			)
+				return false;
+			this._records[id] = {
+				status,
+				owner,
+				updatedAt: this._now(),
+				...(snapshot ? { preDraft: snapshot } : {}),
+				...(why ? { reason: why } : {}),
+			};
 		}
 
 		const after = this.get(id);
 		const changed = before.status !== after.status || before.owner !== after.owner;
 		this._save();
+		if (changed) {
+			this._publish(GLYPH_STATUS_TOPIC, {
+				id,
+				status: after.status,
+				owner: after.owner,
+				previousStatus: before.status,
+			});
+		}
+		return changed;
+	}
+
+	/**
+	 * Puts a record back exactly as `get()` returned it (history replay of a
+	 * user action: undo / redo of Keep, Revert or an agent job). No lock check:
+	 * the replay itself is the user's action. A derived record clears.
+	 * @param {String} id
+	 * @param {{status: String, owner: String, derived?: Boolean, preDraft?: Object}} record
+	 * @returns {Boolean} whether anything changed
+	 */
+	restore(id, record) {
+		if (!id || !record || !GLYPH_STATUSES.includes(record.status)) return false;
+		this._sync();
+		const before = this.get(id);
+		if (record.derived || record.status === 'empty') {
+			if (!this._records[id]) return false;
+			delete this._records[id];
+		} else {
+			if (!GLYPH_STATUS_OWNERS.includes(record.owner)) return false;
+			this._records[id] = {
+				status: record.status,
+				owner: record.owner,
+				updatedAt: this._now(),
+				...(record.status === 'draft' && isPreDraft(record.preDraft)
+					? { preDraft: record.preDraft }
+					: {}),
+				...(record.status === 'failed' && typeof record.reason === 'string'
+					? { reason: record.reason }
+					: {}),
+			};
+		}
+		const after = this.get(id);
+		this._save();
+		const changed = before.status !== after.status || before.owner !== after.owner;
 		if (changed) {
 			this._publish(GLYPH_STATUS_TOPIC, {
 				id,
