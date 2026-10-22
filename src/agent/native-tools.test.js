@@ -16,6 +16,15 @@ if (!customElements.get('input-number')) {
 
 const ID = 'glyph-0x6E';
 const copy = (value) => JSON.parse(JSON.stringify(value));
+const NO_LINEAR = {
+	scaleX: null,
+	scaleY: null,
+	skewX: null,
+	skewY: null,
+	rotate: null,
+	flip: null,
+	origin: null,
+};
 const points = [
 	{ x: 40, y: 0, h1: null, h2: null },
 	{ x: 1048, y: 0, h1: null, h2: null },
@@ -81,6 +90,12 @@ describe('native agent tool boundary', () => {
 			'set_spacing',
 			'transform_paths',
 			'add_paths',
+			'create_glyph',
+			'begin_glyph',
+			'submit_glyph',
+			'replace_paths',
+			'delete_paths',
+			'add_svg_path',
 		]);
 		const before = copy(editor.project.save());
 		for (const value of [NaN, Infinity, '60', 40000]) {
@@ -272,7 +287,8 @@ describe('native agent tool boundary', () => {
 		selected().shapes[0].xLock = false;
 		selected().shapes[0].pathPoints[0].h1.yLock = true;
 		expect(
-			session.execute('transform_paths', args({ pathIndices: [0], dx: 0, dy: 10 })).error.code
+			session.execute('transform_paths', args({ pathIndices: [0], dx: 0, dy: 10, ...NO_LINEAR }))
+				.error.code
 		).toBe('LOCKED_GEOMETRY');
 		selected().usedIn = ['glyph-0x41'];
 		expect(spacing(80).error.code).toBe('DEPENDENT_GLYPHS');
@@ -281,11 +297,15 @@ describe('native agent tool boundary', () => {
 	it('rejects components and malformed/bounded geometry without partial changes', () => {
 		const before = copy(selected().save());
 		expect(
-			session.execute('transform_paths', args({ pathIndices: [0, 5], dx: 25, dy: 10 })).error.code
+			session.execute(
+				'transform_paths',
+				args({ pathIndices: [0, 5], dx: 25, dy: 10, ...NO_LINEAR })
+			).error.code
 		).toBe('MISSING_PATH');
 		expect(selected().save()).toEqual(before);
 		expect(
-			session.execute('transform_paths', args({ pathIndices: [0], dx: 32767, dy: 0 })).error.code
+			session.execute('transform_paths', args({ pathIndices: [0], dx: 32767, dy: 0, ...NO_LINEAR }))
+				.error.code
 		).toBe('GEOMETRY_BOUNDS');
 		expect(selected().save()).toEqual(before);
 		selected().addOneShape({ objType: 'ComponentInstance', link: 'glyph-0x41' });
@@ -315,13 +335,17 @@ describe('native agent tool boundary', () => {
 
 	it('translates selected indices exactly once, keeps advance, and updates cached bounds', () => {
 		const oldBounds = selected().maxes;
-		const result = session.execute('transform_paths', args({ pathIndices: [0], dx: 20, dy: -10 }));
+		const result = session.execute(
+			'transform_paths',
+			args({ pathIndices: [0], dx: 20, dy: -10, ...NO_LINEAR })
+		);
 		expect(result.ok).toBe(true);
 		expect(selected().advanceWidth).toBe(1088);
 		expect(selected().maxes.xMin).toBe(oldBounds.xMin + 20);
 		expect(selected().maxes.yMax).toBe(oldBounds.yMax - 10);
 		expect(
-			session.execute('transform_paths', args({ pathIndices: [0, 0], dx: 20, dy: 0 })).error.code
+			session.execute('transform_paths', args({ pathIndices: [0, 0], dx: 20, dy: 0, ...NO_LINEAR }))
+				.error.code
 		).toBe('INVALID_ARGUMENTS');
 	});
 

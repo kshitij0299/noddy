@@ -389,6 +389,13 @@ describe('mutation log', () => {
 			pathIndices: [0],
 			dx: 0,
 			dy: 10,
+			scaleX: null,
+			scaleY: null,
+			skewX: null,
+			skewY: null,
+			rotate: null,
+			flip: null,
+			origin: null,
 		});
 		const log = getMutationLog(editor);
 		expect(log.map((entry) => [entry.tool, entry.id, entry.summary])).toEqual([

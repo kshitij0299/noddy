@@ -20,6 +20,24 @@ const nullable = (schema) => ({
 // Mirrors LATIN_KERNEL_GROUPS (charset_latin_kernel.js); a vitest keeps them equal.
 // Not imported: the relay loads this file without the editor module graph.
 export const SET_GROUPS = ['uppercase', 'lowercase', 'figures', 'punctuation', 'symbols', 'spaces'];
+const pathIndices = {
+	type: 'array',
+	items: { type: 'integer', minimum: 0, maximum: 127 },
+	minItems: 1,
+	maxItems: 32,
+	uniqueItems: true,
+};
+const scale = { type: 'number', minimum: 0.01, maximum: 100 };
+const skew = { type: 'number', minimum: -80, maximum: 80 };
+const contours = {
+	type: 'array',
+	minItems: 1,
+	maxItems: 16,
+	items: object({
+		name: { type: 'string', minLength: 1, maxLength: 80 },
+		points: { type: 'array', items: point, minItems: 3, maxItems: 128 },
+	}),
+};
 // Rendered PNGs per request (one Send). The relay allows the same number per
 // conversation (LIMITS.toolImages); past it, render tools return RENDER_LIMIT.
 export const RENDER_IMAGES_PER_REQUEST = 8;
@@ -41,7 +59,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'get_context',
 		description:
-			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), and the bound glyph's lock (null, yours or open). This session can edit only the glyph selected when the user sent the request. Font units use positive y upwards. No shell, navigation, deletion, export, font-wide generation, or arbitrary property edits are available.",
+			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), and the bound glyph's lock (null, yours or open). Direct edits (set_spacing, transform_paths, add_paths outside a job) apply only to the glyph selected when the user sent the request. Other glyphs in the set are drawn through glyph jobs: create_glyph or begin_glyph, edit the draft, then submit_glyph (one undo step per glyph). Font units use positive y upwards. No shell, navigation, glyph deletion, export, font-wide generation, or arbitrary property edits are available.",
 		inputSchema: object({}),
 	},
 	{
@@ -101,7 +119,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'read_glyphs',
 		description:
-			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. Read again after a stale revision. Only the bound current glyph is writable.',
+			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
 			includePaths: { type: 'boolean' },
@@ -121,19 +139,20 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'transform_paths',
 		description:
-			'Translate the specified path indices in the bound glyph by dx, dy font units. Translation only: no scale, rotation, skew, component transforms, or changing locks. Read path indices and revision first. Positive y moves up. Advance width is unchanged. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).',
+			"Transform the specified path indices: scale, skew, rotate and flip about origin (null = the centre of those paths' combined bounds), then translate by dx, dy font units. Order: scale, skew, rotate, flip, translate. Null scale = 1, null skew/rotate = 0 degrees (rotate is counter-clockwise, skewX slants tops right), null flip = none. Flips keep contour direction correct. Read path indices and revision first. Positive y moves up. Advance width is unchanged. Inside a glyph job it edits the draft; otherwise it edits the bound glyph as one undo step. Refuses locked coordinates and Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).",
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
-			pathIndices: {
-				type: 'array',
-				items: { type: 'integer', minimum: 0, maximum: 127 },
-				minItems: 1,
-				maxItems: 32,
-				uniqueItems: true,
-			},
+			pathIndices,
 			dx: coordinate,
 			dy: coordinate,
+			scaleX: nullable(scale),
+			scaleY: nullable(scale),
+			skewX: nullable(skew),
+			skewY: nullable(skew),
+			rotate: nullable({ type: 'number', minimum: -360, maximum: 360 }),
+			flip: nullable({ type: 'string', enum: ['horizontal', 'vertical', 'both'] }),
+			origin: { ...object({ x: coordinate, y: coordinate }), type: ['object', 'null'] },
 		}),
 	},
 	{
@@ -143,15 +162,65 @@ export const TOOL_DEFINITIONS = [
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
-			paths: {
-				type: 'array',
-				minItems: 1,
-				maxItems: 16,
-				items: object({
-					name: { type: 'string', minLength: 1, maxLength: 80 },
-					points: { type: 'array', items: point, minItems: 3, maxItems: 128 },
-				}),
+			paths: contours,
+		}),
+	},
+	{
+		name: 'create_glyph',
+		description:
+			'Start a glyph job for a character the font does not have yet. codePoint is the Unicode code point as an integer (98 for b). Only Latin Kernel characters (OUT_OF_SET otherwise); an existing glyph needs begin_glyph (GLYPH_EXISTS). Nothing appears in the font until submit_glyph: the new glyph and its outlines land together as one undo step. Never navigates or changes the selection. Returns the glyphId to use in the job.',
+		inputSchema: object({
+			codePoint: { type: 'integer', minimum: 0, maximum: 1114111 },
+			expectedRevision,
+		}),
+	},
+	{
+		name: 'begin_glyph',
+		description:
+			'Start a glyph job on an existing glyph in the set: a private draft copy you edit with replace_paths, delete_paths, add_paths, add_svg_path, transform_paths and set_spacing. The font does not change until submit_glyph. Calling it again on an open job starts over from the current glyph. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN) and glyphs with components or dependents.',
+		inputSchema: object({ glyphId, expectedRevision }),
+	},
+	{
+		name: 'submit_glyph',
+		description:
+			'Finish a glyph job. check_outlines runs on the draft; structural problems (too few points, duplicate points, self-intersections, specks, counters running the same way as their container) reject the submit with nothing written, and the job stays open so you can fix it. Extents past the ascender/descender come back as warnings. On success the whole job lands as one undo step named "Agent · <char>", the glyph is marked Draft, and note (null = none; say why it changed) goes in the mutation log. JOB_STALE means the glyph changed since the job began: begin again.',
+		inputSchema: object({
+			glyphId,
+			expectedRevision,
+			note: nullable({ type: 'string', minLength: 0, maxLength: 200 }),
+		}),
+	},
+	{
+		name: 'replace_paths',
+		description:
+			'Inside a glyph job: replace the listed path indices with new closed cubic contours (same point format as add_paths). The new paths take the place of the first listed index. pathIndices null replaces every path (a redraw). Edits the draft only.',
+		inputSchema: object({
+			glyphId,
+			expectedRevision,
+			pathIndices: nullable(pathIndices),
+			paths: contours,
+		}),
+	},
+	{
+		name: 'delete_paths',
+		description:
+			'Inside a glyph job: remove the listed path indices from the draft. Later paths move down to fill the gap. Edits the draft only.',
+		inputSchema: object({ glyphId, expectedRevision, pathIndices }),
+	},
+	{
+		name: 'add_svg_path',
+		description:
+			'Inside a glyph job: append contours from SVG path data d (M, L, H, V, C, S, Q, T, A, Z; absolute or relative) in font units on the SVG y-down axis. y is flipped about baselineY (null = the ascender: SVG y 0 is the ascender line and SVG y = ascender is the baseline) and contour direction is fixed the way SVG paste fixes it. At most 16 contours. Edits the draft only; check the result with render_glyphs or check_outlines.',
+		inputSchema: object({
+			glyphId,
+			expectedRevision,
+			d: {
+				type: 'string',
+				minLength: 2,
+				maxLength: 20000,
+				pattern: '^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\\-\\s]+$',
 			},
+			baselineY: nullable(coordinate),
 		}),
 	},
 ];
