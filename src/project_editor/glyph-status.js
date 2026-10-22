@@ -159,6 +159,9 @@ export class GlyphStatusStore {
 				owner: rec.owner,
 				updatedAt: Number(rec.updatedAt) || 0,
 				...(rec.status === 'draft' && isPreDraft(rec.preDraft) ? { preDraft: rec.preDraft } : {}),
+				...(rec.status === 'failed' && typeof rec.reason === 'string'
+					? { reason: rec.reason.slice(0, 200) }
+					: {}),
 			};
 		});
 	}
@@ -262,9 +265,12 @@ export class GlyphStatusStore {
 	 * to change a 'yours' glyph. Without it, an agent-owned change to a glyph
 	 * whose current status is 'yours' throws (like every other rejected input).
 	 * User-owned changes are always allowed.
+	 * @param {Object=} options.preDraft - { glyph } snapshot for a 'draft'
+	 * record; when omitted, a redraw of a Draft keeps its first snapshot.
+	 * @param {String=} options.reason - why a 'failed' glyph failed (tooltip)
 	 * @returns {Boolean} whether anything changed
 	 */
-	set(id, status, owner, { consent = false, preDraft } = {}) {
+	set(id, status, owner, { consent = false, preDraft, reason } = {}) {
 		if (!id || typeof id !== 'string') throw new Error('Glyph status needs an item ID');
 		if (!GLYPH_STATUSES.includes(status)) throw new Error(`Unknown glyph status: ${status}`);
 		if (!GLYPH_STATUS_OWNERS.includes(owner))
@@ -289,11 +295,16 @@ export class GlyphStatusStore {
 				if (isPreDraft(preDraft)) snapshot = preDraft;
 				else if (prev?.status === 'draft' && prev.preDraft) snapshot = prev.preDraft;
 			}
+			const why =
+				status === 'failed' && typeof reason === 'string' && reason
+					? reason.slice(0, 200)
+					: undefined;
 			if (
 				prev &&
 				prev.status === status &&
 				prev.owner === owner &&
-				prev.preDraft === snapshot
+				prev.preDraft === snapshot &&
+				prev.reason === why
 			)
 				return false;
 			this._records[id] = {
@@ -301,6 +312,7 @@ export class GlyphStatusStore {
 				owner,
 				updatedAt: this._now(),
 				...(snapshot ? { preDraft: snapshot } : {}),
+				...(why ? { reason: why } : {}),
 			};
 		}
 
@@ -341,6 +353,9 @@ export class GlyphStatusStore {
 				updatedAt: this._now(),
 				...(record.status === 'draft' && isPreDraft(record.preDraft)
 					? { preDraft: record.preDraft }
+					: {}),
+				...(record.status === 'failed' && typeof record.reason === 'string'
+					? { reason: record.reason }
 					: {}),
 			};
 		}

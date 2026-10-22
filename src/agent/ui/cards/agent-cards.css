@@ -207,7 +207,10 @@ button.agent-card__button:focus-visible {
 	outline-offset: var(--focus-ring-offset);
 }
 
-/* Disabled keeps the variant's colours at reduced opacity (no blue-grey). */
+/* Disabled keeps the variant's colours at reduced opacity (no blue-grey).
+   aria-disabled (Pause while pausing) looks the same but keeps focus. */
+button.agent-card__button[aria-disabled='true'],
+button.agent-card__button[aria-disabled='true']:hover,
 button.agent-card__button:disabled,
 button.agent-card__button:disabled:hover,
 button.agent-card__button:disabled:focus,

@@ -785,9 +785,8 @@ button.agent-pill:focus-visible {
 .agent-run-bar__text {
 	flex: 1 1 auto;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	/* Wraps rather than truncating the status words. */
+	overflow-wrap: anywhere;
 }
 
 .agent-run-bar__actions {

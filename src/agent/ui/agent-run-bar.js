@@ -22,8 +22,10 @@ export const RUN_BAR_STATES = Object.freeze(['controls', 'drafting', 'paused']);
  */
 export function runBarText(view = { state: 'idle' }, { pausing = false } = {}) {
 	const count = view.total > 0 ? ` · ${Math.max(0, view.done || 0)}/${view.total}` : '';
-	if (view.state === 'paused')
-		return `Paused${view.pauseReason === 'cap' ? ' · spend cap reached' : ''}${count}`;
+	if (view.state === 'paused') {
+		const why = { cap: ' · spend cap', error: ' · error' }[view.pauseReason] || '';
+		return `Paused${why}${count}`;
+	}
 	const verb = pausing ? 'Pausing after' : 'Drafting';
 	return view.glyph ? `${verb} ${view.glyph}${count}` : `Drafting${count}`;
 }
@@ -63,8 +65,12 @@ export function createRunBar({ onPause, onResume, onStop }) {
 	let last = { state: 'idle' };
 
 	pauseButton.addEventListener('click', () => {
+		// aria-disabled, not disabled: a disabled button would drop keyboard
+		// focus to <body>; focus stays here until Resume replaces it.
+		if (pausing) return;
 		pausing = true;
 		onPause();
+		draw();
 	});
 	resumeButton.addEventListener('click', () => onResume());
 	stopButton.addEventListener('click', () => {
@@ -105,14 +111,23 @@ export function createRunBar({ onPause, onResume, onStop }) {
 			paused ? icon('pause', 'agent-run-bar__icon') : el('span', 'agent-run-bar__spinner')
 		);
 		if (confirming) {
-			actions.replaceChildren(confirmButton, cancelButton);
+			setActions(confirmButton, cancelButton);
 			text.replaceWith(confirmText);
 			return;
 		}
 		if (confirmText.isConnected) confirmText.replaceWith(text);
 		text.textContent = runBarText(last, { pausing });
-		pauseButton.disabled = pausing;
-		actions.replaceChildren(paused ? resumeButton : pauseButton, stopButton);
+		pauseButton.setAttribute('aria-disabled', pausing ? 'true' : 'false');
+		setActions(paused ? resumeButton : pauseButton, stopButton);
+	}
+
+	/** Swaps the buttons only when they change: re-inserting a focused
+	 * button would drop keyboard focus to <body>. */
+	function setActions(...buttons) {
+		const same =
+			actions.children.length === buttons.length &&
+			buttons.every((button, index) => actions.children[index] === button);
+		if (!same) actions.replaceChildren(...buttons);
 	}
 
 	root.append(lead, text, actions);
@@ -124,7 +139,8 @@ export function createRunBar({ onPause, onResume, onStop }) {
 			const hadFocus = root.contains(document.activeElement);
 			last = view || { state: 'idle' };
 			draw();
-			// A Pause → Resume swap must not drop keyboard focus to <body>.
+			// A Pause → Resume swap must not drop keyboard focus to <body>:
+			// it lands on Resume (or Pause again after Resume).
 			if (hadFocus && !root.contains(document.activeElement) && !root.hidden) {
 				(confirming ? cancelButton : actions.firstElementChild)?.focus?.();
 			}

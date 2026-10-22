@@ -48,12 +48,22 @@ export function glyphJobPrompt({ id, char, brief = '', spec = [], note = '', con
  */
 export function createGlyphDrafter(controller) {
 	return async function draft(job) {
-		const summary = await controller.run(glyphJobPrompt(job), job.attachments || [], {
-			job: true,
-			scope: [job.id],
-			maxTools: GLYPH_JOB_TOOL_LIMIT,
-			signal: job.signal,
-		});
+		let summary;
+		try {
+			summary = await controller.run(glyphJobPrompt(job), job.attachments || [], {
+				job: true,
+				scope: [job.id],
+				maxTools: GLYPH_JOB_TOOL_LIMIT,
+				signal: job.signal,
+			});
+		} catch (error) {
+			// Rejected before the job started (another request in flight, no model).
+			return {
+				ok: false,
+				cost: 0,
+				error: { code: error?.code || 'AGENT_BUSY', message: error?.message || '' },
+			};
+		}
 		const ok = !!summary?.submitted?.includes(job.id);
 		return {
 			ok,
@@ -61,7 +71,9 @@ export function createGlyphDrafter(controller) {
 			...(ok
 				? {}
 				: {
-						error: summary?.lastError || {
+						// The request's own failure (provider, relay, timeout) wins over a
+						// tool error the model saw earlier in the job.
+						error: summary?.error || summary?.lastError || {
 							code: 'NOT_SUBMITTED',
 							message: 'The model did not finish the glyph',
 						},

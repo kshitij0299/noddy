@@ -407,6 +407,12 @@ describe('GlyphGrid: review actions on tiles (M7 #29)', () => {
 		expect(open).not.toHaveBeenCalled();
 	});
 
+	it('a Failed tile says why in its tooltip', () => {
+		editor.glyphStatus.set(a, 'failed', 'agent', { reason: 'outline problems' });
+		grid.refreshTile(a);
+		expect(tileOf(a).getAttribute('title')).toBe('Failed · outline problems');
+	});
+
 	it('Retry on a tile is announced for the agent panel', () => {
 		const seen = vi.fn();
 		document.addEventListener('noddy-retry-glyphs', seen);

@@ -152,7 +152,8 @@ export class GlyphGridTile extends HTMLElement {
 		const statusLabel = STATUS_LABELS[this.status] || this.status;
 		this.setAttribute('aria-label', `${this.label} · ${statusLabel}`);
 		this.setAttribute('aria-selected', this.selected ? 'true' : 'false');
-		if (this.status === 'failed') this.setAttribute('title', FAILED_TOOLTIP);
+		if (this.status === 'failed')
+			this.setAttribute('title', this.reason ? `Failed · ${this.reason}` : FAILED_TOOLTIP);
 		else this.removeAttribute('title');
 	}
 
@@ -163,7 +164,8 @@ export class GlyphGridTile extends HTMLElement {
 	 * @param {String} args.status - current status from the status store
 	 * @param {Boolean=} args.canRevert - a Draft with a pre-draft snapshot
 	 */
-	render({ project, status, canRevert = false }) {
+	render({ project, status, canRevert = false, reason = '' }) {
+		this.reason = reason;
 		const glyph = project?.getItem ? project.getItem(this.glyphID) : false;
 		const hasOutlines = !!(glyph && glyph.shapes && glyph.shapes.length > 0);
 		const pathData = hasOutlines ? glyph.svgPathData : '';

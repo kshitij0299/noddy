@@ -225,6 +225,8 @@ export function createAgentPanel({
 		getEditor,
 		draft: createGlyphDrafter(controller),
 		onEvent: (event) => onRunEvent(event),
+		// A chat message (e.g. a small ask while paused) is in flight.
+		isBusy: () => !!controller.running || status.running,
 	});
 	const runBar = createRunBar({
 		onPause: () => runs.pause(),
@@ -329,7 +331,10 @@ export function createAgentPanel({
 			srOnly('Error: '),
 			el('span', '', threadCopyFor(error))
 		);
-		return append(bubble);
+		append(bubble);
+		// An error is always brought into view, wherever the reader was.
+		thread.scrollTop = thread.scrollHeight;
+		return bubble;
 	}
 
 	function addStep(tone, text) {
@@ -412,6 +417,8 @@ export function createAgentPanel({
 			const status = record?.status;
 			let row = 'kept';
 			if (status === 'queued' || status === 'drafting') row = 'working';
+			else if (status === 'yours') row = 'yours';
+			else if (status === 'empty') row = 'reverted';
 			else if (status === 'draft')
 				row = record.preDraft && record.preDraft.glyph === null ? 'new' : 'changed';
 			else if (status === 'failed') row = 'failed';
@@ -582,6 +589,11 @@ export function createAgentPanel({
 			return;
 		}
 		const ask = classifyAsk(prompt);
+		if (ask.kind === 'run' && runState === 'paused') {
+			// The paused run still owns its Queued glyphs; the draft stays here.
+			addError({ message: 'Finish or stop the current run first' });
+			return;
+		}
 		if (ask.kind === 'run') {
 			userMessage(prompt, attachments);
 			proposeRun(prompt, attachments);
@@ -676,7 +688,14 @@ export function createAgentPanel({
 							runs.run?.plan?.spendCap || 0
 						)} more`
 					);
+				else if (event.reason === 'error')
+					addError({
+						message: `${event.message || 'The provider did not answer'} · run paused, Resume to try again`,
+					});
 				else addStep('info', `Paused · ${run.done}/${run.total}`);
+				break;
+			case 'busy':
+				addStep('info', 'The agent is answering a message · resume when it finishes');
 				break;
 			case 'stopped':
 				addStep('info', `Stopped · ${run.done}/${run.total} · the unfinished draft was discarded`);
@@ -690,6 +709,9 @@ export function createAgentPanel({
 				break;
 		}
 		renderStatus();
+		// Gates, receipts and pauses ask for the user: bring them into view.
+		if (['plan', 'gate', 'group', 'paused', 'stopped', 'done', 'busy'].includes(event.type))
+			thread.scrollTop = thread.scrollHeight;
 	}
 
 	function revertTheRun() {

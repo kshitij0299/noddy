@@ -249,8 +249,14 @@ export class GlyphGrid extends HTMLElement {
 	/** What a tile needs to render: project, status, whether Revert is possible. */
 	_tileState(id, project) {
 		const store = this.editor.glyphStatus;
-		const status = store ? store.getStatus(id) : 'empty';
-		return { project, status, canRevert: status === 'draft' && !!preDraftOf(this.editor, id) };
+		const record = store ? store.get(id) : { status: 'empty' };
+		const status = record.status;
+		return {
+			project,
+			status,
+			canRevert: status === 'draft' && !!preDraftOf(this.editor, id),
+			reason: status === 'failed' ? record.reason || '' : '',
+		};
 	}
 
 	/** Rebuilds the legend from live counts over the visible IDs. */

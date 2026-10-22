@@ -47,6 +47,25 @@ export const RUN_STATES = Object.freeze([
 /** States in which a run is in progress (not finished, not stopped). */
 export const ACTIVE_RUN_STATES = Object.freeze(['plan', 'controls', 'style', 'drafting', 'paused']);
 
+/**
+ * Request failures that are not about the glyph: the provider, the relay, the
+ * key, a timeout, or another agent request in flight. The run pauses on the
+ * first one (the glyph goes back on the queue) instead of failing the rest.
+ */
+export const RUN_PAUSING_ERRORS = Object.freeze([
+	'PROVIDER_UNAVAILABLE',
+	'PROVIDER_AUTH',
+	'PROVIDER_LIMIT',
+	'PROVIDER_ERROR',
+	'RELAY_OFFLINE',
+	'RATE_LIMITED',
+	'TIMEOUT',
+	'AGENT_BUSY',
+	'NO_MODEL',
+	'PROJECT_CHANGED',
+	'SESSION_CLOSED',
+]);
+
 /** Statuses the queue drafts. Kept, Yours, Draft and in-flight glyphs are left alone. */
 export const QUEUEABLE_STATUSES = Object.freeze(['empty', 'failed']);
 
@@ -77,8 +96,10 @@ export function proposeSpec(project) {
  *   error?: {code?: String, message?: String}}>} options.draft - draws ONE glyph:
  *   { id, char, group, signal, brief, spec, note, controls }
  * @param {(event: Object) => void} [options.onEvent]
+ * @param {() => Boolean} [options.isBusy] - another agent request (a chat
+ *   message) is in flight; the run does not start a glyph job meanwhile
  */
-export function createRunController({ getEditor, draft, onEvent = () => {} }) {
+export function createRunController({ getEditor, draft, onEvent = () => {}, isBusy = () => false }) {
 	/** @type {Object | null} */
 	let run = null;
 	let pumping = false;
@@ -101,6 +122,7 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 			spent: run.spent,
 			cap: run.cap,
 			pauseReason: run.pauseReason,
+			pauseMessage: run.pauseMessage || '',
 			failed: [...run.failed],
 			drawn: Object.keys(run.drawn),
 		};
@@ -156,8 +178,11 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 		spendCap = DEFAULT_SPEND_CAP,
 		attachments = [],
 	} = {}) {
-		if (run && ['controls', 'drafting'].includes(run.state))
-			throw new Error('A run is drafting. Pause or stop it first.');
+		// A paused run still owns its Queued glyphs: never orphan them.
+		if (run && ['controls', 'drafting', 'paused'].includes(run.state))
+			throw Object.assign(new Error('Finish or stop the current run first.'), {
+				code: 'RUN_ACTIVE',
+			});
 		const editor = getEditor();
 		const project = editor?.project;
 		if (!project) throw new Error('Open a project before starting a run.');
@@ -318,19 +343,38 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 		return true;
 	}
 
-	function pauseNow(reason) {
+	/**
+	 * @param {'user' | 'cap' | 'error'} reason
+	 * @param {{message?: String, code?: String}} [error] - for 'error'
+	 */
+	function pauseNow(reason, error = {}) {
 		run.pauseRequested = false;
 		run.pauseReason = reason;
+		run.pauseMessage = error.message || '';
 		run.resumeState = run.state;
 		setState('paused');
-		emit('paused', { reason, spent: run.spent, cap: run.cap });
+		emit('paused', {
+			reason,
+			spent: run.spent,
+			cap: run.cap,
+			message: error.message || '',
+			code: error.code || '',
+		});
 	}
 
-	/** Resume after Pause; after the spend cap this is the consent to spend another cap. */
+	/**
+	 * Resume after Pause; after the spend cap this is the consent to spend
+	 * another cap. Refused (false) while another agent request is in flight.
+	 */
 	function resume() {
 		if (run?.state !== 'paused') return Promise.resolve(false);
+		if (isBusy()) {
+			emit('busy');
+			return Promise.resolve(false);
+		}
 		if (run.pauseReason === 'cap') run.cap += run.plan.spendCap;
 		run.pauseReason = null;
+		run.pauseMessage = '';
 		setState(run.resumeState || 'drafting');
 		return pump();
 	}
@@ -391,6 +435,12 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 			emit('state');
 			return Promise.resolve(true);
 		}
+		if (isBusy()) {
+			fresh.forEach((item) => restorePrior(item.id));
+			run.queue = run.queue.filter((item) => !fresh.includes(item));
+			emit('busy');
+			return Promise.resolve(false);
+		}
 		run.total = fresh.length;
 		run.done = 0;
 		run.pauseReason = null;
@@ -424,8 +474,18 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 					pauseNow('user');
 					break;
 				}
-				if (run.spent >= run.cap) {
+				// Pause before a glyph that would likely cross the cap: the next job
+				// is estimated at the average cost of the jobs so far.
+				const average = run.jobs ? run.spent / run.jobs : 0;
+				if (run.spent >= run.cap || (run.jobs && run.spent + average > run.cap)) {
 					pauseNow('cap');
+					break;
+				}
+				if (isBusy()) {
+					pauseNow('error', {
+						code: 'AGENT_BUSY',
+						message: 'The agent is answering a message · resume when it finishes',
+					});
 					break;
 				}
 				const item = run.queue.shift();
@@ -509,6 +569,7 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 		}
 		run.current = null;
 		run.spent += Number(result?.cost) || 0;
+		if (Number(result?.cost) > 0) run.jobs = (run.jobs || 0) + 1;
 		const status = s?.getStatus(item.id);
 		if (status === 'draft' && result?.ok !== false) {
 			const glyph = editor.project.glyphs[item.id];
@@ -529,6 +590,22 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 			return;
 		}
 		const code = result?.error?.code;
+		if (RUN_PAUSING_ERRORS.includes(code)) {
+			// Not the glyph's fault: put it back at the front and pause.
+			restorePrior(item.id);
+			run.queue.unshift(item);
+			try {
+				s?.set(item.id, 'queued', 'agent');
+			} catch {
+				// Status only.
+			}
+			emit('progress', { id: item.id, char: item.char, phase: 'requeued', reason: code });
+			pauseNow('error', {
+				code,
+				message: result?.error?.message || 'The provider did not answer',
+			});
+			return;
+		}
 		if (code === 'LOCKED_OPEN' && !run.deferred.has(item.id)) {
 			run.deferred.add(item.id);
 			run.queue.push(item);
@@ -551,8 +628,9 @@ export function createRunController({ getEditor, draft, onEvent = () => {} }) {
 			});
 			return;
 		}
+		const reason = String(result?.error?.message || 'not drawn').slice(0, 160);
 		try {
-			s?.set(item.id, 'failed', 'agent');
+			s?.set(item.id, 'failed', 'agent', { reason });
 		} catch {
 			// Yours by now: leave it.
 		}

@@ -240,7 +240,13 @@ describe('<agent-receipt-card>', () => {
 			{ char: 'k', status: 'failed' },
 		];
 		expect(summarizeReceipt(live)).toMatchObject({ applied: 1, kept: 1, failed: 1 });
-		expect(summarizeReceipt(live).summary).toBe('1 new · 1 reviewed · 1 failed');
+		expect(summarizeReceipt(live).summary).toBe('1 new · 1 kept · 1 failed');
+		expect(
+			summarizeReceipt([
+				{ char: 'a', status: 'yours' },
+				{ char: 'b', status: 'reverted' },
+			]).summary
+		).toBe('1 Yours · 1 reverted');
 	});
 
 	it('renders the strip from outlines, marks the failed glyph and offers Keep N / Retry k', () => {

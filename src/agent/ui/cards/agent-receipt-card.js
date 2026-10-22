@@ -4,7 +4,7 @@
  * with an `error` badge. The summary is built from `glyphs` only, so a model
  * that claimed edits which never landed shows "0 edits applied".
  *
- * data = { cardId, glyphs: [{ char: 'a', status: 'new'|'changed'|'failed'|'kept'|'working' }], project? }
+ * data = { cardId, glyphs: [{ char: 'a', status: 'new'|'changed'|'failed'|'kept'|'yours'|'reverted'|'working' }], project? }
  * 'new' / 'changed' rows are Drafts waiting for review (they count in
  * "Keep N"); 'kept' rows were already kept or reverted elsewhere (a tile, the
  * inspector), so the panel re-renders the card with live statuses and the
@@ -27,15 +27,29 @@ export function summarizeReceipt(glyphs = []) {
 	const failed = rows.filter((g) => g.status === 'failed').length;
 	const kept = rows.filter((g) => g.status === 'kept').length;
 	const working = rows.filter((g) => g.status === 'working').length;
+	const yours = rows.filter((g) => g.status === 'yours').length;
+	const reverted = rows.filter((g) => g.status === 'reverted').length;
 	const applied = added + changed;
 	const parts = [];
 	if (added) parts.push(`${added} new`);
 	if (changed) parts.push(`${changed} changed`);
-	if (kept) parts.push(`${kept} reviewed`);
+	if (kept) parts.push(`${kept} kept`);
+	if (yours) parts.push(`${yours} Yours`);
+	if (reverted) parts.push(`${reverted} reverted`);
 	if (working) parts.push(`${working} drafting`);
-	if (!applied && !kept && !working) parts.push('0 edits applied');
+	if (!applied && !kept && !working && !yours && !reverted) parts.push('0 edits applied');
 	if (failed) parts.push(`${failed} failed`);
-	return { added, changed, failed, kept, working, applied, summary: parts.join(' · ') };
+	return {
+		added,
+		changed,
+		failed,
+		kept,
+		yours,
+		reverted,
+		working,
+		applied,
+		summary: parts.join(' · '),
+	};
 }
 
 export class AgentReceiptCard extends AgentCard {
@@ -62,9 +76,8 @@ export class AgentReceiptCard extends AgentCard {
 			nodes.push(strip);
 		}
 		const summaryRow = el('div', 'agent-card__row agent-receipt__summary');
-		summaryRow.append(
-			chip(counts.summary, { iconName: counts.applied || counts.kept ? undefined : 'info' })
-		);
+		const reviewed = counts.applied || counts.kept || counts.yours || counts.reverted;
+		summaryRow.append(chip(counts.summary, { iconName: reviewed ? undefined : 'info' }));
 		nodes.push(summaryRow);
 		return nodes;
 	}

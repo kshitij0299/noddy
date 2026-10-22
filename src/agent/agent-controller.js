@@ -190,9 +190,12 @@ export function createAgentController({
 			const requireGlyph = options.requireGlyph !== false && !job;
 			const toolLimit = Number.isInteger(options.maxTools) ? options.maxTools : maxTools;
 			const send = job ? (type, data = {}) => options.onEvent?.({ type, ...data }) : emit;
-			if (active) throw new Error('An agent request is already running.');
+			if (active) throw agentError('An agent request is already running.', 'AGENT_BUSY');
 			if (!connection)
-				throw new Error('Connect a model before sending. Your prompt and files are still here.');
+				throw agentError(
+					'Connect a model before sending. Your prompt and files are still here.',
+					'NO_MODEL'
+				);
 			if (!prompt.trim() && !attachments.length) return;
 			if (prompt.length > 12000) throw new Error('Keep the message under 12,000 characters.');
 			const session = job ? createSession({ jobScope: options.scope || [] }) : createSession();
@@ -205,10 +208,13 @@ export function createAgentController({
 				throw error;
 			}
 			if (!job && context.projectId !== projectId) {
+				// A different project: forget the old chat. The first request of a
+				// session has nothing to clear (a run's cards may already be there).
+				const switched = projectId !== undefined;
 				conversation = [];
 				references = [];
 				projectId = context.projectId;
-				emit('clear');
+				if (switched) emit('clear');
 			}
 			const nextReferences = [...references, ...attachments];
 			try {

@@ -17,10 +17,20 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let editor;
 const panels = [];
 
+/** When set and `.down`, the fake provider answers like a 503 relay error. */
+let transportDown = null;
+
 function setup(transportOptions = {}) {
-	const transport = fakeGlyphTransport({
+	const fake = fakeGlyphTransport({
 		exists: (glyphId) => !!editor.project.glyphs[glyphId],
 		...transportOptions,
+	});
+	const transport = vi.fn(async (payload, signal) => {
+		if (transportDown?.down)
+			throw Object.assign(new Error('Provider not responding'), {
+				code: 'PROVIDER_UNAVAILABLE',
+			});
+		return fake(payload, signal);
 	});
 	const openGlyph = vi.fn();
 	const panel = createAgentPanel({
@@ -74,6 +84,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	transportDown = null;
 	panels.forEach((panel) => panel.dispose());
 	panels.length = 0;
 	resetAgentPanelForTests();
@@ -226,17 +237,90 @@ describe('run controls never stop by accident', () => {
 		expect(panel.thread.textContent).toContain('the unfinished draft was discarded');
 	});
 
-	it('Pause finishes the current glyph; the bar offers Resume', async () => {
+	it('Pause finishes the current glyph; keyboard focus stays on Pause, then Resume', async () => {
 		const { panel, ref } = holdingSetup();
 		await drafting(panel, ref);
-		button(panel.runBar.root, 'pause').click();
+		const pause = button(panel.runBar.root, 'pause');
+		pause.focus();
+		pause.click();
 		expect(panel.runBar.root.textContent).toContain('Pausing after h');
+		expect(document.activeElement).toBe(pause);
+		expect(pause.getAttribute('aria-disabled')).toBe('true');
 		ref.hold = false;
 		ref.release();
 		await vi.waitFor(() => expect(panel.runs.state).toBe('paused'));
 		expect(editor.glyphStatus.getStatus(id('h'))).toBe('draft');
-		expect(button(panel.runBar.root, 'resume')).toBeTruthy();
+		const resume = button(panel.runBar.root, 'resume');
+		expect(document.activeElement).toBe(resume);
 		expect(panel.thread.textContent).toContain('Paused · 5/62');
+	});
+
+	it('a provider error mid-run pauses with one error bubble; no glyph fails', async () => {
+		const ref = { down: false };
+		const { panel } = setup();
+		await send(panel, 'Clean simple sans');
+		button(lastCard(panel, 'agent-plan-card'), 'start').click();
+		await vi.waitFor(() => expect(panel.runs.state).toBe('style'));
+		ref.down = true;
+		transportDown = ref;
+		button(lastCard(panel, 'agent-approval-card'), 'approve').click();
+		await vi.waitFor(() => expect(panel.runs.state).toBe('paused'));
+		const errors = panel.thread.querySelectorAll('.agent-bubble--error');
+		expect(errors).toHaveLength(1);
+		expect(errors[0].textContent).toContain('Provider not responding');
+		expect(errors[0].textContent).toContain('Resume to try again');
+		expect(editor.glyphStatus.listByStatus('failed')).toEqual([]);
+		expect(editor.glyphStatus.getStatus(id('h'))).toBe('queued');
+		expect(panel.runBar.root.textContent).toContain('Paused · error');
+		ref.down = false;
+		button(panel.runBar.root, 'resume').click();
+		await vi.waitFor(() => expect(panel.runs.state).toBe('done'), { timeout: 10000 });
+		expect(editor.glyphStatus.getStatus(id('h'))).toBe('draft');
+	});
+
+	it('Resume while a small ask is in flight waits instead of failing the queue', async () => {
+		const { panel, ref } = holdingSetup();
+		await drafting(panel, ref);
+		button(panel.runBar.root, 'pause').click();
+		ref.hold = false;
+		ref.release();
+		await vi.waitFor(() => expect(panel.runs.state).toBe('paused'));
+		ref.hold = true;
+		ref.release = null;
+		await send(panel, 'fix the g: draw it (glyph-0x67, please)');
+		await vi.waitFor(() => expect(ref.release).toBeTypeOf('function'));
+		expect(panel.controller.running).toBe(true);
+		button(panel.runBar.root, 'resume').click();
+		await tick();
+		expect(panel.runs.state).toBe('paused');
+		expect(panel.thread.textContent).toContain('resume when it finishes');
+		expect(editor.glyphStatus.listByStatus('failed')).toEqual([]);
+		ref.hold = false;
+		ref.release();
+		await vi.waitFor(() => expect(panel.controller.running).toBe(false));
+		// The small ask did not wipe the run's cards from the thread.
+		expect(panel.thread.querySelector('agent-plan-card')).toBeTruthy();
+		expect(panel.thread.querySelector('.agent-checkpoint')).toBeTruthy();
+		button(panel.runBar.root, 'resume').click();
+		await vi.waitFor(() => expect(panel.runs.state).toBe('done'), { timeout: 10000 });
+		expect(editor.glyphStatus.listByStatus('failed')).toEqual([]);
+	});
+
+	it('a whole-set message while paused is refused; the run and its queue stay', async () => {
+		const { panel, ref } = holdingSetup();
+		await drafting(panel, ref);
+		button(panel.runBar.root, 'pause').click();
+		ref.hold = false;
+		ref.release();
+		await vi.waitFor(() => expect(panel.runs.state).toBe('paused'));
+		const plans = panel.thread.querySelectorAll('agent-plan-card').length;
+		await send(panel, 'Actually make it a serif font');
+		expect(panel.thread.querySelectorAll('agent-plan-card')).toHaveLength(plans);
+		expect(panel.thread.textContent).toContain('Finish or stop the current run first');
+		expect(panel.composer.input.value).toBe('Actually make it a serif font');
+		expect(panel.runs.state).toBe('paused');
+		expect(panel.runBar.root.hidden).toBe(false);
+		expect(editor.glyphStatus.getStatus(id('u'))).toBe('queued');
 	});
 });
 
@@ -314,7 +398,7 @@ describe('run bar copy', () => {
 			'Drafting g · 10/62'
 		);
 		expect(runBarText({ state: 'paused', done: 10, total: 62, pauseReason: 'cap' })).toBe(
-			'Paused · spend cap reached · 10/62'
+			'Paused · spend cap · 10/62'
 		);
 		expect(runBarText({ state: 'drafting', glyph: 'g' }, { pausing: true })).toBe('Pausing after g');
 	});

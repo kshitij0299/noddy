@@ -302,9 +302,9 @@ describe('controller wiring (#21)', () => {
 		expect(
 			thread.querySelector('.agent-bubble--agent:not(.agent-bubble--typing)').textContent
 		).toContain('Spacing set');
-		expect(thread.querySelector('agent-step-line[data-tone="kept"]').textContent).toContain(
-			'set spacing'
-		);
+		// The "Connected" line stays: the first request has no old chat to clear.
+		const kept = [...thread.querySelectorAll('agent-step-line[data-tone="kept"]')];
+		expect(kept.map((line) => line.textContent).join('|')).toContain('set spacing');
 		expect(thread.querySelector('agent-receipt-card')).not.toBeNull();
 		expect(thread.querySelector('.agent-bubble--typing')).toBeNull();
 		expect(panel.composer.input.value).toBe('');

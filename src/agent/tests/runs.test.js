@@ -160,6 +160,12 @@ describe('small ask or run', () => {
 	it('anything else stays a small ask', () => {
 		expect(classifyAsk('what can you do?')).toEqual({ kind: 'small', char: null });
 	});
+
+	it('a question about the font is answered, not planned; a request to draw is a run', () => {
+		expect(classifyAsk('is the font ok?').kind).toBe('small');
+		expect(classifyAsk('What style is this').kind).toBe('small');
+		expect(classifyAsk('Can you draw a geometric sans?').kind).toBe('run');
+	});
 });
 
 // --------------------------------------------------------------
@@ -327,14 +333,126 @@ describe('queue', () => {
 		runs.propose({ brief: 'Clean sans', spendCap: 1.2 });
 		await runs.start();
 		await runs.approve();
-		// 4 controls + 1 queued glyph = 1.25 ≥ 1.20.
+		// 4 controls = 1.00; the next glyph would likely reach 1.25 > 1.20,
+		// so the run pauses before it instead of overshooting the cap.
 		expect(runs.state).toBe('paused');
-		expect(calls).toHaveLength(5);
+		expect(calls).toHaveLength(4);
 		expect(events.find((e) => e.type === 'paused')).toMatchObject({ reason: 'cap' });
 		await runs.resume();
 		expect(runs.view.cap).toBeCloseTo(2.4);
-		expect(calls).toHaveLength(10);
+		expect(calls).toHaveLength(9);
+		expect(runs.view.spent).toBeLessThanOrEqual(2.4);
 		expect(runs.state).toBe('paused');
+	});
+
+	it('a provider error pauses the run and puts the glyph back, not failing the rest', async () => {
+		let down = true;
+		const { calls, draft } = recordingDrafter();
+		const events = [];
+		const runs = createRunController({
+			getEditor: () => editor,
+			onEvent: (e) => events.push(e),
+			draft: async (job) => {
+				if (job.char === 'm' && down) {
+					calls.push('m');
+					return {
+						ok: false,
+						cost: 0,
+						error: { code: 'PROVIDER_UNAVAILABLE', message: 'Provider not responding' },
+					};
+				}
+				return draft(job);
+			},
+		});
+		await toQueue(runs);
+		await runs.approve();
+		expect(runs.state).toBe('paused');
+		expect(runs.view.pauseReason).toBe('error');
+		expect(events.find((e) => e.type === 'paused')).toMatchObject({
+			reason: 'error',
+			message: 'Provider not responding',
+		});
+		expect(editor.glyphStatus.getStatus(id('m'))).toBe('queued');
+		expect(editor.glyphStatus.getStatus(id('u'))).toBe('queued');
+		expect(editor.glyphStatus.listByStatus('failed')).toEqual([]);
+		expect(calls.slice(-2)).toEqual(['h', 'm']);
+		down = false;
+		await runs.resume();
+		expect(runs.state).toBe('done');
+		expect(editor.glyphStatus.getStatus(id('m'))).toBe('draft');
+	});
+
+	it('Resume waits while another agent request is in flight', async () => {
+		let busy = false;
+		const { calls, draft } = recordingDrafter();
+		const events = [];
+		const runs = createRunController({
+			getEditor: () => editor,
+			draft,
+			isBusy: () => busy,
+			onEvent: (e) => events.push(e),
+		});
+		await toQueue(runs);
+		const running = runs.approve();
+		runs.pause();
+		await running;
+		expect(runs.state).toBe('paused');
+		const before = calls.length;
+		busy = true;
+		expect(await runs.resume()).toBe(false);
+		expect(runs.state).toBe('paused');
+		expect(events.at(-1).type).toBe('busy');
+		expect(calls).toHaveLength(before);
+		expect(editor.glyphStatus.listByStatus('failed')).toEqual([]);
+		busy = false;
+		await runs.resume();
+		expect(runs.state).toBe('done');
+	});
+
+	it('a busy agent controller (AGENT_BUSY) pauses the run instead of failing glyphs', async () => {
+		const { draft } = recordingDrafter();
+		let refuse = false;
+		const runs = createRunController({
+			getEditor: () => editor,
+			draft: async (job) =>
+				refuse
+					? { ok: false, cost: 0, error: { code: 'AGENT_BUSY', message: 'busy' } }
+					: draft(job),
+		});
+		await toQueue(runs);
+		refuse = true;
+		await runs.approve();
+		expect(runs.state).toBe('paused');
+		expect(editor.glyphStatus.listByStatus('failed')).toEqual([]);
+	});
+
+	it('a new plan is refused while a run is paused (its Queued glyphs stay owned)', async () => {
+		const { draft } = recordingDrafter();
+		const runs = createRunController({ getEditor: () => editor, draft });
+		await toQueue(runs);
+		const running = runs.approve();
+		runs.pause();
+		await running;
+		expect(() => runs.propose({ brief: 'serif' })).toThrow('Finish or stop the current run first');
+		expect(runs.state).toBe('paused');
+		expect(editor.glyphStatus.getStatus(id('u'))).toBe('queued');
+	});
+
+	it('a Failed glyph keeps why it failed (tooltip)', async () => {
+		const { draft } = recordingDrafter();
+		const runs = createRunController({
+			getEditor: () => editor,
+			draft: async (job) =>
+				job.char === 'k'
+					? { ok: false, error: { code: 'INVALID_OUTLINES', message: 'outline problems' } }
+					: draft(job),
+		});
+		await toQueue(runs);
+		await runs.approve();
+		expect(editor.glyphStatus.get(id('k'))).toMatchObject({
+			status: 'failed',
+			reason: 'outline problems',
+		});
 	});
 
 	it('skips Yours glyphs and comes back once to a glyph open in the editor', async () => {
