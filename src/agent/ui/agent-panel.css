@@ -468,6 +468,227 @@ input.agent-connect__input.is-invalid {
 	display: none;
 }
 
+/* Elements the card toggles with `hidden` (their own display rules would beat the UA's). */
+.agent-connect [hidden] {
+	display: none;
+}
+
+/* ---- Live model list (M4, #76) ---- */
+.agent-connect__models {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.agent-connect__custom {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.agent-connect__custom > input.agent-connect__input {
+	flex: 1 1 auto;
+	width: auto;
+	min-width: 0;
+}
+
+.agent-models {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	min-width: 0;
+}
+
+.agent-models__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-2);
+}
+
+.agent-models__label,
+.agent-models__unit {
+	color: var(--color-text-secondary);
+}
+
+/* The list is the focus target (aria-activedescendant); it scrolls, the card does not grow. */
+.agent-models__list {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	max-height: min(320px, 45vh);
+	margin: 0;
+	padding: var(--space-1);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+}
+
+.agent-models__list:focus {
+	outline: none;
+}
+
+.agent-models__list:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+.agent-connect .agent-models__list {
+	background: var(--color-bg-surface);
+}
+
+.agent-models__list.is-busy {
+	cursor: progress;
+}
+
+/* resets.css paints [aria-selected], [aria-disabled] and [aria-busy] with global fills;
+   these rules are one class deeper so only the card's own fills apply. */
+.agent-models__list .agent-model {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--space-2);
+	flex: none;
+	box-sizing: border-box;
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-sm);
+	background: transparent;
+	color: var(--color-text-primary);
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+/* Paint-only states: the box never changes, only its fill and outline. */
+.agent-models__list .agent-model:hover:not(.is-disabled),
+.agent-models__list .agent-model.is-active {
+	background: var(--color-bg-subtle);
+}
+
+.agent-models__list .agent-model[aria-selected='true'] {
+	background: var(--color-bg-accent-subtle);
+	color: var(--color-text-primary);
+}
+
+/* The keyboard position is drawn only while the list has focus. */
+.agent-models__list:focus-visible .agent-model.is-active {
+	outline: var(--focus-ring);
+	outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.agent-models__list .agent-model.is-disabled {
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: not-allowed;
+}
+
+.agent-model__mark {
+	flex: none;
+	visibility: hidden;
+}
+
+.agent-model[aria-selected='true'] .agent-model__mark,
+.agent-model--custom .agent-model__mark {
+	visibility: visible;
+}
+
+.agent-model--custom .agent-model__mark {
+	color: var(--color-text-secondary);
+}
+
+.agent-model__body {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	gap: var(--space-1);
+	min-width: 0;
+}
+
+.agent-model__line {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.agent-model__id {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.agent-model.is-disabled .agent-model__id {
+	opacity: 0.65;
+}
+
+.agent-model__meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1) var(--space-2);
+	min-width: 0;
+}
+
+.agent-model__meta:empty {
+	display: none;
+}
+
+.agent-model__price {
+	flex: none;
+	color: var(--color-text-secondary);
+}
+
+/* The reason keeps full contrast: it is information, not a disabled control. It takes its
+   own line, so the badges of a model that cannot be chosen sit below it. */
+.agent-model__reason {
+	flex: 1 0 100%;
+	color: var(--color-text-secondary);
+}
+
+/* Badges: icon + text on a subtle pill, so no meaning rides on colour alone. */
+.agent-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	height: var(--space-5);
+	padding: 0 var(--space-2) 0 var(--space-1);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+	font-size: 0.75rem;
+	font-weight: 500;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.agent-badge__icon {
+	font-size: var(--space-4);
+}
+
+.agent-badge--free {
+	background: var(--color-status-kept-subtle);
+}
+
+.agent-badge--tools-unknown {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--color-border-strong);
+	color: var(--color-text-secondary);
+}
+
+.agent-model[aria-selected='true']
+	.agent-badge:not(.agent-badge--free):not(.agent-badge--tools-unknown) {
+	background: var(--color-bg-surface);
+}
+
+/* A model that cannot be chosen: its badges say what it is, outlined and quiet. */
+.agent-model.is-disabled .agent-badge {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--color-border-default);
+	color: var(--color-text-secondary);
+}
+
 button.agent-card__button.is-checking {
 	cursor: progress;
 }

@@ -9,6 +9,10 @@ export const PROVIDERS = Object.freeze({
 	anthropic: Object.freeze({ label: 'Anthropic', protocols: Object.freeze(['messages']) }),
 });
 
+// What the relay accepts as a model ID. The model list only offers IDs that pass,
+// and the connect card checks a typed ID against it before spending a call.
+export const MODEL_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,159}$/;
+
 export const PROTOCOL_LABELS = Object.freeze({
 	auto: 'Automatic',
 	responses: 'Responses',

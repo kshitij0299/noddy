@@ -1,4 +1,10 @@
-import { resolveProviderProtocol } from '../../src/agent/provider-config.js';
+import {
+	MODEL_ID_PATTERN,
+	PROVIDERS,
+	resolveProviderProtocol,
+} from '../../src/agent/provider-config.js';
+
+export { MODEL_ID_PATTERN };
 
 export const LIMITS = Object.freeze({
 	bodyBytes: 8 * 1024 * 1024,
@@ -12,6 +18,10 @@ export const LIMITS = Object.freeze({
 	toolCallsPerStep: 8,
 	requestTimeoutMs: 90000,
 	concurrentRequests: 2,
+	// Model-list route (M4, #76): free, so a short timeout and a body that only fits
+	// a provider name and one key.
+	modelsTimeoutMs: 15000,
+	modelsBodyBytes: 2048,
 });
 
 export class RelayError extends Error {
@@ -26,6 +36,7 @@ function invalid(message = 'Invalid agent request.') {
 	throw new RelayError('INVALID_REQUEST', message);
 }
 
+/** @returns {value is Record<string, any>} */
 export function record(value) {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -233,8 +244,7 @@ export function validateMessages(
 
 export function validateRequest(body, definitions) {
 	keys(body, ['provider', 'protocol', 'model', 'apiKey', 'messages', 'context']);
-	if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,159}$/.test(shortString(body.model)))
-		invalid('Enter a valid model ID.');
+	if (!MODEL_ID_PATTERN.test(shortString(body.model))) invalid('Enter a valid model ID.');
 	let protocol;
 	try {
 		protocol = resolveProviderProtocol(body.provider, body.model, body.protocol);
@@ -273,4 +283,19 @@ export function validateRequest(body, definitions) {
 		messages: validateMessages(body.messages, new Set(definitions.map((tool) => tool.name))),
 		context: body.context ?? {},
 	};
+}
+
+/**
+ * Body of POST /api/agent/models: a provider and its key, nothing else. There is
+ * no URL, header or option field, so the destination is always the fixed one.
+ * @param {any} body
+ * @returns {{provider:string, apiKey:string}}
+ */
+export function validateModelsRequest(body) {
+	keys(body, ['provider', 'apiKey']);
+	if (typeof body.provider !== 'string' || !Object.hasOwn(PROVIDERS, body.provider))
+		invalid('Choose OpenAI, OpenCode Zen or Anthropic.');
+	if (!/^[\x21-\x7e]{1,512}$/.test(shortString(body.apiKey, 512)))
+		invalid('Enter a valid provider API key.');
+	return { provider: body.provider, apiKey: body.apiKey };
 }

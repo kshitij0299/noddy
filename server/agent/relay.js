@@ -1,6 +1,8 @@
 import { generateAgentStep, loadNativeRegistry } from './agent.js';
+import { createCatalogSource } from './model-catalog.js';
+import { listProviderModels } from './models.js';
 import { PROVIDERS } from './providers.js';
-import { LIMITS, RelayError } from './validation.js';
+import { LIMITS, RelayError, validateModelsRequest } from './validation.js';
 
 /** @param {import('node:http').IncomingMessage} req */
 export function assertLocalRequest(req, requireOrigin = false) {
@@ -44,19 +46,19 @@ function sendJSON(res, status, data) {
 	res.end(JSON.stringify(data));
 }
 
-async function readBody(req, signal) {
+async function readBody(req, signal, maxBytes = LIMITS.bodyBytes) {
+	const tooLarge =
+		maxBytes === LIMITS.bodyBytes
+			? 'Agent request exceeds 8 MB. Remove or resize attachments.'
+			: 'Request too large.';
 	if (
 		req.headers['content-type']?.split(';')[0].trim() !== 'application/json' ||
 		req.headers['content-encoding']
 	) {
 		throw new RelayError('CONTENT_TYPE', 'Send an uncompressed JSON request.', 415);
 	}
-	if (Number(req.headers['content-length']) > LIMITS.bodyBytes) {
-		throw new RelayError(
-			'TOO_LARGE',
-			'Agent request exceeds 8 MB. Remove or resize attachments.',
-			413
-		);
+	if (Number(req.headers['content-length']) > maxBytes) {
+		throw new RelayError('TOO_LARGE', tooLarge, 413);
 	}
 	const chunks = [];
 	let bytes = 0;
@@ -66,8 +68,12 @@ async function readBody(req, signal) {
 		signal.throwIfAborted();
 		for await (const chunk of req) {
 			bytes += chunk.length;
-			if (bytes > LIMITS.bodyBytes)
-				throw new RelayError('TOO_LARGE', 'Agent request exceeds 8 MB.', 413);
+			if (bytes > maxBytes)
+				throw new RelayError(
+					'TOO_LARGE',
+					maxBytes === LIMITS.bodyBytes ? 'Agent request exceeds 8 MB.' : tooLarge,
+					413
+				);
 			chunks.push(chunk);
 		}
 	} finally {
@@ -115,21 +121,78 @@ export function publicError(error) {
 }
 
 /**
- * Same middleware is used by Vite and the production loopback host. Test-only
- * injections are functions, not environment flags or browser-controlled fields.
- * @param {{loadRegistry?:typeof loadNativeRegistry, generateStep?:typeof generateAgentStep, timeoutMs?:number}} options
+ * The model-list route has its own wording for provider 4xx: the step route's
+ * "check the model ID" would be wrong when no model was involved.
  */
-export function createAgentMiddleware(options = {}) {
+export function publicModelsError(error) {
+	const safe = publicError(error);
+	return safe.code === 'PROVIDER_REQUEST'
+		? new RelayError(
+				'PROVIDER_REQUEST',
+				'The provider would not list models for this key. You can still enter a model ID.',
+				422
+		  )
+		: safe;
+}
+
+/** Concurrency and per-minute start limits for one route. */
+function createLimiter(maxConcurrent = LIMITS.concurrentRequests, perMinute = 30) {
 	let active = 0;
 	const starts = [];
+	return {
+		/** @returns {() => void} release function */
+		acquire() {
+			const now = Date.now();
+			while (starts.length && starts[0] < now - 60000) starts.shift();
+			if (active >= maxConcurrent || starts.length >= perMinute) {
+				throw new RelayError(
+					'BUSY',
+					'Agent request limit reached. Wait before sending another request.',
+					429
+				);
+			}
+			active++;
+			starts.push(now);
+			let released = false;
+			return () => {
+				if (!released) {
+					released = true;
+					active--;
+				}
+			};
+		},
+	};
+}
+
+const ROUTES = Object.freeze({
+	'/api/agent/step': 'step',
+	'/api/agent/models': 'models',
+});
+
+/**
+ * Same middleware is used by Vite and the production loopback host. Test-only
+ * injections are functions, not environment flags or browser-controlled fields.
+ * `transport` is the fetch used for the model-list GETs and the models.dev
+ * catalog; both go through fixed URL allowlists (providers.js).
+ * @param {{loadRegistry?:typeof loadNativeRegistry, generateStep?:typeof generateAgentStep, timeoutMs?:number, transport?:typeof fetch, catalog?:ReturnType<typeof createCatalogSource>, listModels?:(request:{provider:string, apiKey:string}, options:{signal:AbortSignal}) => Promise<unknown>, modelsTimeoutMs?:number}} options
+ */
+export function createAgentMiddleware(options = {}) {
+	const limiters = { step: createLimiter(), models: createLimiter() };
+	// One catalog (and its six-hour cache) per relay; it never sees a credential.
+	const catalog = options.catalog ?? createCatalogSource({ transport: options.transport });
+	const listModels =
+		options.listModels ??
+		((request, { signal }) =>
+			listProviderModels(request, { transport: options.transport, catalog, signal }));
 	return async (
 		req,
 		res,
 		next = () => sendJSON(res, 404, { error: { code: 'NOT_FOUND', message: 'Not found.' } })
 	) => {
 		if (!req.url?.startsWith('/api/agent/')) return next();
-		let counted = false;
+		let release;
 		let timeout;
+		let route = null;
 		const controller = new AbortController();
 		const disconnect = () => {
 			if (!res.writableEnded) controller.abort();
@@ -139,31 +202,39 @@ export function createAgentMiddleware(options = {}) {
 			if (req.method === 'GET' && req.url === '/api/agent/config') {
 				return sendJSON(res, 200, { providers: PROVIDERS, limits: LIMITS });
 			}
-			if (req.url !== '/api/agent/step')
-				throw new RelayError('NOT_FOUND', 'Unknown agent endpoint.', 404);
-			if (req.method !== 'POST') throw new RelayError('METHOD', 'Use POST for an agent step.', 405);
-			const now = Date.now();
-			while (starts.length && starts[0] < now - 60000) starts.shift();
-			if (active >= LIMITS.concurrentRequests || starts.length >= 30) {
+			route = Object.hasOwn(ROUTES, req.url) ? ROUTES[req.url] : null;
+			if (!route) throw new RelayError('NOT_FOUND', 'Unknown agent endpoint.', 404);
+			if (req.method !== 'POST') {
 				throw new RelayError(
-					'BUSY',
-					'Agent request limit reached. Wait before sending another request.',
-					429
+					'METHOD',
+					route === 'step' ? 'Use POST for an agent step.' : 'Use POST to list models.',
+					405
 				);
 			}
-			active++;
-			counted = true;
-			starts.push(now);
+			release = limiters[route].acquire();
 			// Response close means a disconnected browser; request close also occurs
 			// normally once a POST body finishes and must not cancel generation.
 			res.once('close', disconnect);
 			req.once('aborted', disconnect);
 			timeout = setTimeout(
 				() => controller.abort(new DOMException('Timed out', 'TimeoutError')),
-				options.timeoutMs ?? LIMITS.requestTimeoutMs
+				route === 'models'
+					? options.modelsTimeoutMs ?? LIMITS.modelsTimeoutMs
+					: options.timeoutMs ?? LIMITS.requestTimeoutMs
 			);
-			const body = await readBody(req, controller.signal);
+			const body = await readBody(
+				req,
+				controller.signal,
+				route === 'models' ? LIMITS.modelsBodyBytes : LIMITS.bodyBytes
+			);
 			controller.signal.throwIfAborted();
+			if (route === 'models') {
+				const result = await listModels(validateModelsRequest(body), {
+					signal: controller.signal,
+				});
+				controller.signal.throwIfAborted();
+				return sendJSON(res, 200, result);
+			}
 			const registry = await (options.loadRegistry ?? loadNativeRegistry)();
 			const result = await (options.generateStep ?? generateAgentStep)(body, registry, {
 				signal: controller.signal,
@@ -171,13 +242,14 @@ export function createAgentMiddleware(options = {}) {
 			controller.signal.throwIfAborted();
 			sendJSON(res, 200, result);
 		} catch (error) {
-			const safe = publicError(controller.signal.aborted ? controller.signal.reason : error);
+			const cause = controller.signal.aborted ? controller.signal.reason : error;
+			const safe = route === 'models' ? publicModelsError(cause) : publicError(cause);
 			sendJSON(res, safe.status, { error: { code: safe.code, message: safe.message } });
 		} finally {
 			clearTimeout(timeout);
 			res.off('close', disconnect);
 			req.off('aborted', disconnect);
-			if (counted) active--;
+			release?.();
 		}
 	};
 }

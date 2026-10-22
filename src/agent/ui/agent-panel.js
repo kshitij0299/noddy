@@ -43,6 +43,7 @@ import {
 	CHECK_COPY,
 	checkConnection,
 	createConnectCard,
+	fetchModels,
 	modelLabel,
 } from './agent-connect-card.js';
 import { createPanelComposer } from './agent-panel-composer.js';
@@ -138,6 +139,7 @@ export async function probeRelay(fetchImpl = globalThis.fetch) {
  * @param {Function} [options.createSession]
  * @param {Function} [options.transport]
  * @param {typeof checkConnection} [options.check]
+ * @param {typeof fetchModels} [options.loadModels] - the key's live model list
  * @param {typeof probeRelay} [options.probe]
  * @param {() => any} [options.getEditor]
  * @param {(glyphId: String) => void} [options.openGlyph] - "Edit by hand"
@@ -148,6 +150,7 @@ export function createAgentPanel({
 	createSession = createNativeToolSession,
 	transport,
 	check = checkConnection,
+	loadModels = fetchModels,
 	probe = probeRelay,
 	getEditor = getCurrentProjectEditor,
 	openGlyph = (glyphId) => {
@@ -203,6 +206,8 @@ export function createAgentPanel({
 	let mode = initialMode === 'minimized' ? 'minimized' : 'open';
 	let savedScroll = 0;
 	let modelId = '';
+	/** The "Connected · model" step line, while the empty state is still on screen. */
+	let connectedLine = null;
 	let lastPrompt = '';
 	/** @type {Map<String, HTMLElement>} */
 	const toolLines = new Map();
@@ -245,6 +250,7 @@ export function createAgentPanel({
 	// ---- Connect card + empty state ----
 	const connect = createConnectCard({
 		check,
+		loadModels,
 		onConnected(config) {
 			try {
 				controller.connect(config);
@@ -283,7 +289,8 @@ export function createAgentPanel({
 	function renderEmptyState() {
 		const connected = controller.connected;
 		chips.hidden = !connected;
-		connect.root.hidden = connected;
+		// Connected, the card steps aside unless it is showing the key's model list.
+		connect.root.hidden = connected && !connect.showsModels;
 	}
 
 	function showEmpty() {
@@ -546,10 +553,26 @@ export function createAgentPanel({
 			case 'connection':
 				modelId = event.connected ? event.model : '';
 				chip.textContent = event.connected ? modelLabel(event.model) : 'No model';
+				// A disconnect also drops the list (and the key copy kept for it).
+				if (!event.connected) connect.reset();
 				renderEmptyState();
 				if (event.connected) {
-					addStep('kept', `Connected · ${modelLabel(event.model)} · tools ok`);
-					composer.input.focus();
+					const text = `Connected · ${modelLabel(event.model)} · tools ok`;
+					// Choosing another model from the list before the first message updates the
+					// line instead of stacking a new one for every switch.
+					if (connectedLine?.isConnected && empty.isConnected) {
+						connectedLine.render({ tone: 'kept', text });
+					} else {
+						connectedLine = addStep('kept', text);
+					}
+					// While the key's model list is on screen and focus is in it, stay there so
+					// the list can be browsed (Tab goes on to the composer). Otherwise the
+					// composer is next, as before the list existed.
+					if (!(connect.showsModels && connect.root.contains(document.activeElement))) {
+						composer.input.focus();
+					}
+				} else {
+					connectedLine = null;
 				}
 				break;
 			default:
