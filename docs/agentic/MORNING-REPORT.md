@@ -17,7 +17,9 @@ The owner opened the M1–M4 build and found UI drift, then approved a one-PR re
 
 - **M5 Start screen: done** (PR #62): the flow-01 start screen (name, set chip, Start with agent / Draw myself / From a font file) and font-file import subsetted to the Kernel with a licence note. Milestone point `5addc8b` (`m5-done`). Two QA rounds.
 - **M6 Agent tools v2: done.** PR #64: read tools (`get_font_spec`, `get_set_status`, `render_glyphs`, `render_text`, `check_outlines`, `get_mutation_log`), ownership lock (agent can't touch Yours or the open glyph; Take over / Hand to agent), mutation log. PR #65 (protected: undo behaviour): atomic per-glyph writes, one history entry per job, Draft status. Milestone point `126746a` (`m6-done`).
-- **M7 Runs in progress:** plan → approve the style → queue → review.
+- **M7 Runs: done** (PR #66): ask for a font → Plan card → gate 1 → the agent draws n o H O → "Approve the style" → the queue drafts the set in DESIGN-BRIEF order → receipt with Keep all / Retry; Keep and Revert per glyph; Pause / Stop; Esc, minimize and opening a glyph never stop a run. Milestone point `7c64dc5` (`m7-done`). Two QA rounds (provider errors and pause races, fixed).
+- **Live run, no key:** a Sonnet 5.5 agent stood in for the model and drew n o H O, h and m through the real app. Screenshots on branch `qa/m7-live-run-shots` and in the PR #66 comment. The letters are a plain geometric sans; about 8 model steps per glyph, so a full set is ~1,000 steps.
+- **Stopped after M7** as asked. M8 and M9 not started.
 
 - **M3 Editor focus mode: done** (PR #57). Clicking a letter opens the Figma editor: close ×, prev/next pill, metric guides, floating tool pill, inspector card with Keep / Revert, live context strip. Milestone point `5f3ba04` (`m3-done`).
 - **M4 Agent panel: done** (PR #60). Full-height right panel with minimize only, empty state, composer with attachments, minimized pill, model connect card, wired to the existing controller and relay. **The old Codex floating window and welcome composer are deleted.** Milestone point `f020e18` (`m4-done`).
@@ -28,7 +30,7 @@ The owner opened the M1–M4 build and found UI drift, then approved a one-PR re
 - **M4 Agent panel:** the message cards are done; the panel itself (#19–#21) isn't started.
 - **Four undo bugs fixed** (all protected areas). Three were pre-existing; #52 surfaced once the new top bar put Undo on every page., plus two tooling fixes that let the project install and test on Linux.
 - Every PR went issue → developer agent → QA agent → fixes → re-QA → squash-merge into `dev`. QA failed six rounds across five PRs, and each failure was fixed before merge.
-- `dev` checks after the last merge: lint 0 errors, **57 test files / 982 tests pass**, build passes, agent relay 22/22.
+- `dev` checks after the last merge: lint 0 errors, **63 test files / 1121 tests pass**, build passes, agent relay 29/29.
 
 ## Protected-area PRs to review first
 
@@ -54,6 +56,7 @@ No `.gs2` serialization changes were made.
 | [#57](https://github.com/kshitij0299/noddy/pull/57) | [#16](https://github.com/kshitij0299/noddy/issues/16) [#17](https://github.com/kshitij0299/noddy/issues/17) [#18](https://github.com/kshitij0299/noddy/issues/18) | [M3] Focus mode editor. Three QA rounds (legacy button styles, keyboard tab trap, zoom reset on prev/next, modifier keys swallowed). No protected files: it is the Characters page with new chrome around the unchanged canvas. |
 | [#56](https://github.com/kshitij0299/noddy/pull/56) | — | Wire the shared skills you pushed into the developer and QA roles |
 | [#55](https://github.com/kshitij0299/noddy/pull/55) | — | Model roles, combined PRs, CAVEMAN.md |
+| [#66](https://github.com/kshitij0299/noddy/pull/66) | [#28](https://github.com/kshitij0299/noddy/issues/28), refs [#29](https://github.com/kshitij0299/noddy/issues/29) | [M7] Runs: plan, style gate, queue, review (Keep / Keep all / Revert / Retry), pill states, Before-run checkpoint. Run-scoped Cmd+Z split out to #67 (protected). |
 | [#64](https://github.com/kshitij0299/noddy/pull/64) | [#25](https://github.com/kshitij0299/noddy/issues/25) [#27](https://github.com/kshitij0299/noddy/issues/27) | [M6] Read tools, ownership lock, mutation log. Two QA rounds (a result-field collision and Take over not cancelling writes, both fixed). |
 | [#62](https://github.com/kshitij0299/noddy/pull/62) | [#23](https://github.com/kshitij0299/noddy/issues/23) [#24](https://github.com/kshitij0299/noddy/issues/24) | [M5] Start screen and start from a font file. Two QA rounds. |
 | [#50](https://github.com/kshitij0299/noddy/pull/50) | [#10](https://github.com/kshitij0299/noddy/issues/10) | [M1] "Not autosaving" chip in the top bar (only when autosave is off and there are unsaved changes), plus a leave-page warning when there are unsaved changes or an agent run is active. Owner note: if you turned off "stop page navigation", nothing warns, not even during a run. |
@@ -81,12 +84,11 @@ No `.gs2` serialization changes were made.
 
 - None. Every PR opened in this run is merged. Nothing is half-done, and no agent is still running.
 
-## Not yet real in the agent panel (M7 wires them)
+## What the agent still can't do
 
-- Plan **Start / Adjust**, **Approve the style** and **Keep** show a "coming in M7" step line. Retry, Tweak and Edit by hand work.
-- Pill progress `n/N` and the Paused state wait for the M7 queue; a live run shows "Drafting a" with a spinner.
-- No disconnect or model-change control (the model chip is not a button per the UX note).
-- Opening an attached font as a project was dropped from the old composer.
+- **Run-scoped undo** ([#67](https://github.com/kshitij0299/noddy/issues/67), protected): during a run, Cmd+Z undoes the newest entry, which is usually the last agent glyph. PRODUCT.md wants it to undo only your own change.
+- **See its own draft mid-job** ([#68](https://github.com/kshitij0299/noddy/issues/68)): render/check tools read the committed project, so the model draws blind until submit.
+- Plan and spec are proposed locally from the project metrics; the model only draws. Spend is an estimate. No resume after reload. No disconnect/model-change control in the panel.
 
 ## Small things to decide when you look at it
 
@@ -111,7 +113,7 @@ No `.gs2` serialization changes were made.
 - Specimen Waterfall mode ignores the size slider (QA nit).
 - **Build churn:** `npm run build` rewrites the tracked `dist/` folder and `src/app/app_config.json`. Never commit those.
 - Merged feature branches stay on GitHub, because this cloud session can't delete remote branches.
-- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git tag m3-done 5f3ba04 && git tag m4-done f020e18 && git tag m5-done 5addc8b && git tag m6-done 126746a && git push origin m1-done m2-done m3-done m4-done m5-done m6-done`.
+- **Milestone tags:** the cloud proxy rejects tag pushes. To create them yourself: `git tag m1-done 3de97d3 && git tag m2-done f6939d7 && git tag m3-done 5f3ba04 && git tag m4-done f020e18 && git tag m5-done 5addc8b && git tag m6-done 126746a && git tag m7-done 7c64dc5 && git push origin m1-done m2-done m3-done m4-done m5-done m6-done m7-done`.
 - Labels were auto-created by GitHub (grey, no descriptions).
 
 ## Models used
