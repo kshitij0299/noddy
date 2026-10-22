@@ -71,6 +71,12 @@ describe('native agent tool boundary', () => {
 	it('has a static registry and rejects arbitrary or malformed writes', () => {
 		expect(TOOL_DEFINITIONS.map((tool) => tool.name)).toEqual([
 			'get_context',
+			'get_font_spec',
+			'get_set_status',
+			'render_glyphs',
+			'render_text',
+			'check_outlines',
+			'get_mutation_log',
 			'read_glyphs',
 			'set_spacing',
 			'transform_paths',

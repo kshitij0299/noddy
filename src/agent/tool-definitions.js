@@ -11,13 +11,92 @@ const object = (properties) => ({
 });
 const handle = { ...object({ x: coordinate, y: coordinate }), type: ['object', 'null'] };
 const point = object({ x: coordinate, y: coordinate, h1: handle, h2: handle });
+// Optional arguments are required-but-nullable, so strict provider schemas work.
+const nullable = (schema) => ({
+	...schema,
+	type: [schema.type, 'null'],
+	...(schema.enum ? { enum: [...schema.enum, null] } : {}),
+});
+// Mirrors LATIN_KERNEL_GROUPS (charset_latin_kernel.js); a vitest keeps them equal.
+// Not imported: the relay loads this file without the editor module graph.
+export const SET_GROUPS = ['uppercase', 'lowercase', 'figures', 'punctuation', 'symbols', 'spaces'];
+// Rendered PNGs per request (one Send). The relay allows the same number per
+// conversation (LIMITS.toolImages); past it, render tools return RENDER_LIMIT.
+export const RENDER_IMAGES_PER_REQUEST = 8;
+const renderHeight = { type: 'integer', minimum: 64, maximum: 1024 };
+// Write tools refuse glyphs that are Yours or open in the editor
+// (LOCKED_YOURS / LOCKED_OPEN). Read tools have no side effects.
+export const READ_ONLY_TOOLS = [
+	'get_context',
+	'read_glyphs',
+	'get_font_spec',
+	'get_set_status',
+	'render_glyphs',
+	'render_text',
+	'check_outlines',
+	'get_mutation_log',
+];
 
 export const TOOL_DEFINITIONS = [
 	{
 		name: 'get_context',
 		description:
-			'Read the project, currently bound glyph, selection, and revision. This session can edit only the glyph selected when the user sent the request. Font units use positive y upwards. No shell, navigation, deletion, export, font-wide generation, or arbitrary property edits are available.',
+			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), and the bound glyph's lock (null, yours or open). This session can edit only the glyph selected when the user sent the request. Font units use positive y upwards. No shell, navigation, deletion, export, font-wide generation, or arbitrary property edits are available.",
 		inputSchema: object({}),
+	},
+	{
+		name: 'get_font_spec',
+		description:
+			'Read the font spec: family, style, units per em, ascender, descender, cap height, x-height, overshoot, line gap, italic angle and stems (null until a design spec exists). Font units, positive y up. Read-only.',
+		inputSchema: object({}),
+	},
+	{
+		name: 'get_set_status',
+		description:
+			"Read the character set (Latin Kernel) coverage and each glyph's status (empty, queued, drafting, draft, kept, yours, failed), owner (agent or user) and lock (yours = needs the user's consent, open = in the editor now; skip both and come back later). group narrows the list; null lists every group. Read-only.",
+		inputSchema: object({
+			group: nullable({ type: 'string', enum: SET_GROUPS }),
+		}),
+	},
+	{
+		name: 'render_glyphs',
+		description:
+			"Render up to 8 glyphs side by side as one PNG (longest side at most 1024 px) so you can look at them. guides draws ascender, cap height, x-height, baseline, descender and advance edges. Missing glyphs show as a dashed box. At most 8 renders per request (RENDER_LIMIT). layout gives each glyph's x and width in pixels. Use it after drawing to check shapes. Read-only; null height = 384, null guides = true.",
+		inputSchema: object({
+			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
+			height: nullable(renderHeight),
+			guides: nullable({ type: 'boolean' }),
+		}),
+	},
+	{
+		name: 'render_text',
+		description:
+			'Render a line of text (up to 64 characters) in this font as one PNG (longest side at most 1024 px), with no kerning. Characters not drawn yet, or outside the set (listed in outOfSet), show as a dashed ghost box. Use it to judge spacing and consistency across glyphs. Read-only; null height = 384, null guides = false.',
+		inputSchema: object({
+			text: {
+				type: 'string',
+				minLength: 1,
+				maxLength: 64,
+				pattern: '^[^\\u0000-\\u001f\\u007f]+$',
+			},
+			height: nullable(renderHeight),
+			guides: nullable({ type: 'boolean' }),
+		}),
+	},
+	{
+		name: 'check_outlines',
+		description:
+			"Check one glyph's outlines: winding per contour (and counters that run the same way as their container), self-intersections, duplicate points, specks, too-few-point contours, and extents against the ascender, descender, cap height and x-height. Returns clean (true when no issues) plus a list of issues with path indices. Read-only.",
+		inputSchema: object({ glyphId }),
+	},
+	{
+		name: 'get_mutation_log',
+		description:
+			'Read the log of your own writes in this project, oldest first: time, tool, glyph, summary and whether the edit is still in the undo history. glyphId null = all glyphs; limit null = 50. Read-only.',
+		inputSchema: object({
+			glyphId: nullable(glyphId),
+			limit: nullable({ type: 'integer', minimum: 1, maximum: 100 }),
+		}),
 	},
 	{
 		name: 'read_glyphs',
@@ -31,7 +110,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'set_spacing',
 		description:
-			'Set one spacing metric on the bound glyph, against the latest revision. leftSideBearing moves all outlines and adjusts advance to retain the right bearing. rightSideBearing changes advance only. advanceWidth changes advance only. Does not change outline weight. Each successful edit is one native undo action.',
+			'Set one spacing metric on the bound glyph, against the latest revision. leftSideBearing moves all outlines and adjusts advance to retain the right bearing. rightSideBearing changes advance only. advanceWidth changes advance only. Does not change outline weight. Each successful edit is one native undo action. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
@@ -42,7 +121,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'transform_paths',
 		description:
-			'Translate the specified path indices in the bound glyph by dx, dy font units. Translation only: no scale, rotation, skew, component transforms, or changing locks. Read path indices and revision first. Positive y moves up. Advance width is unchanged.',
+			'Translate the specified path indices in the bound glyph by dx, dy font units. Translation only: no scale, rotation, skew, component transforms, or changing locks. Read path indices and revision first. Positive y moves up. Advance width is unchanged. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
@@ -60,7 +139,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'add_paths',
 		description:
-			'Append up to 16 closed cubic contours to the bound existing glyph, including a newly selected empty glyph. Does not replace existing outlines or navigate to another glyph. Each point has anchor x/y and incoming h1/outgoing h2 absolute coordinates; null handles make straight segments. Closure is implicit; do not repeat the first point. Use winding to create counters. Set advanceWidth separately when starting an empty glyph. Geometry is bounded; output is editable in the normal canvas.',
+			'Append up to 16 closed cubic contours to the bound existing glyph, including a newly selected empty glyph. Does not replace existing outlines or navigate to another glyph. Each point has anchor x/y and incoming h1/outgoing h2 absolute coordinates; null handles make straight segments. Closure is implicit; do not repeat the first point. Use winding to create counters. Set advanceWidth separately when starting an empty glyph. Geometry is bounded; output is editable in the normal canvas. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,

@@ -10,7 +10,11 @@ const INSTRUCTIONS = `You are the agent inside Noddy, an existing font editor.
 Use only the supplied native font tools. Never request JavaScript, shell, browser, or filesystem access.
 Edits appear on the user's existing canvas. Work on the captured current glyph only. Read current
 context and the glyph before editing; use the latest exact revision from a successful native read.
-Respect locks and tool errors. Do not retry a stale edit without rereading. Never claim an edit succeeded
+Respect locks and tool errors. Read tools (get_font_spec, get_set_status, render_glyphs, render_text,
+check_outlines, get_mutation_log) never change anything: use render_glyphs or render_text to look at
+glyphs and check_outlines to find outline problems after drawing. Write tools refuse glyphs that are
+Yours (LOCKED_YOURS) or open in the editor (LOCKED_OPEN): skip them, say so, and never try to work
+around the lock; only the user can lift it. Do not retry a stale edit without rereading. Never claim an edit succeeded
 unless its tool result says ok:true. Do not invent tool results or claim a whole font was generated.
 Only the installed tools are available: explain limitations honestly. When asked to create from a
 picture, use the attached image as a reference and draw bounded paths in the current glyph; ask which

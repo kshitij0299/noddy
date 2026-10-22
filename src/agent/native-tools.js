@@ -2,7 +2,30 @@ import { getCurrentProjectEditor } from '../app/main.js';
 import { refreshPanel } from '../panels/panels.js';
 import { Glyph } from '../project_data/glyph.js';
 import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
-import { validateToolInput } from './tool-definitions.js';
+import {
+	codePointToGlyphID,
+	isInLatinKernel,
+	latinKernelAll,
+	latinKernelCoverage,
+	latinKernelEntry,
+} from '../project_editor/charset_latin_kernel.js';
+import { checkGlyphOutlines } from './outline-check.js';
+import {
+	agentJobSignal,
+	assertAgentMayWrite,
+	grantConsent,
+	isHandedToAgent,
+	logAgentWrite,
+	openGlyphId,
+	ownershipOf,
+	readMutationLog,
+} from './ownership.js';
+import { fontMetrics, renderRow } from './render.js';
+import {
+	READ_ONLY_TOOLS,
+	RENDER_IMAGES_PER_REQUEST,
+	validateToolInput,
+} from './tool-definitions.js';
 
 let nextSession = 0;
 const activeTransactions = new WeakSet();
@@ -22,11 +45,22 @@ const abortIfNeeded = (signal) => {
  * arbitrary property writes, and no model-controlled permissions. The UI should
  * create a new session per Send and retain the last one for its inline Undo.
  */
-export function createNativeToolSession({ getEditor = getCurrentProjectEditor } = {}) {
+export function createNativeToolSession({ getEditor = getCurrentProjectEditor, makeCanvas } = {}) {
 	const editor = getEditor();
 	const project = editor?.project;
 	if (!project) fail('NO_PROJECT', 'Open a project before asking the agent to edit.');
 	const glyphId = editor.nav?.page === 'Characters' ? editor.selectedItemID : null;
+	// Sending a request from the focus editor names the open glyph: that Send
+	// is the user's hand-off for this request only (open lock, not Yours).
+	// The grant is UI-minted here; the model can never create one.
+	const requestGrant =
+		glyphId && openGlyphId(editor) === glyphId
+			? grantConsent(editor, glyphId, { open: true })
+			: undefined;
+	// The agent's job on the bound glyph. "Take over" aborts it, and every
+	// later write of this session then fails (CANCELLED) at execution time.
+	const job = glyphId ? agentJobSignal(editor, glyphId) : undefined;
+	const renderBudget = { used: 0 };
 	const sessionId = `agent-${++nextSession}`;
 	let revision = 0;
 	let lastState;
@@ -69,6 +103,9 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 				glyph && editor.nav?.page === 'Characters' && editor.selectedItemID === glyphId
 			),
 			unitsPerEm: project.settings.font.upm,
+			spec: compactSpec(project),
+			set: setSummary(editor, project),
+			lock: glyphId ? ownershipOf(editor, glyphId, { grant: requestGrant }).locked : null,
 		};
 	}
 
@@ -121,6 +158,12 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 					return describeGlyph(glyph, includePaths, Math.floor(112000 / input.glyphIds.length));
 				});
 				result = { ok: true, context, glyphs };
+			} else if (READ_ONLY_TOOLS.includes(name)) {
+				// The envelope's ok always wins: a payload field can never fail a step.
+				result = {
+					...readTool(name, input, { editor, project, makeCanvas, renderBudget }),
+					ok: true,
+				};
 			} else {
 				if (!context.writable || input.glyphId !== glyphId) {
 					fail(
@@ -128,6 +171,7 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 						'Edits are limited to the glyph selected when you sent this request. Select the intended character and send again.'
 					);
 				}
+				assertAgentMayWrite(editor, glyphId, { grant: requestGrant, job });
 				if (input.expectedRevision !== context.revision) {
 					fail(
 						'STALE_REVISION',
@@ -156,10 +200,18 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 				applyCommand(name, input, candidate);
 				assertGeometry(candidate);
 				abortIfNeeded(signal);
+				// Re-check right before commit: the lock state is read at execution time.
+				assertAgentMayWrite(editor, glyphId, { grant: requestGrant, job });
 				if (JSON.stringify(before.save()) === JSON.stringify(candidate.save())) {
 					result = { ok: true, changed: false, context, glyph: describeGlyph(before, false) };
 				} else {
 					commit(candidate, `Agent: ${commandTitle(name, input)}`, signal);
+					logAgentWrite(editor, {
+						tool: name,
+						id: glyphId,
+						summary: commandTitle(name, input),
+						historyEntryRef: editor.history.queue[0],
+					});
 					result = {
 						ok: true,
 						changed: true,
@@ -284,6 +336,155 @@ export function createNativeToolSession({ getEditor = getCurrentProjectEditor } 
 			completedCalls.clear();
 		},
 	};
+}
+
+// --------------------------------------------------------------
+// Read tools (M6 #25): no history, no publish, no selection or view change
+// --------------------------------------------------------------
+
+function compactSpec(project) {
+	const font = project.settings.font;
+	return {
+		family: String(font.family).slice(0, 80),
+		upm: font.upm,
+		ascent: font.ascent,
+		descent: font.descent,
+		capHeight: font.capHeight,
+		xHeight: font.xHeight,
+		overshoot: font.overshoot,
+	};
+}
+
+function setSummary(editor, project) {
+	const coverage = latinKernelCoverage(project);
+	const ids = latinKernelAll().map((entry) => entry.glyphID);
+	const yours = editor.glyphStatus ? editor.glyphStatus.listByStatus('yours', ids) : [];
+	return {
+		name: 'Latin Kernel',
+		total: coverage.total,
+		drawn: coverage.drawn,
+		statusCounts: editor.glyphStatus ? editor.glyphStatus.counts(ids) : null,
+		yours: yours.slice(0, 64),
+		open: openGlyphId(editor),
+	};
+}
+
+/** In the set: a Latin Kernel character, or any glyph the project already has. */
+function isInSet(project, id) {
+	return isInLatinKernel(id) || Boolean(project.glyphs[id]);
+}
+
+function assertInSet(project, ids) {
+	const outside = ids.filter((id) => !isInSet(project, id));
+	if (outside.length)
+		fail('OUT_OF_SET', `Not in this font's character set: ${outside.slice(0, 8).join(', ')}.`);
+}
+
+function useRenderBudget(renderBudget) {
+	if (renderBudget.used >= RENDER_IMAGES_PER_REQUEST)
+		fail(
+			'RENDER_LIMIT',
+			`This request already rendered ${RENDER_IMAGES_PER_REQUEST} images. Finish with what you have; the user can send a follow-up.`
+		);
+	renderBudget.used++;
+}
+
+function readTool(name, input, { editor, project, makeCanvas, renderBudget }) {
+	if (name === 'get_font_spec') {
+		const font = project.settings.font;
+		return {
+			spec: {
+				family: String(font.family).slice(0, 120),
+				style: String(font.style).slice(0, 80),
+				...fontMetrics(project),
+				lineGap: font.lineGap,
+				italicAngle: font.italicAngle,
+				weight: font.weight,
+				// No design-spec store yet (propose_font_spec is out of scope).
+				stems: null,
+			},
+		};
+	}
+	if (name === 'get_set_status') {
+		const entries = latinKernelAll().filter((entry) => !input.group || entry.group === input.group);
+		const coverage = latinKernelCoverage(project);
+		return {
+			set: 'Latin Kernel',
+			coverage: { total: coverage.total, drawn: coverage.drawn, byGroup: coverage.byGroup },
+			statusCounts: editor.glyphStatus?.counts(entries.map((entry) => entry.glyphID)) ?? null,
+			open: openGlyphId(editor),
+			glyphs: entries.map((entry) => {
+				const own = ownershipOf(editor, entry.glyphID);
+				return {
+					glyphId: entry.glyphID,
+					char: entry.char,
+					group: entry.group,
+					exists: Boolean(project.glyphs[entry.glyphID]),
+					status: own.status,
+					owner: own.owner,
+					lock: own.locked,
+					...(isHandedToAgent(editor, entry.glyphID) ? { handedToAgent: true } : {}),
+				};
+			}),
+		};
+	}
+	if (name === 'render_glyphs') {
+		assertInSet(project, input.glyphIds);
+		const items = input.glyphIds.map((id) => ({ glyphId: id, glyph: project.glyphs[id] || null }));
+		useRenderBudget(renderBudget);
+		return renderRow({
+			project,
+			items,
+			height: input.height ?? undefined,
+			guides: input.guides ?? true,
+			gap: Math.round(project.settings.font.upm * 0.1),
+			makeCanvas,
+		});
+	}
+	if (name === 'render_text') {
+		const ids = [...input.text].map((char) => codePointToGlyphID(char.codePointAt(0)));
+		// Like the specimen: characters outside the set render as ghost boxes
+		// and are listed, rather than failing the whole line.
+		const outside = [...input.text].filter(
+			(char, index) => !ids[index] || !isInSet(project, ids[index])
+		);
+		const items = ids.map((id) => ({
+			glyphId: id || 'glyph-0x0',
+			glyph: (id && project.glyphs[id]) || null,
+		}));
+		useRenderBudget(renderBudget);
+		return {
+			...renderRow({
+				project,
+				items,
+				height: input.height ?? undefined,
+				guides: input.guides ?? false,
+				gap: 0,
+				makeCanvas,
+			}),
+			outOfSet: [...new Set(outside)].slice(0, 32),
+		};
+	}
+	if (name === 'check_outlines') {
+		assertInSet(project, [input.glyphId]);
+		const glyph = project.glyphs[input.glyphId];
+		if (!glyph)
+			return { glyphId: input.glyphId, exists: false, clean: true, issues: [], contours: [] };
+		return {
+			glyphId: input.glyphId,
+			exists: true,
+			char: latinKernelEntry(input.glyphId)?.char ?? null,
+			componentCount: glyph.shapes.filter((shape) => shape.objType !== 'Path').length,
+			...checkGlyphOutlines(glyph, fontMetrics(project)),
+		};
+	}
+	if (name === 'get_mutation_log') {
+		return readMutationLog(editor, {
+			glyphId: input.glyphId ?? null,
+			limit: input.limit ?? 50,
+		});
+	}
+	fail('UNKNOWN_TOOL', 'This tool has no native implementation.');
 }
 
 function snapshot(project) {
