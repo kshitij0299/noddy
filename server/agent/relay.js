@@ -1,8 +1,11 @@
 import { generateAgentStep, loadNativeRegistry } from './agent.js';
+import { errorEnvelope, publicError, publicModelsError } from './errors.js';
 import { createCatalogSource } from './model-catalog.js';
 import { listProviderModels } from './models.js';
 import { PROVIDERS } from './providers.js';
 import { LIMITS, RelayError, validateModelsRequest } from './validation.js';
+
+export { publicError, publicModelsError };
 
 /** @param {import('node:http').IncomingMessage} req */
 export function assertLocalRequest(req, requireOrigin = false) {
@@ -86,55 +89,6 @@ async function readBody(req, signal, maxBytes = LIMITS.bodyBytes) {
 	}
 }
 
-/** Never relay provider messages: they may echo a prompt, image, key or headers. */
-export function publicError(error) {
-	if (error instanceof RelayError) return error;
-	if (['AbortError', 'TimeoutError'].includes(error?.name)) {
-		return new RelayError('CANCELLED', 'Agent request stopped or timed out.', 408);
-	}
-	if ([401, 403].includes(error?.statusCode)) {
-		return new RelayError(
-			'PROVIDER_AUTH',
-			'The provider rejected this API key or model access.',
-			401
-		);
-	}
-	if (error?.statusCode === 429) {
-		return new RelayError(
-			'PROVIDER_LIMIT',
-			'Provider rate or credit limit reached. Check your account before retrying.',
-			429
-		);
-	}
-	if ([400, 404, 422].includes(error?.statusCode)) {
-		return new RelayError(
-			'PROVIDER_REQUEST',
-			'Provider rejected the request. Check the model ID, API format and image support.',
-			422
-		);
-	}
-	return new RelayError(
-		'PROVIDER_UNAVAILABLE',
-		'The provider request failed. Check the connection and retry when ready.',
-		502
-	);
-}
-
-/**
- * The model-list route has its own wording for provider 4xx: the step route's
- * "check the model ID" would be wrong when no model was involved.
- */
-export function publicModelsError(error) {
-	const safe = publicError(error);
-	return safe.code === 'PROVIDER_REQUEST'
-		? new RelayError(
-				'PROVIDER_REQUEST',
-				'The provider would not list models for this key. You can still enter a model ID.',
-				422
-		  )
-		: safe;
-}
-
 /** Concurrency and per-minute start limits for one route. */
 function createLimiter(maxConcurrent = LIMITS.concurrentRequests, perMinute = 30) {
 	let active = 0;
@@ -193,6 +147,9 @@ export function createAgentMiddleware(options = {}) {
 		let release;
 		let timeout;
 		let route = null;
+		// A connect check may get the provider's cleaned message back (see errors.js); a run never.
+		let isCheck = false;
+		let apiKey = '';
 		const controller = new AbortController();
 		const disconnect = () => {
 			if (!res.writableEnded) controller.abort();
@@ -228,6 +185,8 @@ export function createAgentMiddleware(options = {}) {
 				route === 'models' ? LIMITS.modelsBodyBytes : LIMITS.bodyBytes
 			);
 			controller.signal.throwIfAborted();
+			apiKey = typeof body?.apiKey === 'string' ? body.apiKey : '';
+			isCheck = route === 'models' || body?.purpose === 'check';
 			if (route === 'models') {
 				const result = await listModels(validateModelsRequest(body), {
 					signal: controller.signal,
@@ -243,8 +202,10 @@ export function createAgentMiddleware(options = {}) {
 			sendJSON(res, 200, result);
 		} catch (error) {
 			const cause = controller.signal.aborted ? controller.signal.reason : error;
-			const safe = route === 'models' ? publicModelsError(cause) : publicError(cause);
-			sendJSON(res, safe.status, { error: { code: safe.code, message: safe.message } });
+			const options = { detail: isCheck, apiKey };
+			const safe =
+				route === 'models' ? publicModelsError(cause, options) : publicError(cause, options);
+			sendJSON(res, safe.status, { error: errorEnvelope(safe) });
 		} finally {
 			clearTimeout(timeout);
 			res.off('close', disconnect);

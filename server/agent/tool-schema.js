@@ -3,9 +3,13 @@
  * uniqueness enforced by the shared native validator, but omit that keyword
  * from OpenAI-format wire schemas. Never mutate the canonical tool registry.
  * Source: https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas
+ *
+ * OpenRouter forwards the schema to whichever upstream serves the model (OpenAI, Google,
+ * ...), several of which refuse keywords outside the strict subset, so it gets the same
+ * trimmed schema.
  */
 export function providerToolSchema(schema, provider, protocol) {
-	if (provider !== 'openai' && protocol !== 'responses') return schema;
+	if (provider !== 'openai' && provider !== 'openrouter' && protocol !== 'responses') return schema;
 	const result = structuredClone(schema);
 	const visit = (node) => {
 		if (!node || typeof node !== 'object' || Array.isArray(node)) return;

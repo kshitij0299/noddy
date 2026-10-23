@@ -170,6 +170,32 @@ export async function readJsonCapped(response, maxBytes) {
 }
 
 /**
+ * The start of a response body as text, never more than `maxBytes` and never throwing.
+ * Used to find a failed provider's message; the text itself is not relayed (errors.js).
+ * @param {Response} response
+ * @param {number} maxBytes
+ * @returns {Promise<string>}
+ */
+export async function readTextCapped(response, maxBytes) {
+	try {
+		if (!response.body?.getReader) return (await response.text()).slice(0, maxBytes);
+		const reader = response.body.getReader();
+		const chunks = [];
+		let size = 0;
+		while (size < maxBytes) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(value);
+			size += value.byteLength;
+		}
+		await reader.cancel().catch(() => {});
+		return Buffer.concat(chunks).subarray(0, maxBytes).toString('utf8');
+	} catch {
+		return '';
+	}
+}
+
+/**
  * Fetch and read the live catalog once.
  * @param {ReturnType<typeof createCatalogGet>} get
  * @param {{signal?: AbortSignal, maxBytes?: number}} options

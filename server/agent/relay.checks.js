@@ -13,6 +13,7 @@ import { LIMITS, validateRequest } from './validation.js';
 import { createLocalAgentServer } from './serve.js';
 import { resolveProviderProtocol } from '../../src/agent/provider-config.js';
 import { providerToolSchema } from './tool-schema.js';
+import { ZEN_DOCS_ENDPOINTS, ZEN_LIVE_IDS } from './zen-routing.fixture.js';
 
 // Deliberately small fixture; the real shared native registry is tested separately.
 const definitions = [
@@ -456,7 +457,7 @@ test('Muse Spark Contributor Free automatic mode uses the real Responses adapter
 	};
 	const result = await generateAgentStep(input, nativeRegistry, { modelFactory });
 	assert.equal(result.toolCalls[0].toolName, 'get_context');
-	assert.equal(requests[0].url, 'https://opencode.ai/zen/v1/responses');
+	assert.equal(requests[0].url, 'https://opencode.ai/inference/openai/v1/responses');
 	assert.equal(requests[0].body.model, 'muse-spark-1.3-contributor-free');
 	assert.equal(requests[0].headers.get('authorization'), `Bearer ${base.apiKey}`);
 	assert.equal(requests[0].body.store, false);
@@ -482,6 +483,7 @@ for (const [provider, protocol] of [
 	['opencode-zen', 'chat'],
 	['opencode-zen', 'messages'],
 	['anthropic', 'messages'],
+	['openrouter', 'chat'],
 ]) {
 	test(`actual SDK ${provider}/${protocol} serializes key, image, tools and resumed results through fixed transport`, async () => {
 		const requests = [];
@@ -520,12 +522,17 @@ for (const [provider, protocol] of [
 		);
 		assert.equal(second.text, 'Done.');
 		assert.equal(requests.length, 2);
-		const origins = {
-			openai: 'https://api.openai.com/v1',
-			'opencode-zen': 'https://opencode.ai/zen/v1',
-			anthropic: 'https://api.anthropic.com/v1',
+		// One literal URL per provider and format (Zen has one endpoint per protocol).
+		const endpoints = {
+			'openai/responses': 'https://api.openai.com/v1/responses',
+			'openai/chat': 'https://api.openai.com/v1/chat/completions',
+			'opencode-zen/responses': 'https://opencode.ai/inference/openai/v1/responses',
+			'opencode-zen/chat': 'https://opencode.ai/inference/openai/v1/chat/completions',
+			'opencode-zen/messages': 'https://opencode.ai/inference/anthropic/v1/messages',
+			'anthropic/messages': 'https://api.anthropic.com/v1/messages',
+			'openrouter/chat': 'https://openrouter.ai/api/v1/chat/completions',
 		};
-		const endpoint = `${origins[provider]}/${protocol === 'chat' ? 'chat/completions' : protocol}`;
+		const endpoint = endpoints[`${provider}/${protocol}`];
 		for (const req of requests) {
 			assert.equal(String(req.url), endpoint);
 			assert.equal(req.redirect, 'error');
@@ -540,6 +547,11 @@ for (const [provider, protocol] of [
 			}
 			assert.equal(JSON.stringify(req.body).includes(base.apiKey), false);
 			assert.equal(req.body.tools.length, 1);
+			if (provider === 'openrouter') {
+				// The app title only; no referer, and the key stays in the Bearer header.
+				assert.equal(req.headers.get('x-title'), 'Noddy');
+				assert.equal(req.headers.get('http-referer'), null);
+			}
 		}
 		assert.match(JSON.stringify(requests[0].body), /image/);
 		assert.match(JSON.stringify(requests[1].body), /glyph-0x6E/);
@@ -673,6 +685,374 @@ test('abort signal reaches the real provider fetch and does not retry', async ()
 		generateAgentStep(base, registry, { modelFactory, signal: controller.signal })
 	);
 	assert.equal(calls, 1);
+});
+
+test('Zen routing covers every model in the docs table and the live list, with the six old mis-routes fixed (#82)', () => {
+	const route = (id) => {
+		try {
+			return resolveProviderProtocol('opencode-zen', id);
+		} catch (error) {
+			return error.code;
+		}
+	};
+	for (const [id, endpoint] of Object.entries(ZEN_DOCS_ENDPOINTS)) {
+		const expected = { google: 'UNSUPPORTED_PROTOCOL', systemone: 'UNSUPPORTED_PROTOCOL' }[
+			endpoint
+		];
+		assert.equal(route(id), expected ?? endpoint, `${id} should follow the docs (${endpoint})`);
+	}
+	// The six that used to answer "format unknown": four free models, Mistral and Muse Wonder.
+	for (const id of ['beam-free', 'flint-40b-free', 'exo-free', 'nemotron-3.5-super-vl-free']) {
+		assert.equal(route(id), 'chat', id);
+	}
+	assert.equal(route('mistral-large-4'), 'chat');
+	assert.equal(route('muse-wonder-1.0'), 'responses');
+	// Jev's free model ends in -free too but speaks System One, which is not implemented.
+	assert.equal(route('jev-1.13-free'), 'UNSUPPORTED_PROTOCOL');
+	// Every live ID resolves, except Gemini, Jev and the one unknown "test" model.
+	const unresolved = ZEN_LIVE_IDS.filter(
+		(id) => !['responses', 'chat', 'messages'].includes(route(id))
+	);
+	assert.deepEqual(
+		unresolved,
+		ZEN_LIVE_IDS.filter((id) => /^(gemini-|jev-)/.test(id) || id === 'test')
+	);
+	assert.equal(route('test'), 'PROTOCOL_REQUIRED');
+	// OpenRouter is always Chat Completions, whatever the model ID.
+	assert.equal(resolveProviderProtocol('openrouter', 'anthropic/claude-sonnet-5.5'), 'chat');
+	assert.equal(resolveProviderProtocol('openrouter', '~openai/gpt-sol-latest'), 'chat');
+	assert.throws(() => resolveProviderProtocol('openrouter', 'm', 'responses'), {
+		code: 'UNSUPPORTED_PROTOCOL',
+	});
+});
+
+test('OpenRouter accepts "latest" aliases that start with ~ as model IDs', () => {
+	const request = {
+		...base,
+		provider: 'openrouter',
+		protocol: 'auto',
+		model: '~anthropic/claude-sonnet-latest',
+	};
+	assert.equal(validateRequest(request, definitions).protocol, 'chat');
+	assert.throws(() => validateRequest({ ...request, model: '/etc/passwd' }, definitions), {
+		code: 'INVALID_REQUEST',
+	});
+});
+
+/** A relay that runs the real AI SDK step against a mocked upstream and records what it was sent. */
+async function withStepRelay(upstream, run) {
+	const calls = [];
+	const transport = async (url, init) => {
+		const call = {
+			url: String(url),
+			headers: new Headers(init.headers),
+			body: JSON.parse(init.body),
+			redirect: init.redirect,
+		};
+		calls.push(call);
+		return upstream(call, calls.length);
+	};
+	const relay = createServer(
+		createAgentMiddleware({
+			loadRegistry: async () => registry,
+			generateStep: (body, loaded, { signal }) =>
+				generateAgentStep(body, loaded, {
+					signal,
+					modelFactory: (settings) => createProviderModel(settings, transport),
+				}),
+		})
+	);
+	relay.listen(0, '127.0.0.1');
+	await once(relay, 'listening');
+	const relayOrigin = `http://127.0.0.1:${relay.address().port}`;
+	const post = (body) =>
+		fetch(relayOrigin + '/api/agent/step', {
+			method: 'POST',
+			headers: { Origin: relayOrigin, 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+	try {
+		await run({ post, calls });
+	} finally {
+		relay.closeAllConnections?.();
+		await new Promise((resolve) => relay.close(resolve));
+	}
+}
+
+const jsonResponse = (body, status = 200) =>
+	new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+const checkBody = (extra = {}) => ({
+	provider: 'openrouter',
+	protocol: 'auto',
+	model: 'vendor/free-model:free',
+	apiKey: base.apiKey,
+	messages: [{ role: 'user', content: 'Reply with OK.' }],
+	...extra,
+});
+
+test('OpenRouter step: the connect test sends the tools to the fixed URL with Bearer and X-Title, once', async () => {
+	await withStepRelay(
+		() => jsonResponse(providerResponse('chat', false)),
+		async ({ post, calls }) => {
+			const response = await post(checkBody({ purpose: 'check' }));
+			assert.equal(response.status, 200);
+			assert.equal((await response.json()).text, 'Done.');
+			assert.equal(calls.length, 1, 'one tiny billed call, no retry');
+			assert.equal(calls[0].url, 'https://openrouter.ai/api/v1/chat/completions');
+			assert.equal(calls[0].headers.get('authorization'), `Bearer ${base.apiKey}`);
+			assert.equal(calls[0].headers.get('x-title'), 'Noddy');
+			assert.equal(calls[0].headers.get('http-referer'), null);
+			assert.equal(calls[0].body.model, 'vendor/free-model:free');
+			assert.equal(calls[0].body.tools.length, 1, 'the test message carries the agent’s tools');
+			assert.equal(JSON.stringify(calls[0].body).includes('purpose'), false);
+			assert.equal(JSON.stringify(calls[0].body).includes(base.apiKey), false);
+			assert.equal(calls[0].redirect, 'error');
+		}
+	);
+	// A tool call comes back as a native call, not executed on the relay.
+	await withStepRelay(
+		() => jsonResponse(providerResponse('chat', true)),
+		async ({ post }) => {
+			const body = await (await post(checkBody())).json();
+			assert.equal(body.toolCalls[0].toolName, 'get_context');
+			assert.equal(body.finishReason, 'tool-calls');
+		}
+	);
+});
+
+// What the owner's browser will see for each provider failure: status, code, hint and (only for a
+// connect check) the provider's cleaned message. The upstream text echoes the key on purpose.
+const failureCases = [
+	{
+		name: 'OpenRouter 401',
+		status: 401,
+		upstream: { error: { message: `User not found. key ${base.apiKey}`, code: 401 } },
+		expect: { code: 'PROVIDER_AUTH', http: 401, detail: 'User not found. key' },
+	},
+	{
+		name: 'OpenRouter 402',
+		status: 402,
+		upstream: {
+			error: {
+				message: 'Insufficient credits. Add more using https://openrouter.ai/credits',
+				code: 402,
+			},
+		},
+		expect: { code: 'PROVIDER_CREDITS', http: 402 },
+	},
+	{
+		name: 'OpenRouter 404 (model gone)',
+		status: 404,
+		upstream: { error: { message: 'No endpoints found for vendor/free-model:free.', code: 404 } },
+		expect: { code: 'PROVIDER_MODEL', http: 422 },
+	},
+	{
+		name: 'OpenRouter 404 (privacy settings block free models)',
+		status: 404,
+		upstream: {
+			error: {
+				message: 'No endpoints found matching your data policy (Free model publication).',
+				code: 404,
+			},
+		},
+		expect: { code: 'PROVIDER_MODEL', http: 422, hint: 'data-policy' },
+	},
+	{
+		name: 'OpenRouter 404 (no tool support)',
+		status: 404,
+		upstream: { error: { message: 'No endpoints found that support tool use.', code: 404 } },
+		expect: { code: 'PROVIDER_MODEL', http: 422, hint: 'no-tools' },
+	},
+	{
+		name: 'OpenRouter 429',
+		status: 429,
+		upstream: { error: { message: 'Rate limit exceeded: free-models-per-min.', code: 429 } },
+		expect: { code: 'PROVIDER_LIMIT', http: 429 },
+	},
+	{
+		name: 'OpenRouter 400',
+		status: 400,
+		upstream: { error: { message: 'Provider returned error', code: 400 } },
+		expect: { code: 'PROVIDER_REQUEST', http: 422 },
+	},
+	{
+		name: 'OpenRouter 502',
+		status: 502,
+		upstream: { error: { message: 'Model is down', code: 502 } },
+		expect: { code: 'PROVIDER_UNAVAILABLE', http: 502 },
+	},
+	{
+		name: 'OpenRouter 403 (other)',
+		status: 403,
+		upstream: { error: { message: 'Your chosen model requires moderation.', code: 403 } },
+		expect: { code: 'PROVIDER_FORBIDDEN', http: 403 },
+	},
+	{
+		name: 'Zen 403 FreeTierError',
+		status: 403,
+		provider: 'opencode-zen',
+		model: 'big-pickle',
+		upstream: {
+			type: 'error',
+			error: {
+				type: 'FreeTierError',
+				message:
+					"OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.",
+			},
+		},
+		expect: {
+			code: 'PROVIDER_FORBIDDEN',
+			http: 403,
+			hint: 'free-tier-only',
+			detail:
+				"OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.",
+		},
+	},
+	{
+		name: 'Zen 401 on the Messages route',
+		status: 401,
+		provider: 'opencode-zen',
+		model: 'claude-sonnet-5-5',
+		upstream: {
+			type: 'error',
+			error: { type: 'api_error', message: 'Upstream request failed: Invalid credential' },
+		},
+		expect: {
+			code: 'PROVIDER_AUTH',
+			http: 401,
+			detail: 'Upstream request failed: Invalid credential',
+		},
+	},
+];
+
+for (const item of failureCases) {
+	test(`step error envelope: ${item.name}`, async () => {
+		const overrides = item.provider ? { provider: item.provider, model: item.model } : {};
+		await withStepRelay(
+			() => jsonResponse(item.upstream, item.status),
+			async ({ post, calls }) => {
+				// A connect check gets the provider's status, a hint word and the cleaned message.
+				const checked = await post(checkBody({ ...overrides, purpose: 'check' }));
+				assert.equal(checked.status, item.expect.http);
+				const text = await checked.text();
+				assert.equal(text.includes(base.apiKey), false, 'the key is never returned');
+				const { error } = JSON.parse(text);
+				assert.equal(error.code, item.expect.code);
+				assert.equal(error.status, item.status, 'status is the provider’s own');
+				assert.equal(error.hint, item.expect.hint);
+				assert.equal(typeof error.message, 'string');
+				assert.ok(error.detail, 'a connect check returns the provider message');
+				assert.ok(error.detail.length <= 200 && !/[\n\r]/.test(error.detail));
+				if (item.expect.detail) assert.equal(error.detail, item.expect.detail);
+				assert.deepEqual(Object.keys(JSON.parse(text)), ['error']);
+
+				// A run never gets provider text: same status and hint, no detail.
+				const run = await post(checkBody({ ...overrides }));
+				const runError = (await run.json()).error;
+				assert.equal(runError.code, item.expect.code);
+				assert.equal(runError.status, item.status);
+				assert.equal(runError.hint, item.expect.hint);
+				assert.equal('detail' in runError, false, 'no provider text during a run');
+				assert.equal(calls.length, 2, 'no automatic retries');
+			}
+		);
+	});
+}
+
+test('the purpose field accepts only "check" and is never sent to the provider', async () => {
+	await withStepRelay(
+		() => jsonResponse(providerResponse('chat', false)),
+		async ({ post, calls }) => {
+			for (const purpose of ['run', '', 5, null, true, {}]) {
+				const response = await post(checkBody({ purpose }));
+				assert.equal(response.status, 400, JSON.stringify(purpose));
+				assert.equal((await response.json()).error.code, 'INVALID_REQUEST');
+			}
+			assert.equal(calls.length, 0);
+			assert.equal(validateRequest({ ...base, purpose: 'check' }, definitions).purpose, 'check');
+			assert.equal(validateRequest(base, definitions).purpose, undefined);
+		}
+	);
+});
+
+test('a provider message cannot smuggle the key, a bearer token, markup or a novel back through detail', async () => {
+	const hostile =
+		`<script>alert(1)</script> Bearer abc123 sk-live-${'z'.repeat(30)} ${base.apiKey} ` +
+		'long '.repeat(80);
+	await withStepRelay(
+		() => jsonResponse({ error: { message: hostile } }, 400),
+		async ({ post }) => {
+			const text = await (await post(checkBody({ purpose: 'check' }))).text();
+			const { error } = JSON.parse(text);
+			assert.ok(error.detail.length <= 200);
+			for (const forbidden of [base.apiKey, 'Bearer', 'sk-live', '<script>', 'abc123']) {
+				assert.equal(text.includes(forbidden), false, forbidden);
+			}
+		}
+	);
+});
+
+test('Zen sends each protocol to its own /inference endpoint with the key as the provider expects it', async () => {
+	const cases = [
+		['big-pickle', 'https://opencode.ai/inference/openai/v1/chat/completions', 'chat', 'bearer'],
+		[
+			'mistral-large-4',
+			'https://opencode.ai/inference/openai/v1/chat/completions',
+			'chat',
+			'bearer',
+		],
+		['beam-free', 'https://opencode.ai/inference/openai/v1/chat/completions', 'chat', 'bearer'],
+		['muse-wonder-1.0', 'https://opencode.ai/inference/openai/v1/responses', 'responses', 'bearer'],
+		['gpt-5', 'https://opencode.ai/inference/openai/v1/responses', 'responses', 'bearer'],
+		[
+			'claude-sonnet-5-5',
+			'https://opencode.ai/inference/anthropic/v1/messages',
+			'messages',
+			'bearer',
+		],
+		['qwen3.8-flash', 'https://opencode.ai/inference/anthropic/v1/messages', 'messages', 'bearer'],
+	];
+	for (const [model, url, protocol] of cases) {
+		await withStepRelay(
+			() => jsonResponse(providerResponse(protocol, false)),
+			async ({ post, calls }) => {
+				const response = await post(
+					checkBody({ provider: 'opencode-zen', model, purpose: 'check' })
+				);
+				assert.equal(response.status, 200, model);
+				assert.equal(calls[0].url, url, model);
+				assert.equal(calls[0].headers.get('authorization'), `Bearer ${base.apiKey}`, model);
+				assert.equal(calls[0].headers.get('x-api-key'), null, model);
+				assert.equal(calls[0].body.tools.length, 1, model);
+			}
+		);
+	}
+	// A Zen model whose format Noddy cannot speak is refused before any request leaves.
+	await withStepRelay(
+		() => assert.fail('no upstream call expected'),
+		async ({ post, calls }) => {
+			for (const model of ['gemini-3.8-flash', 'jev-1.13', 'jev-1.13-free']) {
+				const response = await post(checkBody({ provider: 'opencode-zen', model }));
+				assert.equal((await response.json()).error.code, 'UNSUPPORTED_PROTOCOL', model);
+			}
+			assert.equal(calls.length, 0);
+		}
+	);
+});
+
+test('the legacy /zen/v1 URLs are gone from every allowlist', async () => {
+	const { PROVIDER_ENDPOINTS, MODEL_LIST_URLS } = await import('./providers.js');
+	assert.equal(JSON.stringify(PROVIDER_ENDPOINTS).includes('/zen/v1'), false);
+	assert.equal(JSON.stringify(MODEL_LIST_URLS).includes('/zen/v1'), false);
+	// Every Zen route is under the documented /inference prefix, one per protocol.
+	assert.deepEqual(Object.keys(PROVIDER_ENDPOINTS['opencode-zen']).sort(), [
+		'chat',
+		'messages',
+		'responses',
+	]);
+	for (const url of Object.values(PROVIDER_ENDPOINTS['opencode-zen'])) {
+		assert.match(url, /^https:\/\/opencode\.ai\/inference\/(openai|anthropic)\/v1\//);
+	}
 });
 
 let server;
