@@ -84,6 +84,12 @@ Most cost comes from browser-heavy QA, fix rounds, cold starts and mid-run resta
 | **2. Standard** | New UI behaviour or logic in one area | Full lint, vitest and build. A browser walk of the happy path plus the edge cases named in the issue: 1440 light and dark, plus one narrow width. Up to 4 screenshots. |
 | **3. Full** | Protected areas, agent tools, relay, multi-screen features | Everything in tier 2, plus keyboard-only pass, 1024 and 390 widths, the relay checks, and mutation checks (break the fix on purpose and confirm tests fail). |
 
+**Models (owner rule, 2026-10-23):**
+- **Any code change** (developer and fix rounds, refactors, tests): **Opus 5.5**.
+- **Design and UX judgement** (UX notes, design reviews, Figma work): **Opus 5.5**.
+- **Read-only or mechanical work** (QA checks, browser driving, inventories, research digests): **Sonnet 5.5** is fine.
+- **Fable:** don't use it unless the owner asks.
+
 **Rules for every run:**
 - **Mutation testing only in tier 3.**
 - **Screenshots:** take only the ones listed for the tier. Prefer DOM/text reads (`read_page`, `get_page_text`, computed styles) over images.
