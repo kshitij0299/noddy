@@ -58,6 +58,29 @@ function setup(transport, options = {}) {
 }
 
 describe('agent runner', () => {
+	it('times out per model step, not per run: slow steps that each fit still finish', async () => {
+		const later = (value) => () => new Promise((resolve) => setTimeout(() => resolve(value), 40));
+		const transport = vi
+			.fn()
+			.mockImplementationOnce(later(tool('call-1')))
+			.mockImplementationOnce(later(tool('call-2')))
+			.mockImplementationOnce(later(reply('Done')));
+		const { controller, events } = setup(transport, { timeoutMs: 70 });
+		await controller.run('Edit this glyph');
+		expect(transport).toHaveBeenCalledTimes(3);
+		expect(events.some((event) => event.type === 'error')).toBe(false);
+	});
+	it('still times out one step that takes too long', async () => {
+		const transport = vi.fn(
+			(_request, signal) =>
+				new Promise((_, reject) => {
+					signal.addEventListener('abort', () => reject(new Error('aborted')));
+				})
+		);
+		const { controller, events } = setup(transport, { timeoutMs: 30 });
+		await controller.run('Edit this glyph');
+		expect(events.find((event) => event.type === 'error')?.code).toBe('TIMEOUT');
+	});
 	it('resolves the Muse automatic route locally and sends Auto for independent server validation', async () => {
 		const transport = vi.fn().mockResolvedValue(reply('Ready'));
 		const { controller, events } = setup(transport);

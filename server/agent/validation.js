@@ -16,7 +16,7 @@ export const LIMITS = Object.freeze({
 	textCharacters: 160000,
 	outputTokens: 4096,
 	toolCallsPerStep: 8,
-	requestTimeoutMs: 90000,
+	requestTimeoutMs: 300000, // Free models write long path data slowly; 90 s cut them off mid-edit.
 	concurrentRequests: 2,
 	// Model-list route (M4, #76): free, so a short timeout and a body that only fits
 	// a provider name and one key.

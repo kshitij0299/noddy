@@ -13,7 +13,7 @@
  */
 import { readFreeRequests, readModelList } from './model-list.js';
 
-/** The relay gives up after 15 s (models) / 90 s (step); the browser waits a little longer. */
+/** The relay gives up after 15 s on models; a connection check should answer well inside 100 s. */
 const MODELS_TIMEOUT_MS = 20_000;
 const CHECK_TIMEOUT_MS = 100_000;
 

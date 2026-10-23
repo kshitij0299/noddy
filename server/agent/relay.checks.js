@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { MockLanguageModelV4 } from 'ai/test';
 import { generateAgentStep } from './agent.js';
 import { createProviderModel } from './providers.js';
-import { createAgentMiddleware, publicError } from './relay.js';
+import { DEV_KEY_WORD, createAgentMiddleware, publicError } from './relay.js';
 import { LIMITS, validateRequest } from './validation.js';
 import { createLocalAgentServer } from './serve.js';
 import { resolveProviderProtocol } from '../../src/agent/provider-config.js';
@@ -1292,5 +1292,88 @@ test('local production host serves built app/assets and rejects hidden files or 
 	} finally {
 		await new Promise((resolve) => staticServer.close(resolve));
 		await rm(fixture, { recursive: true, force: true });
+	}
+});
+
+test('dev .env.local key: `env` swaps in the server key for OpenRouter free models only', async () => {
+	// No `sk-` prefix, so only the key-based redaction (not the pattern fallback) can hide it.
+	const devKey = 'devkey-0123456789';
+	const seen = [];
+	let echo = false;
+	const listed = [];
+	const relay = createServer(
+		createAgentMiddleware({
+			devKeys: { openrouter: devKey },
+			loadRegistry: async () => registry,
+			generateStep: async (body) => {
+				if (echo) throw Object.assign(new Error(`bad key ${body.apiKey}`), { statusCode: 401 });
+				seen.push(body.apiKey);
+				return { text: 'ok', messages: [], toolCalls: [] };
+			},
+			listModels: async (request) => {
+				listed.push(request.apiKey);
+				return { models: [] };
+			},
+		})
+	);
+	relay.listen(0, '127.0.0.1');
+	await once(relay, 'listening');
+	const origin = `http://127.0.0.1:${relay.address().port}`;
+	const post = (path, body) =>
+		fetch(origin + path, {
+			method: 'POST',
+			headers: { Origin: origin, 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+	const step = (model, provider = 'openrouter', apiKey = DEV_KEY_WORD) => ({
+		provider,
+		protocol: 'auto',
+		model,
+		apiKey,
+		messages: [{ role: 'user', content: 'hi' }],
+	});
+	try {
+		assert.equal(
+			(await post('/api/agent/models', { provider: 'openrouter', apiKey: 'env' })).status,
+			200
+		);
+		assert.deepEqual(listed, [devKey]);
+
+		assert.equal((await post('/api/agent/step', step('google/gemma-4-31b-it:free'))).status, 200);
+		assert.equal((await post('/api/agent/step', step('openrouter/free'))).status, 200);
+		assert.deepEqual(seen, [devKey, devKey]);
+
+		const paid = await post('/api/agent/step', step('anthropic/claude-sonnet-5-5'));
+		const paidText = await paid.text();
+		assert.equal(paid.status, 400);
+		assert.equal(JSON.parse(paidText).error.code, 'DEV_KEY_FREE_ONLY');
+		assert.equal(paidText.includes(devKey), false);
+		assert.equal(seen.length, 2, 'A paid model never reaches the provider with the dev key');
+		for (const model of [
+			'vendor/model-free',
+			'vendor/free-model',
+			'openrouter/freebie',
+			'x/y:FREE ',
+		]) {
+			const loose = await post('/api/agent/step', step(model));
+			assert.equal(loose.status, 400, `${model} is not a free model id`);
+		}
+		assert.equal(seen.length, 2);
+
+		// A provider error that echoes the swapped key is redacted like a pasted key.
+		echo = true;
+		const echoed = await (
+			await post('/api/agent/step', { ...step('x/y:free'), purpose: 'check' })
+		).text();
+		assert.equal(echoed.includes(devKey), false, 'The dev key never appears in an error');
+		echo = false;
+		seen.length = 2;
+
+		// Another provider, or a real pasted key, is passed through untouched.
+		await post('/api/agent/step', step('gpt-5', 'openai'));
+		await post('/api/agent/step', step('x/y:free', 'openrouter', 'sk-or-v1-pasted'));
+		assert.deepEqual(seen.slice(2), ['env', 'sk-or-v1-pasted']);
+	} finally {
+		await new Promise((resolve) => relay.close(resolve));
 	}
 });
