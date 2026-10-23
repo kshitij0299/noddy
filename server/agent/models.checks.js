@@ -32,6 +32,7 @@ import {
 	readFreeRequests,
 } from './models.js';
 import { sanitizeDetail } from './errors.js';
+import { assessModel, listSupported } from '../../src/agent/model-requirements.js';
 import { LIMITS, validateModelsRequest } from './validation.js';
 
 const KEY = 'sk-test-key-not-real-0123456789';
@@ -52,12 +53,15 @@ const catalogDocument = () => ({
 				tool_call: true,
 				modalities: { input: ['text', 'image'], output: ['text'] },
 				cost: { input: 1.25, output: 10, cache_read: 0.125 },
+				limit: { context: 400000, output: 128000 },
 				release_date: '2025-08-07',
 			},
 			'gpt-3.5-turbo': {
 				tool_call: false,
 				modalities: { input: ['text'] },
 				cost: { input: 0.5, output: 1.5 },
+				limit: { context: 16385 },
+				status: 'deprecated',
 				release_date: '2023-03-01',
 			},
 			'text-embedding-3-small': {
@@ -157,6 +161,7 @@ const openRouterModel = (id, extra = {}) => ({
 	architecture: { input_modalities: ['text'], output_modalities: ['text'] },
 	pricing: { prompt: '0.000003', completion: '0.000015' },
 	supported_parameters: ['max_tokens', 'tools', 'temperature'],
+	context_length: 262144,
 	expiration_date: null,
 	...extra,
 });
@@ -351,11 +356,20 @@ test('catalog entries become Free / Paid / Tools / Vision facts, unknown stays n
 	assert.deepEqual(
 		normalizeEntry({
 			tool_call: true,
-			modalities: { input: ['text', 'image'] },
+			modalities: { input: ['text', 'image'], output: ['text'] },
 			cost: { input: 3, output: 15, cache_read: 0.3 },
+			limit: { context: 200000, output: 64000 },
 			release_date: '2025-09-29',
 		}),
-		{ tools: true, vision: true, price: { input: 3, output: 15 }, released: '2025-09-29' }
+		{
+			tools: true,
+			vision: true,
+			price: { input: 3, output: 15 },
+			released: '2025-09-29',
+			context: 200000,
+			text: true,
+			deprecated: false,
+		}
 	);
 	// Free is "both costs are 0": the price is kept as 0 / 0.
 	assert.deepEqual(normalizeEntry({ tool_call: true, cost: { input: 0, output: 0 } }).price, {
@@ -363,7 +377,26 @@ test('catalog entries become Free / Paid / Tools / Vision facts, unknown stays n
 		output: 0,
 	});
 	// Missing facts are unknown, not false.
-	assert.deepEqual(normalizeEntry({}), { tools: null, vision: null, price: null, released: null });
+	assert.deepEqual(normalizeEntry({}), {
+		tools: null,
+		vision: null,
+		price: null,
+		released: null,
+		context: null,
+		text: null,
+		deprecated: false,
+	});
+	// The app's requirements (src/agent/model-requirements.js) need these three facts.
+	assert.equal(normalizeEntry({ limit: { context: 31999 } }).context, 31999);
+	assert.equal(normalizeEntry({ limit: { context: '200k' } }).context, null);
+	assert.equal(normalizeEntry({ limit: { context: -5 } }).context, null);
+	assert.equal(normalizeEntry({ limit: { context: 2.5 } }).context, null);
+	assert.equal(normalizeEntry({ limit: null }).context, null);
+	assert.equal(normalizeEntry({ modalities: { output: ['image'] } }).text, false);
+	assert.equal(normalizeEntry({ modalities: { output: ['text', 'audio'] } }).text, true);
+	assert.equal(normalizeEntry({ modalities: { input: ['text'] } }).text, null);
+	assert.equal(normalizeEntry({ status: 'deprecated' }).deprecated, true);
+	assert.equal(normalizeEntry({ status: 'beta' }).deprecated, false);
 	// Half a price is no price.
 	assert.equal(normalizeEntry({ cost: { input: 1 } }).price, null);
 	assert.equal(normalizeEntry({ cost: { input: -1, output: 1 } }).price, null);
@@ -432,7 +465,17 @@ test('the bundled snapshot covers exactly the three providers and loads like a l
 		assert.ok(catalog[provider].size > 5, `${provider} has entries`);
 		for (const [id, entry] of catalog[provider]) {
 			assert.match(id, /^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,159}$/);
-			assert.deepEqual(Object.keys(entry).sort(), ['price', 'released', 'tools', 'vision']);
+			assert.deepEqual(Object.keys(entry).sort(), [
+				'context',
+				'deprecated',
+				'price',
+				'released',
+				'text',
+				'tools',
+				'vision',
+			]);
+			assert.equal(typeof entry.deprecated, 'boolean');
+			assert.ok(entry.context === null || Number.isInteger(entry.context));
 			assert.ok(entry.tools === null || typeof entry.tools === 'boolean');
 			if (entry.price) assert.ok(entry.price.input >= 0 && entry.price.output >= 0);
 		}
@@ -620,6 +663,9 @@ for (const provider of ['openai', 'opencode-zen', 'anthropic']) {
 				vision: true,
 				price: { input: 1.25, output: 10 },
 				released: '2025-08-07',
+				context: 400000,
+				text: true,
+				deprecated: false,
 			});
 			// A dated snapshot shares its plain model's facts.
 			assert.equal(byId['gpt-5-2025-08-07'].price.output, 10);
@@ -633,6 +679,9 @@ for (const provider of ['openai', 'opencode-zen', 'anthropic']) {
 				vision: null,
 				price: null,
 				released: null,
+				context: null,
+				text: null,
+				deprecated: false,
 			});
 			// Not in the catalog but plainly not a chat model.
 			assert.equal(byId['whisper-1'].tools, false);
@@ -713,9 +762,12 @@ test('POST /api/agent/models returns the live list through the local HTTP relay 
 			assert.equal(body.provider, provider);
 			assert.ok(body.models.length > 0);
 			assert.deepEqual(Object.keys(body.models[0]).sort(), [
+				'context',
+				'deprecated',
 				'id',
 				'price',
 				'released',
+				'text',
 				'tools',
 				'vision',
 			]);
@@ -1001,6 +1053,9 @@ test('OpenRouter models become Free / Tools / Vision / price facts straight from
 		released: '2026-10-21',
 		expires: null,
 		varies: false,
+		context: 262144,
+		text: true,
+		deprecated: false,
 	});
 	// Price per million tokens = per-token string times 1e6, without float dust.
 	assert.deepEqual(byId['anthropic/claude-sonnet-5.5'].price, { input: 3, output: 15 });
@@ -1043,6 +1098,9 @@ test('OpenRouter normalisation is defensive about unreadable fields', () => {
 		released: null,
 		expires: null,
 		varies: false,
+		context: null,
+		text: null,
+		deprecated: false,
 	});
 	// A :free id with no readable price still counts as free.
 	assert.deepEqual(normalizeOpenRouterModel({ id: 'x/y:free' }).price, { input: 0, output: 0 });
@@ -1282,4 +1340,192 @@ test('sanitizeDetail: one clean line without the key, bearer or sk- text, markup
 	for (const empty of ['', '   ', key, 42, null, undefined, {}]) {
 		assert.equal(sanitizeDetail(empty, key), undefined);
 	}
+});
+
+// ---- The app's required capabilities over what the relay really sends (#82) ------------------
+// src/agent/model-requirements.js decides which models the card lists. These checks feed it the
+// relay's own output, so OpenRouter's supported_parameters and models.dev's tool_call are covered
+// end to end, not just the browser half.
+
+const NOW = Date.parse('2026-10-23T12:00:00Z');
+const idsOf = (models) => models.map((model) => model.id);
+
+test('requirements over an OpenRouter list: tools, text output, context window, end date, unknown', () => {
+	const models = parseOpenRouterModels({
+		data: [
+			openRouterModel('ok/vision-free:free', {
+				pricing: { prompt: '0', completion: '0' },
+				architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
+				context_length: 1_000_000,
+			}),
+			openRouterModel('ok/text-free:free', {
+				pricing: { prompt: '0', completion: '0' },
+				context_length: 262144,
+			}),
+			openRouterModel('ok/paid'),
+			// supported_parameters without "tools": the agent cannot drive it.
+			openRouterModel('no/tools:free', {
+				pricing: { prompt: '0', completion: '0' },
+				supported_parameters: ['max_tokens', 'temperature'],
+			}),
+			// Tools in the parameters, but it writes music, not text.
+			openRouterModel('no/text-output', {
+				architecture: { input_modalities: ['text'], output_modalities: ['audio'] },
+			}),
+			// Under 32k tokens of context.
+			openRouterModel('no/small-context', { context_length: 16384 }),
+			openRouterModel('edge/exactly-32k', { context_length: 32000 }),
+			// Past its end date.
+			openRouterModel('no/ended:free', {
+				pricing: { prompt: '0', completion: '0' },
+				expiration_date: '2026-10-22',
+			}),
+			// Ends soon: still listed.
+			openRouterModel('ok/ends-soon:free', {
+				pricing: { prompt: '0', completion: '0' },
+				expiration_date: '2026-10-31',
+			}),
+			// No supported_parameters at all: tool support unknown, hidden.
+			openRouterModel('unknown/no-params', { supported_parameters: undefined }),
+			// A router with a varying price still uses tools.
+			openRouterModel('openrouter/auto-beta', { pricing: { prompt: '-1', completion: '-1' } }),
+			openRouterModel('~anthropic/claude-sonnet-latest'),
+		],
+	});
+	const { free, paid } = listSupported(models, { provider: 'openrouter', now: NOW });
+	// Vision first, then the larger context window (these two tie at 262144), then the name.
+	assert.deepEqual(idsOf(free), ['ok/vision-free:free', 'ok/ends-soon:free', 'ok/text-free:free']);
+	// Same rule as Free: Vision, then the larger context window, then the name.
+	assert.deepEqual(idsOf(paid), [
+		'~anthropic/claude-sonnet-latest',
+		'ok/paid',
+		'openrouter/auto-beta',
+		'edge/exactly-32k',
+	]);
+	const status = (id) =>
+		assessModel(
+			models.find((model) => model.id === id),
+			{ provider: 'openrouter', now: NOW }
+		);
+	assert.deepEqual(status('no/tools:free'), {
+		status: 'unsupported',
+		failed: ['no-tools'],
+		recommended: { vision: false },
+	});
+	assert.deepEqual(status('no/text-output').failed, ['no-tools', 'no-text']);
+	assert.deepEqual(status('no/small-context').failed, ['small-context']);
+	assert.deepEqual(status('no/ended:free').failed, ['deprecated']);
+	assert.equal(status('unknown/no-params').status, 'unknown');
+	assert.equal(status('ok/vision-free:free').recommended.vision, true);
+	assert.equal(status('openrouter/auto-beta').status, 'supported');
+});
+
+test('requirements over a models.dev backed list: tool_call decides, unknown models are hidden', async () => {
+	const transport = mockTransport({
+		catalog: () => {
+			const doc = catalogDocument();
+			doc.openai.models['small-context-model'] = {
+				tool_call: true,
+				modalities: { input: ['text'], output: ['text'] },
+				cost: { input: 1, output: 2 },
+				limit: { context: 8000 },
+			};
+			return doc;
+		},
+		lists: {
+			...listBodies,
+			openai: () => ({
+				data: [
+					{ id: 'gpt-5' },
+					{ id: 'gpt-5-2025-08-07' },
+					{ id: 'gpt-3.5-turbo' },
+					{ id: 'text-embedding-3-small' },
+					{ id: 'gpt-realtime' },
+					{ id: 'gpt-free-tier' },
+					{ id: 'small-context-model' },
+					{ id: 'whisper-1' },
+					{ id: 'brand-new-model' },
+				],
+			}),
+		},
+	});
+	const result = await listProviderModels(
+		{ provider: 'openai', apiKey: KEY },
+		{ transport, catalog: createCatalogSource({ transport }) }
+	);
+	const { free, paid } = listSupported(result.models, { provider: 'openai', now: NOW });
+	assert.deepEqual(idsOf(free), ['gpt-free-tier']);
+	// gpt-5 (400k, vision) first; a dated ID shares its plain model's facts.
+	assert.deepEqual(idsOf(paid), ['gpt-5', 'gpt-5-2025-08-07']);
+	const hidden = (id) =>
+		assessModel(
+			result.models.find((model) => model.id === id),
+			{ provider: 'openai', now: NOW }
+		);
+	assert.deepEqual(hidden('gpt-3.5-turbo').failed, ['deprecated', 'no-tools', 'small-context']);
+	assert.deepEqual(hidden('text-embedding-3-small').failed, ['no-tools']);
+	assert.deepEqual(hidden('gpt-realtime').failed, ['no-tools']);
+	assert.deepEqual(hidden('small-context-model').failed, ['small-context']);
+	assert.deepEqual(hidden('whisper-1').failed, ['no-tools']);
+	// The catalog knows nothing about it: hidden, reachable only as a typed model ID.
+	assert.equal(hidden('brand-new-model').status, 'unknown');
+});
+
+test('requirements over a Zen list: free first, formats Noddy cannot speak are not offered', async () => {
+	const transport = mockTransport({
+		lists: {
+			...listBodies,
+			'opencode-zen': () => ({
+				data: [
+					{ id: 'big-pickle' },
+					{ id: 'kimi-k2.6' },
+					{ id: 'no-cost-listed' },
+					{ id: 'test' },
+					{ id: 'gemini-3.5-flash' },
+					{ id: 'jev-1.13-free' },
+				],
+			}),
+		},
+		catalog: () => {
+			const doc = catalogDocument();
+			doc.opencode.models['kimi-k2.6'] = {
+				tool_call: true,
+				modalities: { input: ['text'], output: ['text'] },
+				cost: { input: 0.6, output: 2.5 },
+				limit: { context: 262144 },
+			};
+			doc.opencode.models['gemini-3.5-flash'] = {
+				tool_call: true,
+				modalities: { input: ['text'], output: ['text'] },
+				cost: { input: 1, output: 2 },
+			};
+			doc.opencode.models['jev-1.13-free'] = {
+				tool_call: true,
+				modalities: { input: ['text'], output: ['text'] },
+				cost: { input: 0, output: 0 },
+			};
+			return doc;
+		},
+	});
+	const result = await listProviderModels(
+		{ provider: 'opencode-zen', apiKey: KEY },
+		{ transport, catalog: createCatalogSource({ transport }) }
+	);
+	const { free, paid } = listSupported(result.models, { provider: 'opencode-zen', now: NOW });
+	assert.deepEqual(idsOf(free), ['big-pickle']);
+	assert.deepEqual(idsOf(paid), ['kimi-k2.6']);
+	const why = (id) =>
+		assessModel(
+			result.models.find((model) => model.id === id),
+			{
+				provider: 'opencode-zen',
+				now: NOW,
+			}
+		);
+	// Gemini and Jev use API formats Noddy does not speak yet; an unknown family has none to route to.
+	assert.deepEqual(why('gemini-3.5-flash').failed, ['unknown-format']);
+	assert.deepEqual(why('jev-1.13-free').failed, ['unknown-format']);
+	assert.deepEqual(why('no-cost-listed').failed, ['unknown-format']);
+	// Zen's own junk entry ("test") belongs to no known family: nothing to route it to.
+	assert.equal(why('test').status, 'unsupported');
 });

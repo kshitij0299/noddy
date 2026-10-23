@@ -83,8 +83,10 @@ const perMillion = (perToken) => Number((perToken * 1e6).toPrecision(8));
  * - Tools: `supported_parameters` includes `tools`. A model with no `text` output (music,
  *   image) cannot be used at all, so it counts as unable to use tools.
  * - Vision: `architecture.input_modalities` includes `image`.
+ * - Context: `context_length` in tokens; Text: `output_modalities` includes `text`.
+ *   An end date in the past (`expiration_date`) is the browser's call, it has the clock.
  * @param {unknown} item
- * @returns {{id:string, tools:boolean|null, vision:boolean|null, price:{input:number,output:number}|null, released:string|null, expires:string|null, varies:boolean}|null}
+ * @returns {{id:string, tools:boolean|null, vision:boolean|null, price:{input:number,output:number}|null, released:string|null, expires:string|null, varies:boolean, context:number|null, text:boolean|null, deprecated:boolean}|null}
  */
 export function normalizeOpenRouterModel(item) {
 	if (!record(item)) return null;
@@ -121,15 +123,19 @@ export function normalizeOpenRouterModel(item) {
 			? item.expiration_date.slice(0, 10)
 			: null;
 
-	const writesText = outputs ? outputs.includes('text') : true;
+	const writesText = outputs ? outputs.includes('text') : null;
+	const context = Number.isInteger(item.context_length) ? item.context_length : null;
 	return {
 		id,
-		tools: !writesText ? false : parameters ? parameters.includes('tools') : null,
+		tools: writesText === false ? false : parameters ? parameters.includes('tools') : null,
 		vision: inputs ? inputs.includes('image') : null,
 		price,
 		released,
 		expires,
 		varies,
+		context: context !== null && context > 0 && context <= 100_000_000 ? context : null,
+		text: writesText,
+		deprecated: false,
 	};
 }
 
@@ -217,7 +223,7 @@ async function listOpenRouterModels({ apiKey }, { get, signal }) {
  * @param {typeof fetch} [options.transport] fetch-like; tests inject a mock
  * @param {{get: () => Promise<{catalog: Record<string, Map<string, import('./model-catalog.js').CatalogEntry>>, source: string}>}} options.catalog
  * @param {AbortSignal} [options.signal]
- * @returns {Promise<{provider:string, catalog:string, models: Array<{id:string, tools:boolean|null, vision:boolean|null, price:{input:number,output:number}|null, released:string|null, expires?:string|null, varies?:boolean}>, freeRequests?:{remaining:number, limit:number}}>}
+ * @returns {Promise<{provider:string, catalog:string, models: Array<{id:string, tools:boolean|null, vision:boolean|null, price:{input:number,output:number}|null, released:string|null, expires?:string|null, varies?:boolean, context?:number|null, text?:boolean|null, deprecated?:boolean}>, freeRequests?:{remaining:number, limit:number}}>}
  */
 export async function listProviderModels({ provider, apiKey }, { transport, catalog, signal }) {
 	const get = createModelListGet(transport);
@@ -245,6 +251,9 @@ export async function listProviderModels({ provider, apiKey }, { transport, cata
 			vision: null,
 			price: null,
 			released: null,
+			context: null,
+			text: null,
+			deprecated: false,
 		};
 	});
 	return { provider, catalog: resolved.source, models };
