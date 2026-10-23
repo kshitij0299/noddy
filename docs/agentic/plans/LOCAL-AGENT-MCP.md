@@ -42,6 +42,30 @@ Claude Code ──MCP (HTTP)──▶ dev server /mcp ──bridge──▶ open
   chips and receipts as a normal run, so the owner sees what it does. Stop button.
 - No new screens. Follows `noddy-ui-feedback`: every control earns its place.
 
+## Connect Claude Code
+
+1. Run the dev server from your checkout: `npm run dev` (or `npx vite serve ./src/ --port <port>`).
+   The preview server, `npm run agent:serve` and built copies have no Local agent.
+2. Open Noddy, open a project, and in the agent panel header press the terminal button
+   (**Local agent**). The thread shows a command like:
+   `claude mcp add --transport http noddy http://localhost:<port>/mcp --header "Authorization: Bearer <token>"`
+   Press **Copy command**.
+3. Paste it in a terminal. If `noddy` is already registered from an earlier dev-server start,
+   run `claude mcp remove noddy` first: the token changes every time the dev server starts.
+4. Start Claude Code (or `/mcp` → reconnect in a running session). The chip in the panel turns to
+   "Claude Code · connected".
+5. Ask, for example, "use the noddy tools to list the glyphs" or "apply A's style to B". Each tool
+   call shows as a step line; each `submit_glyph` lands as a Draft with a receipt (Keep) and is one
+   step in the editor's Undo.
+6. Press **Stop** in the composer (or the switch again, or close the tab) to turn it off. Pending
+   and later calls get a readable tool error; turn it on again for a fresh command.
+
+Notes: one tab at a time (turning it on in another tab takes over). A native session lives as
+long as the MCP session; it is replaced when the project changes or it reaches its call or render
+limit, which drops unsubmitted drafts (the result says `sessionRestarted: true`). Sessions that
+Claude Code never closed keep the chip "connected" until the dev server restarts. Other clients
+(Codex, Cursor, OpenCode) use the same URL and `Authorization` header in their MCP config.
+
 ## Out of scope (next PRs)
 
 - Better tools (copy shape from another glyph, move/mirror/scale, primitives), error feedback and
