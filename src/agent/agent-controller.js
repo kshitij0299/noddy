@@ -96,7 +96,8 @@ export function createAgentController({
 	transport = requestAgentStep,
 	onEvent = () => {},
 	maxTools = 8,
-	timeoutMs = 120_000,
+	// Per model step, just above the relay's 5-minute limit: slow free models write long paths.
+	timeoutMs = 310_000,
 }) {
 	let connection;
 	let active;
@@ -236,7 +237,7 @@ export function createAgentController({
 			if (options.signal?.aborted) abort.abort('stopped');
 			else options.signal?.addEventListener('abort', onOuterAbort, { once: true });
 			const config = { ...connection };
-			const timer = setTimeout(() => abort.abort('timeout'), timeoutMs);
+			let timer;
 			const userText = prompt.trim() || 'Please inspect the attached reference files.';
 			const messages = [
 				...(job ? [] : conversation.flat()),
@@ -259,6 +260,8 @@ export function createAgentController({
 			try {
 				for (let step = 0; step <= toolLimit; step++) {
 					abort.signal.throwIfAborted();
+					clearTimeout(timer);
+					timer = setTimeout(() => abort.abort('timeout'), timeoutMs);
 					const result = await transport({ ...config, messages, context }, abort.signal);
 					abort.signal.throwIfAborted();
 					usage.push(result.usage || null);

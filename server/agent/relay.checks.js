@@ -1296,14 +1296,17 @@ test('local production host serves built app/assets and rejects hidden files or 
 });
 
 test('dev .env.local key: `env` swaps in the server key for OpenRouter free models only', async () => {
-	const devKey = 'sk-or-v1-dev-test-key';
+	// No `sk-` prefix, so only the key-based redaction (not the pattern fallback) can hide it.
+	const devKey = 'devkey-0123456789';
 	const seen = [];
+	let echo = false;
 	const listed = [];
 	const relay = createServer(
 		createAgentMiddleware({
 			devKeys: { openrouter: devKey },
 			loadRegistry: async () => registry,
 			generateStep: async (body) => {
+				if (echo) throw Object.assign(new Error(`bad key ${body.apiKey}`), { statusCode: 401 });
 				seen.push(body.apiKey);
 				return { text: 'ok', messages: [], toolCalls: [] };
 			},
@@ -1346,6 +1349,25 @@ test('dev .env.local key: `env` swaps in the server key for OpenRouter free mode
 		assert.equal(JSON.parse(paidText).error.code, 'DEV_KEY_FREE_ONLY');
 		assert.equal(paidText.includes(devKey), false);
 		assert.equal(seen.length, 2, 'A paid model never reaches the provider with the dev key');
+		for (const model of [
+			'vendor/model-free',
+			'vendor/free-model',
+			'openrouter/freebie',
+			'x/y:FREE ',
+		]) {
+			const loose = await post('/api/agent/step', step(model));
+			assert.equal(loose.status, 400, `${model} is not a free model id`);
+		}
+		assert.equal(seen.length, 2);
+
+		// A provider error that echoes the swapped key is redacted like a pasted key.
+		echo = true;
+		const echoed = await (
+			await post('/api/agent/step', { ...step('x/y:free'), purpose: 'check' })
+		).text();
+		assert.equal(echoed.includes(devKey), false, 'The dev key never appears in an error');
+		echo = false;
+		seen.length = 2;
 
 		// Another provider, or a real pasted key, is passed through untouched.
 		await post('/api/agent/step', step('gpt-5', 'openai'));
