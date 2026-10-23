@@ -118,6 +118,28 @@ function createLimiter(maxConcurrent = LIMITS.concurrentRequests, perMinute = 30
 	};
 }
 
+/** What the key field says to use the dev server's .env.local key instead. */
+export const DEV_KEY_WORD = 'env';
+// The env key is for agent tests on free models only: a free model id or the free router.
+const FREE_MODEL = /(?::free$|^openrouter\/free$)/;
+
+/**
+ * Swap the `env` key word for the dev server's key. Only OpenRouter, only when the dev server
+ * was given a key, and a step must name a free model so the key never pays for anything.
+ * @param {any} body
+ * @param {string} route
+ * @param {{openrouter?: string}} devKeys
+ */
+function applyDevKey(body, route, devKeys) {
+	if (body?.apiKey !== DEV_KEY_WORD || body?.provider !== 'openrouter' || !devKeys.openrouter) {
+		return;
+	}
+	if (route === 'step' && !FREE_MODEL.test(String(body.model ?? ''))) {
+		throw new RelayError('DEV_KEY_FREE_ONLY', 'The .env.local key works with free models only.');
+	}
+	body.apiKey = devKeys.openrouter;
+}
+
 const ROUTES = Object.freeze({
 	'/api/agent/step': 'step',
 	'/api/agent/models': 'models',
@@ -128,10 +150,11 @@ const ROUTES = Object.freeze({
  * injections are functions, not environment flags or browser-controlled fields.
  * `transport` is the fetch used for the model-list GETs and the models.dev
  * catalog; both go through fixed URL allowlists (providers.js).
- * @param {{loadRegistry?:typeof loadNativeRegistry, generateStep?:typeof generateAgentStep, timeoutMs?:number, transport?:typeof fetch, catalog?:ReturnType<typeof createCatalogSource>, listModels?:(request:{provider:string, apiKey:string}, options:{signal:AbortSignal}) => Promise<unknown>, modelsTimeoutMs?:number}} options
+ * @param {{loadRegistry?:typeof loadNativeRegistry, generateStep?:typeof generateAgentStep, timeoutMs?:number, transport?:typeof fetch, catalog?:ReturnType<typeof createCatalogSource>, listModels?:(request:{provider:string, apiKey:string}, options:{signal:AbortSignal}) => Promise<unknown>, modelsTimeoutMs?:number, devKeys?:{openrouter?:string}}} options
  */
 export function createAgentMiddleware(options = {}) {
 	const limiters = { step: createLimiter(), models: createLimiter() };
+	const devKeys = options.devKeys ?? {};
 	// One catalog (and its six-hour cache) per relay; it never sees a credential.
 	const catalog = options.catalog ?? createCatalogSource({ transport: options.transport });
 	const listModels =
@@ -185,6 +208,7 @@ export function createAgentMiddleware(options = {}) {
 				route === 'models' ? LIMITS.modelsBodyBytes : LIMITS.bodyBytes
 			);
 			controller.signal.throwIfAborted();
+			applyDevKey(body, route, devKeys);
 			apiKey = typeof body?.apiKey === 'string' ? body.apiKey : '';
 			isCheck = route === 'models' || body?.purpose === 'check';
 			if (route === 'models') {
