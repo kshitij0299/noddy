@@ -72,6 +72,28 @@ AGENTS.md §5 requires a hard stop after each milestone. For this autonomous run
 - Continue to the next milestone without waiting.
 - The owner reviews everything in the morning from `docs/agentic/MORNING-REPORT.md` and the PR list.
 
+## Cost discipline (binding, owner 2026-10-23)
+
+Most cost comes from browser-heavy QA, fix rounds, cold starts and mid-run restarts. Pick the lightest tier that proves the change.
+
+**QA tiers.** The orchestrator labels each PR `qa:tier-1`, `qa:tier-2` or `qa:tier-3` when it opens the issue.
+
+| Tier | When | QA does |
+|---|---|---|
+| **1. Light** | CSS, copy, docs, small UI fix (one component, no logic) | lint plus the test files for the touched area. One screenshot at 1440 (light) of the changed state. No width/theme matrix. |
+| **2. Standard** | New UI behaviour or logic in one area | Full lint, vitest and build. A browser walk of the happy path plus the edge cases named in the issue: 1440 light and dark, plus one narrow width. Up to 4 screenshots. |
+| **3. Full** | Protected areas, agent tools, relay, multi-screen features | Everything in tier 2, plus keyboard-only pass, 1024 and 390 widths, the relay checks, and mutation checks (break the fix on purpose and confirm tests fail). |
+
+**Rules for every run:**
+- **Mutation testing only in tier 3.**
+- **Screenshots:** take only the ones listed for the tier. Prefer DOM/text reads (`read_page`, `get_page_text`, computed styles) over images.
+- **Batch small fixes.** Collect tier-1 items (copy, spacing, small CSS) and ship them as one PR, not one PR each.
+- **Requirements up front.** The orchestrator collects the full brief before starting a run. If the owner adds requirements mid-run, queue them for a follow-up PR unless they invalidate the work in progress. Don't restart runs for additions.
+- **Warm setup.** Reuse one QA worktree per PR. Run `npm ci` once per worktree and reuse it for re-checks. Run the full suite once per round, plus targeted test files while iterating.
+- **One heavy run at a time on the owner's laptop.** Run parallel workflows only when they are light (tier 1), because parallel vitest/browser runs overload the machine and cause timeouts.
+- **Read less** (see [CAVEMAN.md](CAVEMAN.md)): read only the doc sections and files the issue touches.
+- **Long chats:** when the orchestrating chat gets long, start a fresh session. `CLAUDE.md` and `MORNING-REPORT.md` carry the context.
+
 ## UX quality bar (UI agent and QA)
 
 - Match Figma: tokens, ROND 60 headings, outlined icons, spacing (24px gutter, 4px grid).
