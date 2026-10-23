@@ -32,6 +32,35 @@ The owner opened the M1–M4 build and found UI drift, then approved a one-PR re
 - Every PR went issue → developer agent → QA agent → fixes → re-QA → squash-merge into `dev`. QA failed six rounds across five PRs, and each failure was fixed before merge.
 - `dev` checks after the last merge: lint 0 errors, **63 test files / 1121 tests pass**, build passes, agent relay 29/29.
 
+## Local session 2026-10-22 → 23 (owner + orchestrator on the laptop)
+
+**Merged into `dev`:**
+- [#70](https://github.com/kshitij0299/noddy/pull/70) Anthropic provider
+- [#77](https://github.com/kshitij0299/noddy/pull/77) live model list with models.dev badges
+- [#81](https://github.com/kshitij0299/noddy/pull/81) segmented pill hover fix, one shared component
+- [#83](https://github.com/kshitij0299/noddy/pull/83) connect flow: provider → key → model
+  - **OpenRouter** added and recommended.
+  - Supported-only model list, free first (rules in `src/agent/model-requirements.js`).
+  - Errors carry a status code and a fix.
+  - Zen now uses the `/inference` routes.
+
+Superseded and closed: #78, #79.
+
+**Zen caveat:** Zen's free models return `403 FreeTierError` ("free tier only from within OpenCode") to third-party apps. Use OpenRouter free models to test Noddy.
+
+**Owner smoke test, not done yet:** OpenRouter with a real key in the app. Open localhost:5300 → Examples → Oblegg → agent panel → OpenRouter → key → free model → open `n` → small ask → expect a Draft and a receipt.
+
+**Open UX issues from the stand-in test:**
+- [#71](https://github.com/kshitij0299/noddy/issues/71) "same style as my a" → whole-font plan with no cancel
+- [#72](https://github.com/kshitij0299/noddy/issues/72) "Open a glyph first" on Workspace
+- [#73](https://github.com/kshitij0299/noddy/issues/73) 8-tool-call cap
+- [#74](https://github.com/kshitij0299/noddy/issues/74) truncated refusals
+- [#75](https://github.com/kshitij0299/noddy/issues/75) error bubble not announced
+
+**Parked (owner asked):** a dev-only `.env.local` key option for agent live tests (free models only). The owner already created `.env.local` (git-ignored locally) with an OpenRouter key. Never read or print it.
+
+**Cost rules:** see WORKFLOW.md "Cost discipline" (QA tiers, Opus medium for code, Sonnet medium for read-only, no Fable).
+
 ## Protected-area PRs to review first
 
 All merged after QA PASS with adversarial undo/history tests. Each is a small, separately revertable squash commit.
