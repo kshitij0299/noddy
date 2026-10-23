@@ -3,13 +3,15 @@ import { PROVIDERS, resolveProviderProtocol } from './provider-config.js';
 
 /**
  * An Error carrying a short machine code ('RELAY_OFFLINE', or the relay's
- * public error code such as 'PROVIDER_AUTH') so the panel can pick its copy.
+ * public error code such as 'PROVIDER_AUTH') so the panel can pick its copy. A provider
+ * failure also carries the provider's HTTP status and a hint word (never its text).
  * @param {String} message
  * @param {String} code
- * @returns {Error & {code: String}}
+ * @param {{status?: Number, hint?: String}} [extra]
+ * @returns {Error & {code: String, status?: Number, hint?: String}}
  */
-export function agentError(message, code) {
-	return Object.assign(new Error(message), { code });
+export function agentError(message, code, extra = {}) {
+	return Object.assign(new Error(message), { code }, extra);
 }
 
 export function requireSelectedGlyph(context) {
@@ -77,7 +79,11 @@ export async function requestAgentStep(payload, signal) {
 	if (!response.ok)
 		throw agentError(
 			result.error?.message || 'The provider could not complete this request.',
-			result.error?.code || 'PROVIDER_UNAVAILABLE'
+			result.error?.code || 'PROVIDER_UNAVAILABLE',
+			{
+				...(Number.isInteger(result.error?.status) ? { status: result.error.status } : {}),
+				...(typeof result.error?.hint === 'string' ? { hint: result.error.hint } : {}),
+			}
 		);
 	if (!Array.isArray(result.messages) || !Array.isArray(result.toolCalls))
 		throw new Error('The agent relay returned an invalid response.');
@@ -330,7 +336,14 @@ export function createAgentController({
 					: error.code;
 				finalText += message;
 				failure = { message, code };
-				send('error', { message, code });
+				// The provider's status and hint word let the thread say what to do about it.
+				const extra = abort.signal.aborted
+					? {}
+					: {
+							...(Number.isInteger(error.status) ? { status: error.status } : {}),
+							...(typeof error.hint === 'string' ? { hint: error.hint } : {}),
+					  };
+				send('error', { message, code, ...extra });
 			} finally {
 				clearTimeout(timer);
 				options.signal?.removeEventListener('abort', onOuterAbort);

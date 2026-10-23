@@ -1,935 +1,1307 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PROVIDERS, resolveProviderProtocol } from '../provider-config.js';
-import { TOOL_DEFINITIONS } from '../tool-definitions.js';
-import { validateRequest } from '../../../server/agent/validation.js';
-import { NO_FORMAT_REASON, NO_TOOLS_REASON } from '../model-list.js';
-import {
-	MODEL_SUGGESTIONS,
-	checkConnection,
-	createConnectCard,
-	fetchModels,
-	modelLabel,
-	outcomeForCode,
-} from '../ui/agent-connect-card.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PROVIDERS } from '../provider-config.js';
+import { CONNECTION_STORAGE_KEY } from '../connect-flow.js';
+import { RELAY_OFF_COPY, createConnectCard, modelLabel } from '../ui/agent-connect-card.js';
 
-const json = (status, body) => ({ ok: status < 400, status, json: async () => body });
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const NOW = Date.parse('2026-10-23T12:00:00Z');
+const free = { input: 0, output: 0 };
+const KEY = 'sk-or-v1-test-key-that-must-not-leak';
 
-describe('checkConnection (#21)', () => {
-	const config = { provider: 'openai', model: 'gpt-5', apiKey: 'sk-1' };
+const model = (id, overrides = {}) => ({
+	id,
+	tools: true,
+	vision: false,
+	price: { input: 3, output: 15 },
+	released: '2026-01-01',
+	context: 200_000,
+	text: true,
+	deprecated: false,
+	...overrides,
+});
 
-	it('checks relay health, then makes one tiny step call', async () => {
-		const fetchImpl = vi
-			.fn()
-			.mockResolvedValueOnce(json(200, {}))
-			.mockResolvedValueOnce(json(200, {}));
-		expect(await checkConnection(config, fetchImpl)).toEqual({ ok: true });
-		expect(fetchImpl.mock.calls.map((call) => call[0])).toEqual([
-			'/api/agent/config',
-			'/api/agent/step',
-		]);
-		const body = JSON.parse(fetchImpl.mock.calls[1][1].body);
-		expect(body.messages).toHaveLength(1);
-		expect(fetchImpl.mock.calls[1][0]).not.toContain('sk-1');
-	});
+const MODELS = [
+	model('vendor/paid-one'),
+	model('vendor/free-big:free', { price: free, vision: true, context: 1_000_000 }),
+	model('vendor/free-small:free', { price: free, context: 64_000 }),
+	model('vendor/no-tools', { tools: false }),
+	model('vendor/unknown', { tools: null, price: null }),
+];
 
-	it('relay offline is distinct from provider down', async () => {
-		const offline = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
-		expect(await checkConnection(config, offline)).toEqual({ ok: false, outcome: 'relay-offline' });
-		const down = vi
-			.fn()
-			.mockResolvedValueOnce(json(200, {}))
-			.mockResolvedValueOnce(json(502, { error: { code: 'PROVIDER_UNAVAILABLE' } }));
-		expect(await checkConnection(config, down)).toEqual({ ok: false, outcome: 'provider-down' });
-	});
+const many = (count = 20) =>
+	Array.from({ length: count }, (_, i) =>
+		model(`vendor/model-${String(i).padStart(2, '0')}`, { price: i < 3 ? free : undefined })
+	);
 
-	it('maps wrong key and no tool calling', () => {
-		expect(outcomeForCode('PROVIDER_AUTH')).toBe('wrong-key');
-		expect(outcomeForCode('PROVIDER_REQUEST')).toBe('no-tools');
-	});
+function memoryStorage(initial = {}) {
+	const data = new Map(Object.entries(initial));
+	return {
+		data,
+		getItem: (key) => (data.has(key) ? data.get(key) : null),
+		setItem: vi.fn((key, value) => data.set(key, String(value))),
+		removeItem: vi.fn((key) => data.delete(key)),
+	};
+}
 
-	it('Anthropic check posts the Anthropic config, which the relay validates as Messages', async () => {
-		const anthropic = { provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: 'sk-ant-1' };
-		const fetchImpl = vi
-			.fn()
-			.mockResolvedValueOnce(json(200, {}))
-			.mockResolvedValueOnce(json(200, {}));
-		expect(await checkConnection(anthropic, fetchImpl)).toEqual({ ok: true });
-		const [url, init] = fetchImpl.mock.calls[1];
-		expect(url).toBe('/api/agent/step');
-		expect(url).not.toContain('sk-ant-1');
-		const body = JSON.parse(init.body);
-		expect(body).toMatchObject({
-			provider: 'anthropic',
-			protocol: 'auto',
-			model: 'claude-sonnet-5-5',
-			apiKey: 'sk-ant-1',
+const listed = (models, extra = {}) => ({ ok: true, models, freeRequests: null, ...extra });
+const failed = (error) => ({ ok: false, error });
+
+describe('the stepped connect card (#82)', () => {
+	let card;
+	let storage;
+	let onConnected;
+	let loadModels;
+	let check;
+
+	const q = (selector) => card.root.querySelector(selector);
+	const qa = (selector) => [...card.root.querySelectorAll(selector)];
+	const title = () => q('.agent-connect__title')?.textContent;
+	const stepText = () => q('.agent-connect__count')?.textContent;
+	const keyInput = () => q('input.agent-field__input[id$="-key"]');
+	const idInput = () => q('input.agent-field__input[id$="model-id"]');
+	const primary = () => q('.agent-connect__primary');
+	const back = () => q('.agent-connect__back');
+	const optionFor = (id) =>
+		qa('[role="option"]').find((option) => option.dataset.id === id) ?? null;
+	const press = (target, key, init = {}) => {
+		const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+		target.dispatchEvent(event);
+		return event;
+	};
+
+	function open(options = {}) {
+		card = createConnectCard({
+			onConnected,
+			check,
+			loadModels,
+			storage,
+			now: () => NOW,
+			...options,
 		});
-		// The same body passes the relay's own validator and routes to Messages.
-		expect(validateRequest(body, TOOL_DEFINITIONS)).toMatchObject({
-			provider: 'anthropic',
-			protocol: 'messages',
-			model: 'claude-sonnet-5-5',
+		document.body.append(card.root);
+		return card;
+	}
+
+	const choose = (id) => q(`button[data-provider="${id}"]`).click();
+	async function submitKey(value = KEY) {
+		keyInput().value = value;
+		primary().click();
+		await flush();
+	}
+	/** Provider → key → list: lands on Step 3. */
+	async function toModelStep(provider = 'openrouter', models = MODELS, extra = {}) {
+		loadModels.mockResolvedValue(listed(models, extra));
+		choose(provider);
+		await submitKey();
+	}
+
+	beforeEach(() => {
+		storage = memoryStorage();
+		onConnected = vi.fn();
+		loadModels = vi.fn().mockResolvedValue(listed(MODELS));
+		check = vi.fn().mockResolvedValue({ ok: true });
+		HTMLElement.prototype.scrollIntoView = vi.fn();
+	});
+
+	afterEach(() => {
+		card?.root.remove();
+		card = undefined;
+		delete HTMLElement.prototype.scrollIntoView;
+		vi.useRealTimers();
+	});
+
+	describe('Step 1: provider', () => {
+		it('lists OpenRouter (recommended), OpenCode Zen, OpenAI and Anthropic, each with one line', () => {
+			open();
+			expect(title()).toBe('Choose a provider');
+			expect(stepText()).toBe('Step 1 of 3');
+			const rows = qa('button.agent-provider');
+			expect(rows.map((row) => row.dataset.provider)).toEqual([
+				'openrouter',
+				'opencode-zen',
+				'openai',
+				'anthropic',
+			]);
+			expect(rows.map((row) => row.querySelector('.agent-provider__hint').textContent)).toEqual([
+				'Many free models',
+				'Models tested for coding agents',
+				'GPT models, paid',
+				'Claude models, paid',
+			]);
+			expect(rows[0].textContent).toContain('Recommended');
+			expect(rows.slice(1).some((row) => row.textContent.includes('Recommended'))).toBe(false);
+			expect(q('[role="group"]').getAttribute('aria-label')).toBe('Provider');
+		});
+
+		it('has no Back button on the first step, no Next, and no native select or datalist', () => {
+			open();
+			expect(back()).toBe(null);
+			expect(primary()).toBe(null);
+			expect(qa('button').map((button) => button.textContent.trim())).not.toContain('Next');
+			expect(q('select, datalist, option')).toBe(null);
+		});
+
+		it('the step bar is decoration; the text carries the step', () => {
+			open();
+			const bar = q('.agent-connect__progress');
+			expect(bar.getAttribute('aria-hidden')).toBe('true');
+			expect(bar.children).toHaveLength(3);
+			expect(qa('.agent-connect__segment.is-on')).toHaveLength(1);
+		});
+
+		it('choosing a provider goes straight to its key step', () => {
+			open();
+			choose('openrouter');
+			expect(card.step).toBe(2);
+			expect(title()).toBe('Add your OpenRouter key');
+			expect(stepText()).toBe('Step 2 of 3');
+			expect(qa('.agent-connect__segment.is-on')).toHaveLength(2);
+		});
+
+		it('Up and Down also move between the rows, wrapping', () => {
+			open();
+			const rows = qa('button.agent-provider');
+			rows[0].focus();
+			press(rows[0], 'ArrowDown');
+			expect(document.activeElement).toBe(rows[1]);
+			press(rows[1], 'ArrowUp');
+			press(rows[0], 'ArrowUp');
+			expect(document.activeElement).toBe(rows[3]);
+		});
+
+		it('every provider is reachable from the one list the code owns', () => {
+			expect(Object.keys(PROVIDERS)).toEqual(['openrouter', 'opencode-zen', 'openai', 'anthropic']);
+			for (const spec of Object.values(PROVIDERS)) {
+				expect(spec.keyUrl).toMatch(/^https:\/\//);
+				expect(spec.hint.length).toBeGreaterThan(0);
+			}
+		});
+	});
+
+	describe('Step 2: API key', () => {
+		beforeEach(() => {
+			open();
+			choose('openrouter');
+		});
+
+		it('one labelled password field with a show/hide toggle inside it and a link to the key page', () => {
+			const label = q('label.agent-field__label');
+			expect(label.textContent).toBe('API key');
+			expect(label.htmlFor).toBe(keyInput().id);
+			expect(keyInput().type).toBe('password');
+			expect(keyInput().autocomplete).toBe('off');
+			const link = qa('a').find((a) => a.textContent.startsWith('Get a key'));
+			expect(link.textContent).toBe('Get a key ↗');
+			expect(link.href).toBe('https://openrouter.ai/settings/keys');
+			expect(link.target).toBe('_blank');
+			expect(link.rel).toBe('noopener noreferrer');
+			// The toggle sits inside the field box.
+			const toggle = q('.agent-field__box button[aria-pressed]');
+			expect(toggle).not.toBe(null);
+			expect(q('.agent-field__message').textContent).toBe(
+				'Your key stays in this tab and is never saved.'
+			);
+		});
+
+		it('each provider links to its own key page', () => {
+			const pages = {
+				openrouter: 'https://openrouter.ai/settings/keys',
+				'opencode-zen': 'https://opencode.ai/console',
+				openai: 'https://platform.openai.com/api-keys',
+				anthropic: 'https://platform.claude.com/settings/keys',
+			};
+			for (const [provider, url] of Object.entries(pages)) {
+				card.open('provider');
+				choose(provider);
+				expect(qa('a').find((a) => a.textContent.startsWith('Get a key')).href).toBe(url);
+			}
+		});
+
+		it('show/hide flips the field type, the label and aria-pressed', () => {
+			const toggle = q('button[aria-pressed]');
+			expect(toggle.getAttribute('aria-label')).toBe('Show key');
+			expect(toggle.getAttribute('aria-pressed')).toBe('false');
+			toggle.click();
+			expect(keyInput().type).toBe('text');
+			expect(toggle.getAttribute('aria-label')).toBe('Hide key');
+			expect(toggle.getAttribute('aria-pressed')).toBe('true');
+			toggle.click();
+			expect(keyInput().type).toBe('password');
+		});
+
+		it('the primary is always enabled; an empty field says so and keeps focus there, with no request', async () => {
+			expect(primary().textContent).toBe('Check key');
+			expect(primary().disabled).toBe(false);
+			primary().click();
+			await flush();
+			expect(loadModels).not.toHaveBeenCalled();
+			expect(q('[role="alert"]').textContent).toContain('Paste your key first.');
+			expect(document.activeElement).toBe(keyInput());
+			expect(keyInput().getAttribute('aria-invalid')).toBe('true');
+		});
+
+		it('a pasted "Bearer " is dropped and the key alone is checked (QA #83 item 4)', async () => {
+			await submitKey(`Bearer ${KEY}`);
+			expect(loadModels).toHaveBeenCalledTimes(1);
+			expect(loadModels.mock.calls[0][0]).toEqual({ provider: 'openrouter', apiKey: KEY });
+		});
+
+		it.each([
+			['a space inside', 'sk-or-v1 abc', 'space in it'],
+			['a non-ASCII character', 'sk-or-v1-abcé', 'characters a key never has'],
+			['far too long', `sk-or-${'a'.repeat(600)}`, 'too long'],
+		])(
+			'text with %s is named in plain words and nothing is sent (QA #83 item 4)',
+			async (_, value, words) => {
+				await submitKey(value);
+				expect(loadModels).not.toHaveBeenCalled();
+				const alert = q('[role="alert"]').textContent;
+				expect(alert).toContain(words);
+				expect(alert).toContain('Nothing was sent.');
+				expect(alert).not.toContain('OpenRouter isn');
+				expect(document.activeElement).toBe(keyInput());
+			}
+		);
+
+		it('a relay refusal is never blamed on the provider', async () => {
+			loadModels.mockResolvedValue(
+				failed({ code: 'INVALID_REQUEST', status: 400, message: 'Enter a valid provider API key.' })
+			);
+			await submitKey();
+			const alert = q('[role="alert"]');
+			expect(alert.textContent).toContain("Noddy's relay refused that key text");
+			expect(alert.textContent).not.toContain('OpenRouter');
+			alert.querySelector('button.agent-link-button').click();
+			expect(alert.querySelector('dl').textContent).toContain('Noddy relay, on this computer');
+			expect(alert.querySelector('dl').textContent).not.toContain('openrouter.ai');
+		});
+
+		it('Back returns to the provider step', () => {
+			back().click();
+			expect(card.step).toBe(1);
+			expect(title()).toBe('Choose a provider');
+		});
+
+		it('trims the pasted key and surrounding quotes, and checks that key', async () => {
+			keyInput().value = `  "${KEY}"\n`;
+			primary().click();
+			await flush();
+			expect(loadModels).toHaveBeenCalledTimes(1);
+			expect(loadModels.mock.calls[0][0]).toEqual({ provider: 'openrouter', apiKey: KEY });
+			expect(loadModels.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+		});
+
+		it('Check key sends no billed message: it only lists models', async () => {
+			await submitKey();
+			expect(loadModels).toHaveBeenCalledTimes(1);
+			expect(check).not.toHaveBeenCalled();
+		});
+
+		it('while it runs: "Checking…", busy, the field read-only, Back still works and cancels', async () => {
+			let resolve;
+			loadModels.mockImplementation(() => new Promise((r) => (resolve = r)));
+			keyInput().value = KEY;
+			primary().click();
+			expect(primary().querySelector('.agent-card__button-label').textContent).toBe('Checking…');
+			expect(primary().getAttribute('aria-busy')).toBe('true');
+			expect(primary().querySelector('.agent-connect__spinner')).not.toBe(null);
+			expect(keyInput().readOnly).toBe(true);
+			expect(back().disabled).toBe(false);
+			const { signal } = loadModels.mock.calls[0][1];
+			expect(signal.aborted).toBe(false);
+			back().click();
+			expect(signal.aborted).toBe(true);
+			expect(card.step).toBe(1);
+			// A late answer to the cancelled request changes nothing.
+			resolve(listed(MODELS));
+			await flush();
+			expect(card.step).toBe(1);
+			expect(card.root.querySelector('[role="option"]')).toBe(null);
+		});
+
+		it('a second press while it runs does not start another request', async () => {
+			let resolve;
+			loadModels.mockImplementation(() => new Promise((r) => (resolve = r)));
+			keyInput().value = KEY;
+			primary().click();
+			q('form').requestSubmit?.();
+			expect(loadModels).toHaveBeenCalledTimes(1);
+			resolve(listed(MODELS));
+			await flush();
+		});
+
+		it('401 · says the key was not accepted, selects the field and offers Details', async () => {
+			loadModels.mockResolvedValue(
+				failed({ code: 'PROVIDER_AUTH', status: 401, detail: 'User not found.' })
+			);
+			await submitKey('sk-or-v1-wrong');
+			const alert = q('[role="alert"]');
+			expect(alert.textContent).toContain(
+				'401 · Key not accepted — check you copied the whole key.'
+			);
+			// It replaces the helper in the same reserved line, so nothing jumps.
+			expect(q('.agent-field__message').contains(alert)).toBe(true);
+			expect(q('.agent-field__box').classList.contains('is-invalid')).toBe(true);
+			expect(document.activeElement).toBe(keyInput());
+			expect(keyInput().value).toBe('sk-or-v1-wrong');
+			expect(card.step).toBe(2);
+		});
+
+		it('Details is closed by default and lists status, host and the provider’s message', async () => {
+			loadModels.mockResolvedValue(
+				failed({ code: 'PROVIDER_AUTH', status: 401, detail: 'User not found.' })
+			);
+			await submitKey('sk-or-v1-wrong');
+			const toggle = qa('button').find((button) => button.textContent === 'Details');
+			const details = q('.agent-error__details');
+			expect(toggle.getAttribute('aria-expanded')).toBe('false');
+			expect(details.hidden).toBe(true);
+			expect(toggle.getAttribute('aria-controls')).toBe(details.id);
+			toggle.click();
+			expect(toggle.getAttribute('aria-expanded')).toBe('true');
+			expect(details.hidden).toBe(false);
+			expect(details.textContent).toContain('401');
+			expect(details.textContent).toContain('openrouter.ai');
+			expect(details.textContent).toContain('"User not found."');
+			toggle.click();
+			expect(details.hidden).toBe(true);
+		});
+
+		it('a key without the usual prefix is told what a key looks like', async () => {
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_AUTH', status: 401 }));
+			await submitKey('abc123');
+			expect(q('[role="alert"]').textContent).toContain('OpenRouter keys start with sk-or-.');
+		});
+
+		it('never shows the key in an error, Details or anywhere in the markup', async () => {
+			loadModels.mockResolvedValue(
+				failed({ code: 'PROVIDER_AUTH', status: 401, detail: 'User not found.' })
+			);
+			await submitKey(KEY);
+			expect(card.root.textContent).not.toContain(KEY);
+			expect(card.root.outerHTML).not.toContain(KEY);
+		});
+
+		it('typing again takes the error away and brings the helper back', async () => {
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_AUTH', status: 401 }));
+			await submitKey('abc');
+			expect(q('[role="alert"]')).not.toBe(null);
+			keyInput().value = 'abcd';
+			keyInput().dispatchEvent(new Event('input', { bubbles: true }));
+			expect(q('[role="alert"]')).toBe(null);
+			expect(q('.agent-field__message').textContent).toBe(
+				'Your key stays in this tab and is never saved.'
+			);
+			expect(q('.agent-field__box').classList.contains('is-invalid')).toBe(false);
+			expect(keyInput().hasAttribute('aria-invalid')).toBe(false);
+		});
+
+		it('the relay being off says so, with no status', async () => {
+			loadModels.mockResolvedValue(failed({ offline: true }));
+			await submitKey();
+			expect(q('[role="alert"]').textContent).toContain(RELAY_OFF_COPY);
+			expect(qa('button').some((b) => b.textContent === 'Details')).toBe(false);
+		});
+
+		it('a 5xx offers to try again: the same primary', async () => {
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_UNAVAILABLE', status: 502 }));
+			await submitKey();
+			expect(q('[role="alert"]').textContent).toContain(
+				"502 · OpenRouter isn't responding — try again, or pick another model."
+			);
+			expect(primary().textContent).toBe('Check key');
+			loadModels.mockResolvedValue(listed(MODELS));
+			primary().click();
+			await flush();
+			expect(card.step).toBe(3);
+		});
+
+		it('a key the provider will not let list models goes on to a model ID field', async () => {
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_FORBIDDEN', status: 403 }));
+			await submitKey();
+			expect(card.step).toBe(3);
+			expect(idInput()).not.toBe(null);
+			expect(q('.agent-field__message').textContent).toBe(
+				"403 · This key can't list models — type a model ID."
+			);
+			expect(q('[role="listbox"]')).toBe(null);
+		});
+
+		it('a Zen free-tier 403 on the check is an error, not a way to the model ID field', async () => {
+			card.open('provider');
+			choose('opencode-zen');
+			loadModels.mockResolvedValue(
+				failed({ code: 'PROVIDER_FORBIDDEN', status: 403, hint: 'free-tier-only' })
+			);
+			await submitKey();
+			expect(card.step).toBe(2);
+			expect(q('[role="alert"]').textContent).toContain('OpenCode only offers its free models');
+		});
+	});
+
+	describe('Step 3: model', () => {
+		it('lists only models that work with Noddy’s tools, Free first, with the first Free one chosen', async () => {
+			open();
+			await toModelStep();
+			expect(card.step).toBe(3);
+			expect(title()).toBe('Choose a model');
+			expect(stepText()).toBe('Step 3 of 3');
+			expect(q('.agent-connect__status').textContent).toContain('Key works · OpenRouter');
+			expect(qa('[role="option"]').map((option) => option.dataset.id)).toEqual([
+				'vendor/free-big:free',
+				'vendor/free-small:free',
+				'vendor/paid-one',
+			]);
+			expect(optionFor('vendor/free-big:free').getAttribute('aria-selected')).toBe('true');
+			expect(q('.agent-models__count').textContent).toContain(
+				'Showing 3 models that work with Noddy’s tools.'
+			);
+			expect(qa('[aria-disabled]')).toHaveLength(0);
+		});
+
+		it('no model is greyed out and none without tools or with unknown support is offered', async () => {
+			open();
+			await toModelStep();
+			expect(optionFor('vendor/no-tools')).toBe(null);
+			expect(optionFor('vendor/unknown')).toBe(null);
+		});
+
+		it('focus lands on the list (no search for a short list), the chosen row active', async () => {
+			open();
+			await toModelStep();
+			expect(document.activeElement).toBe(q('[role="listbox"]'));
+			expect(q('[role="listbox"]').getAttribute('aria-activedescendant')).toBe(
+				optionFor('vendor/free-big:free').id
+			);
+		});
+
+		it('a long list has a search field, and focus lands in it', async () => {
+			open();
+			await toModelStep('openrouter', many(20));
+			const search = q('input[role="combobox"]');
+			expect(search).not.toBe(null);
+			expect(document.activeElement).toBe(search);
+			expect(search.placeholder).toBe('Search 20 models');
+		});
+
+		it('a paid-only provider has no Free group and starts on the first paid model', async () => {
+			open();
+			await toModelStep('anthropic', [model('claude-b'), model('claude-a')]);
+			expect(qa('.agent-models__group-head')).toHaveLength(0);
+			expect(optionFor('claude-a').getAttribute('aria-selected')).toBe('true');
+			expect(q('.agent-connect__caption').textContent).toBe(
+				'Paid models bill your Anthropic account.'
+			);
+		});
+
+		it('says what the choice means: a Free model may keep what you send', async () => {
+			open();
+			await toModelStep();
+			expect(q('.agent-connect__caption').textContent).toBe('Free models may keep what you send.');
+			optionFor('vendor/paid-one').click();
+			expect(q('.agent-connect__caption').textContent).toBe(
+				'Paid models bill your OpenRouter account.'
+			);
+		});
+
+		it('choosing another model marks it and clears an old error', async () => {
+			open();
+			await toModelStep();
+			check.mockResolvedValue({ ok: false, error: { code: 'PROVIDER_CREDITS', status: 402 } });
+			primary().click();
+			await flush();
+			expect(q('[role="alert"]')).not.toBe(null);
+			optionFor('vendor/free-small:free').click();
+			expect(optionFor('vendor/free-small:free').getAttribute('aria-selected')).toBe('true');
+			expect(q('[role="alert"]')).toBe(null);
+		});
+
+		it('"Use this model" sends one test for the chosen model with the verified key', async () => {
+			open();
+			await toModelStep();
+			primary().click();
+			await flush();
+			expect(check).toHaveBeenCalledTimes(1);
+			expect(check.mock.calls[0][0]).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				apiKey: KEY,
+			});
+		});
+
+		it('while it tests: "Testing…", the list ignores input, Back stays enabled and cancels', async () => {
+			open();
+			await toModelStep();
+			let resolve;
+			check.mockImplementation(() => new Promise((r) => (resolve = r)));
+			primary().click();
+			expect(primary().querySelector('.agent-card__button-label').textContent).toBe('Testing…');
+			expect(q('[role="listbox"]').getAttribute('aria-busy')).toBe('true');
+			optionFor('vendor/paid-one').click();
+			expect(optionFor('vendor/paid-one').getAttribute('aria-selected')).toBe('false');
+			expect(back().disabled).toBe(false);
+			const { signal } = check.mock.calls[0][1];
+			back().click();
+			expect(signal.aborted).toBe(true);
+			expect(card.step).toBe(2);
+			resolve({ ok: true });
+			await flush();
+			expect(onConnected).not.toHaveBeenCalled();
+			expect(card.connected).toBe(null);
+		});
+
+		it('Enter on the chosen row confirms: accepting the start is Enter, Enter', async () => {
+			open();
+			await toModelStep('openrouter', many(20));
+			const search = q('input[role="combobox"]');
+			press(search, 'Enter');
+			await flush();
+			expect(check).toHaveBeenCalledTimes(1);
+			expect(check.mock.calls[0][0].model).toBe('vendor/model-00');
+		});
+
+		it('Back from the model step returns to the key step with the checked key and "Continue"', async () => {
+			open();
+			await toModelStep();
+			back().click();
+			expect(card.step).toBe(2);
+			expect(keyInput().value).toBe(KEY);
+			expect(keyInput().type).toBe('password');
+			expect(q('.agent-field__message').textContent).toBe('Key checked');
+			expect(primary().textContent).toBe('Continue');
+			// Continue: back to the models without asking the provider again.
+			loadModels.mockClear();
+			primary().click();
+			await flush();
+			expect(loadModels).not.toHaveBeenCalled();
+			expect(card.step).toBe(3);
+			// Editing the key turns Continue back into Check key.
+			back().click();
+			keyInput().value = `${KEY}x`;
+			keyInput().dispatchEvent(new Event('input', { bubbles: true }));
+			expect(primary().textContent).toBe('Check key');
+			expect(q('.agent-field__message').textContent).toBe(
+				'Your key stays in this tab and is never saved.'
+			);
+		});
+
+		it('choosing another provider drops the key and the list of the first', async () => {
+			open();
+			await toModelStep();
+			card.open('provider');
+			choose('openai');
+			expect(keyInput().value).toBe('');
+			// Coming back to the first provider asks for its key again.
+			back().click();
+			choose('openrouter');
+			expect(keyInput().value).toBe('');
+			expect(primary().textContent).toBe('Check key');
+			expect(card.step).toBe(2);
+		});
+
+		it('the same provider keeps its checked key when the user goes back to Step 1 and forward again', async () => {
+			open();
+			await toModelStep();
+			back().click();
+			back().click();
+			expect(card.step).toBe(1);
+			choose('openrouter');
+			expect(keyInput().value).toBe(KEY);
+		});
+
+		it('Esc inside the card never reaches the panel', async () => {
+			open();
+			await toModelStep('openrouter', many(20));
+			const reached = vi.fn();
+			document.body.addEventListener('keydown', reached);
+			press(q('input[role="combobox"]'), 'Escape');
+			expect(reached).not.toHaveBeenCalled();
+			document.body.removeEventListener('keydown', reached);
+		});
+
+		it('the search filters live and a no-match offers the text as a model ID', async () => {
+			open();
+			await toModelStep('openrouter', many(20));
+			const search = q('input[role="combobox"]');
+			search.value = 'brand-new/thing';
+			search.dispatchEvent(new Event('input', { bubbles: true }));
+			expect(q('.agent-models__none').textContent).toBe('No model matches “brand-new/thing”.');
+			qa('[role="option"]')[0].click();
+			expect(idInput()).not.toBe(null);
+			expect(idInput().value).toBe('brand-new/thing');
+			expect(document.activeElement).toBe(idInput());
+		});
+	});
+
+	describe('a model that is not in the list', () => {
+		it('"Use a model ID" swaps the list for one Model ID field, and "Pick from the list" swaps back', async () => {
+			open();
+			await toModelStep();
+			qa('button')
+				.find((button) => button.textContent === 'Use a model ID')
+				.click();
+			expect(card.step).toBe(3);
+			expect(q('[role="listbox"]')).toBe(null);
+			expect(q('label.agent-field__label').textContent).toBe('Model ID');
+			expect(document.activeElement).toBe(idInput());
+			expect(q('.agent-field__message').textContent).toBe(
+				'Noddy sends one small test before it connects.'
+			);
+			qa('button')
+				.find((button) => button.textContent === 'Pick from the list')
+				.click();
+			expect(q('[role="listbox"]')).not.toBe(null);
+			expect(idInput()).toBe(null);
+		});
+
+		it('a typed ID is tested like any other: same primary, same single test message', async () => {
+			open();
+			await toModelStep();
+			qa('button')
+				.find((button) => button.textContent === 'Use a model ID')
+				.click();
+			idInput().value = '  hidden/unknown-model ';
+			idInput().dispatchEvent(new Event('input', { bubbles: true }));
+			primary().click();
+			await flush();
+			expect(check).toHaveBeenCalledTimes(1);
+			expect(check.mock.calls[0][0].model).toBe('hidden/unknown-model');
+			expect(card.connected).toEqual({ provider: 'openrouter', model: 'hidden/unknown-model' });
+		});
+
+		it('an empty or invalid ID is refused before any test, in the card’s own words', async () => {
+			open();
+			await toModelStep();
+			qa('button')
+				.find((button) => button.textContent === 'Use a model ID')
+				.click();
+			primary().click();
+			await flush();
+			expect(q('[role="alert"]').textContent).toContain('Type a model ID first.');
+			idInput().value = 'not a valid id';
+			primary().click();
+			await flush();
+			expect(q('[role="alert"]').textContent).toContain('That is not a valid model ID.');
+			expect(check).not.toHaveBeenCalled();
+		});
+
+		it('a Zen model Noddy cannot route is refused before any test', async () => {
+			open();
+			await toModelStep('opencode-zen', [model('kimi-k2.6')]);
+			qa('button')
+				.find((button) => button.textContent === 'Use a model ID')
+				.click();
+			idInput().value = 'gemini-3.5-flash';
+			primary().click();
+			await flush();
+			expect(q('[role="alert"]').textContent).toContain(
+				"Noddy doesn't support this model's API format yet — pick another."
+			);
+			expect(check).not.toHaveBeenCalled();
+		});
+
+		it('a key with no supported model explains it and suggests OpenRouter', async () => {
+			open();
+			await toModelStep('openai', [model('text-embedding-3-small', { tools: false })]);
+			expect(idInput()).not.toBe(null);
+			expect(q('.agent-field__message').textContent).toBe(
+				'None of this key’s 1 model works with Noddy’s tools. OpenRouter has free models that do. Or type a model ID.'
+			);
+			// Nothing to go back to: no way to the list.
+			expect(qa('button').some((button) => button.textContent === 'Pick from the list')).toBe(
+				false
+			);
+		});
+
+		it('OpenRouter with nothing supported says so without suggesting itself', async () => {
+			open();
+			await toModelStep('openrouter', [model('x', { tools: false })]);
+			expect(q('.agent-field__message').textContent).toContain(
+				'OpenRouter lists no models that work with Noddy’s tools right now.'
+			);
+		});
+
+		it('a key that lists nothing at all asks for a model ID too', async () => {
+			open();
+			await toModelStep('anthropic', []);
+			expect(q('.agent-field__message').textContent).toBe(
+				'This key lists no models. OpenRouter has free models that do. Or type a model ID.'
+			);
+		});
+	});
+
+	describe('errors from the one test message', () => {
+		async function failWith(error, provider = 'openrouter', models = MODELS) {
+			open();
+			await toModelStep(provider, models);
+			check.mockResolvedValue({ ok: false, error });
+			primary().click();
+			await flush();
+		}
+
+		it('402 · out of credits, with a link to add credits, and the list stays open', async () => {
+			await failWith({ code: 'PROVIDER_CREDITS', status: 402, detail: 'Insufficient credits.' });
+			const alert = q('[role="alert"]');
+			expect(alert.textContent).toContain(
+				'402 · Out of credits — add credits, or pick a free model.'
+			);
+			const link = alert.querySelector('a');
+			expect(link.textContent).toBe('Add credits ↗');
+			expect(link.href).toBe('https://openrouter.ai/settings/credits');
+			expect(link.rel).toBe('noopener noreferrer');
+			expect(card.step).toBe(3);
+			expect(card.connected).toBe(null);
+			expect(q('[role="listbox"]')).not.toBe(null);
+			expect(onConnected).not.toHaveBeenCalled();
+			expect(storage.setItem).not.toHaveBeenCalled();
+		});
+
+		it('404 · model not found', async () => {
+			await failWith({ code: 'PROVIDER_MODEL', status: 404 });
+			expect(q('[role="alert"]').textContent).toContain(
+				'404 · Model not found — it may have been removed. Pick another.'
+			);
+		});
+
+		it('404 about the privacy settings links to them', async () => {
+			await failWith({ code: 'PROVIDER_MODEL', status: 404, hint: 'data-policy' });
+			expect(q('[role="alert"]').textContent).toContain(
+				'404 · Your OpenRouter privacy settings block this free model'
+			);
+			expect(q('[role="alert"] a').href).toBe('https://openrouter.ai/settings/privacy');
+		});
+
+		it('429 · rate limited', async () => {
+			await failWith({ code: 'PROVIDER_LIMIT', status: 429 });
+			expect(q('[role="alert"]').textContent).toContain(
+				'429 · Rate limited — try another free model or wait a minute.'
+			);
+		});
+
+		it('after OpenCode’s free-tier refusal the selection moves to the first Paid model, the error stays', async () => {
+			await failWith(
+				{ code: 'PROVIDER_FORBIDDEN', status: 403, hint: 'free-tier-only' },
+				'opencode-zen',
+				[
+					model('beam-free', { price: free }),
+					model('kimi-k2.6', { context: 262_144 }),
+					model('glm-5', { context: 128_000 }),
+				]
+			);
+			expect(optionFor('beam-free').getAttribute('aria-selected')).toBe('false');
+			expect(optionFor('kimi-k2.6').getAttribute('aria-selected')).toBe('true');
+			expect(q('[role="alert"]')).not.toBe(null);
+			expect(q('.agent-connect__caption').textContent).toBe(
+				'Paid models bill your OpenCode Zen account.'
+			);
+			// The next press tests that paid model.
+			check.mockResolvedValue({ ok: true });
+			primary().click();
+			await flush();
+			expect(check.mock.calls.at(-1)[0].model).toBe('kimi-k2.6');
+			expect(card.connected?.model).toBe('kimi-k2.6');
+		});
+
+		it('a Zen free model refused outside OpenCode is its own message, and the list stays', async () => {
+			await failWith(
+				{ code: 'PROVIDER_FORBIDDEN', status: 403, hint: 'free-tier-only' },
+				'opencode-zen',
+				[model('beam-free', { price: free }), model('kimi-k2.6')]
+			);
+			const text = q('[role="alert"]').textContent;
+			expect(text).toContain('403 · OpenCode only offers its free models inside OpenCode');
+			expect(text).not.toMatch(/key not accepted/i);
+			expect(card.step).toBe(3);
+		});
+
+		it('400 · the provider rejected the test message', async () => {
+			await failWith({ code: 'PROVIDER_REQUEST', status: 400 });
+			expect(q('[role="alert"]').textContent).toContain(
+				'400 · OpenRouter rejected the test message — pick another model.'
+			);
+		});
+
+		it('5xx · not responding, and the same primary tries again', async () => {
+			await failWith({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
+			expect(q('[role="alert"]').textContent).toContain("502 · OpenRouter isn't responding");
+			check.mockResolvedValue({ ok: true });
+			primary().click();
+			await flush();
+			expect(card.connected?.model).toBe('vendor/free-big:free');
+		});
+
+		it('the relay going away mid-flow says so', async () => {
+			await failWith({ offline: true });
+			expect(q('[role="alert"]').textContent).toContain(RELAY_OFF_COPY);
+		});
+
+		it('every error has Details with the status and the provider’s message, and never the key', async () => {
+			await failWith({
+				code: 'PROVIDER_CREDITS',
+				status: 402,
+				detail: 'Insufficient credits.',
+			});
+			const toggle = qa('button').find((button) => button.textContent === 'Details');
+			toggle.click();
+			const text = q('.agent-error__details').textContent;
+			expect(text).toContain('402');
+			expect(text).toContain('Insufficient credits.');
+			expect(card.root.outerHTML).not.toContain(KEY);
+			expect(card.root.textContent).not.toContain(KEY);
+		});
+
+		it('a key refused during the test sends the user back to the key step, key cleared', async () => {
+			await failWith({ code: 'PROVIDER_AUTH', status: 401 });
+			expect(card.step).toBe(2);
+			expect(keyInput().value).toBe('');
+			expect(q('[role="alert"]').textContent).toContain('401 · Key not accepted');
+			expect(document.activeElement).toBe(keyInput());
+		});
+
+		it('focus returns to the list with the choice kept', async () => {
+			await failWith({ code: 'PROVIDER_LIMIT', status: 429 });
+			expect(document.activeElement).toBe(q('[role="listbox"]'));
+			expect(optionFor('vendor/free-big:free').getAttribute('aria-selected')).toBe('true');
+		});
+	});
+
+	describe('connected, and what is remembered', () => {
+		async function connect(provider = 'openrouter', models = MODELS) {
+			open();
+			await toModelStep(provider, models);
+			primary().click();
+			await flush();
+		}
+
+		it('a passing test collapses the card to one Connected row: provider and Free on one line, the model ID under it, Change', async () => {
+			await connect();
+			expect(card.showsCard).toBe(false);
+			const row = q('.agent-connected');
+			expect(row.getAttribute('role')).toBe('status');
+			expect(row.querySelector('.agent-connected__head').textContent).toContain('OpenRouter');
+			// The whole ID is shown (cut by CSS only when it is too long) and is in the title.
+			expect(row.querySelector('.agent-connected__model').textContent).toBe('vendor/free-big:free');
+			expect(row.querySelector('.agent-connected__text').title).toBe(
+				'OpenRouter · vendor/free-big:free'
+			);
+			expect(row.querySelector('[data-badge="free"]').textContent).toContain('Free');
+			expect(row.querySelector('button').textContent).toBe('Change');
+			expect(q('form')).toBe(null);
+			expect(card.connected).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				tier: 'free',
+			});
+		});
+
+		it('a Paid model shows Paid; a model with no known price shows neither', async () => {
+			await connect('openai', [model('gpt-5')]);
+			expect(q('.agent-connected [data-badge="paid"]').textContent).toContain('Paid');
+			card.root.remove();
+			storage = memoryStorage();
+			await connect('openai', [model('gpt-5', { price: null })]);
+			expect(q('.agent-connected [data-badge]')).toBe(null);
+		});
+
+		it('hands the controller the key and the model, once, in a fresh object', async () => {
+			await connect();
+			expect(onConnected).toHaveBeenCalledTimes(1);
+			const config = onConnected.mock.calls[0][0];
+			expect(config).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				apiKey: KEY,
+			});
+			// The panel blanks what it is given; the card keeps its own copy.
+			config.apiKey = '';
+			expect(card.connected).not.toHaveProperty('apiKey');
+		});
+
+		it('remembers only the provider, model and tier, never the key', async () => {
+			await connect();
+			expect(JSON.parse(storage.data.get(CONNECTION_STORAGE_KEY))).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				tier: 'free',
+			});
+			const everything = JSON.stringify([...storage.data.entries()]);
+			expect(everything).not.toContain(KEY);
+			expect(everything).not.toContain('sk-or');
+			expect(localStorage.getItem(CONNECTION_STORAGE_KEY)).toBe(null);
+			expect(JSON.stringify({ ...localStorage })).not.toContain(KEY);
+			expect(JSON.stringify({ ...sessionStorage })).not.toContain(KEY);
+		});
+
+		it('the key is not in any attribute, text or link of the whole card', async () => {
+			await connect();
+			expect(card.root.outerHTML).not.toContain(KEY);
+			expect(card.root.textContent).not.toContain(KEY);
+		});
+
+		it('Change opens the model step while the key is in memory, on the connected model', async () => {
+			await connect();
+			q('.agent-connected button').click();
+			expect(card.step).toBe(3);
+			expect(optionFor('vendor/free-big:free').getAttribute('aria-selected')).toBe('true');
+			// Picking the model that is connected needs no new test.
+			check.mockClear();
+			primary().click();
+			await flush();
+			expect(check).not.toHaveBeenCalled();
+			expect(card.showsCard).toBe(false);
+		});
+
+		it('Change then another model tests that model and replaces the connection', async () => {
+			await connect();
+			q('.agent-connected button').click();
+			optionFor('vendor/paid-one').click();
+			primary().click();
+			await flush();
+			expect(onConnected).toHaveBeenCalledTimes(2);
+			expect(card.connected).toMatchObject({ model: 'vendor/paid-one', tier: 'paid' });
+			expect(JSON.parse(storage.data.get(CONNECTION_STORAGE_KEY)).model).toBe('vendor/paid-one');
+		});
+
+		it('a failed test of the new model leaves the old connection in place', async () => {
+			await connect();
+			q('.agent-connected button').click();
+			optionFor('vendor/paid-one').click();
+			check.mockResolvedValue({ ok: false, error: { code: 'PROVIDER_CREDITS', status: 402 } });
+			primary().click();
+			await flush();
+			expect(card.connected?.model).toBe('vendor/free-big:free');
+			expect(JSON.parse(storage.data.get(CONNECTION_STORAGE_KEY)).model).toBe(
+				'vendor/free-big:free'
+			);
+			expect(q('[role="alert"]')).not.toBe(null);
+		});
+
+		it('Change opens the model ID field when the connected model is not in the list', async () => {
+			open();
+			await toModelStep();
+			qa('button')
+				.find((button) => button.textContent === 'Use a model ID')
+				.click();
+			idInput().value = 'hidden/custom-one';
+			primary().click();
+			await flush();
+			q('.agent-connected button').click();
+			expect(idInput().value).toBe('hidden/custom-one');
+		});
+
+		it('reset() forgets the key, shows the first step, and keeps the remembered model for the next key', async () => {
+			await connect();
+			card.reset();
+			expect(card.showsCard).toBe(true);
+			// Remembered: the card asks only for the key again.
+			expect(card.step).toBe(2);
+			expect(title()).toBe('Reconnect to OpenRouter');
+			expect(keyInput().value).toBe('');
+		});
+
+		it('clearKey() wipes the key and the connection and goes back to Step 1', async () => {
+			await connect();
+			card.clearKey();
+			expect(card.step).toBe(1);
+			expect(card.connected).toBe(null);
+			expect(card.root.outerHTML).not.toContain(KEY);
+		});
+
+		it('forget() removes the remembered provider and model', async () => {
+			await connect();
+			card.forget();
+			expect(storage.data.has(CONNECTION_STORAGE_KEY)).toBe(false);
+		});
+	});
+
+	describe('after a reload: only the key is asked for again', () => {
+		const remembered = (model = 'vendor/free-big:free', provider = 'openrouter', tier = 'free') =>
+			memoryStorage({ [CONNECTION_STORAGE_KEY]: JSON.stringify({ provider, model, tier }) });
+
+		it('opens on the key step: "Reconnect to …", the remembered model, one field, one primary', () => {
+			storage = remembered();
+			open();
+			expect(card.step).toBe(2);
+			expect(title()).toBe('Reconnect to OpenRouter');
+			expect(q('.agent-connect__line').textContent).toBe('Model: vendor/free-big:free');
+			expect(keyInput().value).toBe('');
+			expect(primary().textContent).toBe('Check key');
+			expect(back()).not.toBe(null);
+		});
+
+		it('Check key tests the remembered model and connects with no model step', async () => {
+			storage = remembered();
+			open();
+			await submitKey();
+			expect(loadModels).toHaveBeenCalledTimes(1);
+			expect(check).toHaveBeenCalledTimes(1);
+			expect(check.mock.calls[0][0]).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				apiKey: KEY,
+			});
+			expect(card.showsCard).toBe(false);
+			expect(card.connected).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				tier: 'free',
+			});
+			expect(onConnected).toHaveBeenCalledWith({
+				provider: 'openrouter',
+				model: 'vendor/free-big:free',
+				apiKey: KEY,
+			});
+		});
+
+		it('keeps the remembered tier when the list has no price for it', async () => {
+			storage = remembered('vendor/odd', 'openrouter', 'paid');
+			open();
+			loadModels.mockResolvedValue(listed([model('vendor/odd', { price: null })]));
+			await submitKey();
+			expect(card.connected?.tier).toBe(undefined);
+		});
+
+		it('a model the list no longer has opens the model step with a line saying so', async () => {
+			storage = remembered('vendor/gone');
+			open();
+			await submitKey();
+			expect(check).not.toHaveBeenCalled();
+			expect(card.step).toBe(3);
+			expect(q('.agent-connect__line').textContent).toBe(
+				"That model isn't available now. Pick another."
+			);
+			expect(optionFor('vendor/free-big:free').getAttribute('aria-selected')).toBe('true');
+		});
+
+		it('a model the list says cannot run the agent opens the model step too', async () => {
+			storage = remembered('vendor/no-tools');
+			open();
+			await submitKey();
+			expect(check).not.toHaveBeenCalled();
+			expect(card.step).toBe(3);
+		});
+
+		it('a remembered model that fails its test opens the model step with that model chosen and the reason', async () => {
+			storage = remembered('vendor/paid-one', 'openrouter', 'paid');
+			open();
+			check.mockResolvedValue({ ok: false, error: { code: 'PROVIDER_CREDITS', status: 402 } });
+			await submitKey();
+			expect(card.step).toBe(3);
+			expect(optionFor('vendor/paid-one').getAttribute('aria-selected')).toBe('true');
+			expect(q('[role="alert"]').textContent).toContain('402 · Out of credits');
+			expect(card.connected).toBe(null);
+		});
+
+		it('a remembered model typed earlier (unknown to the catalog) is still tested', async () => {
+			storage = remembered('vendor/unknown');
+			open();
+			await submitKey();
+			expect(check).toHaveBeenCalledTimes(1);
+			expect(card.connected?.model).toBe('vendor/unknown');
+		});
+
+		it('a key that cannot list models still tests the remembered model', async () => {
+			storage = remembered('hidden/custom');
+			open();
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_FORBIDDEN', status: 403 }));
+			await submitKey();
+			// The list is refused; the one test message decides. (Step 3 is the ID field with the model typed.)
+			expect(card.step).toBe(3);
+			expect(idInput().value).toBe('hidden/custom');
+		});
+
+		it('a wrong key shows the 401 on the key step and does not test anything', async () => {
+			storage = remembered();
+			open();
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_AUTH', status: 401 }));
+			await submitKey('sk-or-v1-wrong');
+			expect(card.step).toBe(2);
+			expect(check).not.toHaveBeenCalled();
+			expect(q('[role="alert"]').textContent).toContain('401 · Key not accepted');
+		});
+
+		it('Back goes to the provider step, where another provider can be chosen', () => {
+			storage = remembered();
+			open();
+			back().click();
+			expect(card.step).toBe(1);
+			choose('anthropic');
+			expect(title()).toBe('Add your Anthropic key');
+		});
+
+		it('Change after reconnecting opens the model step: the key is in memory again', async () => {
+			storage = remembered();
+			open();
+			await submitKey();
+			q('.agent-connected button').click();
+			expect(card.step).toBe(3);
+			expect(optionFor('vendor/free-big:free').getAttribute('aria-selected')).toBe('true');
+		});
+
+		it('Change asks for the key when it is no longer in memory', async () => {
+			storage = remembered();
+			open();
+			await submitKey();
+			card.clearKey();
+			card.open('model');
+			expect(card.step).toBe(1);
+		});
+
+		it('ignores anything in storage that is not a known provider and a valid model', () => {
+			storage = memoryStorage({
+				[CONNECTION_STORAGE_KEY]: JSON.stringify({ provider: 'nope', model: 'x' }),
+			});
+			open();
+			expect(card.step).toBe(1);
+		});
+
+		it('works with storage that throws', () => {
+			storage = {
+				getItem: () => {
+					throw new Error('blocked');
+				},
+				setItem: () => {
+					throw new Error('blocked');
+				},
+				removeItem: () => {},
+			};
+			expect(() => open()).not.toThrow();
+			expect(card.step).toBe(1);
+		});
+	});
+
+	describe('one form grid for every step (the owner’s "boxes are different lengths" fix)', () => {
+		it('every step has the same header, and steps 2 and 3 the same action stack: primary, then Back', async () => {
+			open();
+			const headers = [];
+			headers.push(q('.agent-connect__header') !== null);
+			choose('openrouter');
+			headers.push(q('.agent-connect__header') !== null);
+			await submitKey();
+			headers.push(q('.agent-connect__header') !== null);
+			expect(headers).toEqual([true, true, true]);
+			for (const step of [2, 3]) {
+				card.open(step === 2 ? 'key' : 'model');
+				const actions = q('.agent-connect__actions');
+				const buttons = [...actions.children].filter((node) => node.tagName === 'BUTTON');
+				expect(buttons.map((node) => node.dataset.action)).toEqual(['primary', 'back']);
+				expect(buttons[0].type).toBe('submit');
+			}
+		});
+
+		it('Step 3: the failure of "Use this model" and the cost line sit in the sticky stack, above the button (QA #83 item 1)', async () => {
+			open();
+			await toModelStep();
+			check.mockResolvedValue({ ok: false, error: { code: 'PROVIDER_CREDITS', status: 402 } });
+			primary().click();
+			await flush();
+			const actions = q('.agent-connect__actions');
+			const kids = [...actions.children];
+			const alert = q('[role="alert"]');
+			expect(actions.contains(alert)).toBe(true);
+			const slot = kids.findIndex((node) => node.classList.contains('agent-connect__error'));
+			const caption = kids.findIndex((node) => node.classList.contains('agent-connect__caption'));
+			const button = kids.findIndex((node) => node.dataset.action === 'primary');
+			expect(slot).toBeGreaterThanOrEqual(0);
+			expect(slot).toBeLessThan(caption);
+			expect(caption).toBeLessThan(button);
+			expect(alert.textContent).toContain('402 · Out of credits');
+		});
+
+		it('there is no native select, datalist or popover on any step or state', async () => {
+			open();
+			const check = () => {
+				expect(q('select, datalist, option, [popover]')).toBe(null);
+				expect(card.root.querySelector('[role="menu"], [role="dialog"]')).toBe(null);
+			};
+			check();
+			choose('openrouter');
+			check();
+			await submitKey();
+			check();
+			qa('button')
+				.find((button) => button.textContent === 'Use a model ID')
+				.click();
+			check();
+		});
+
+		it('no control carries its own width: every one follows the card’s content width', async () => {
+			open();
+			await toModelStep('openrouter', many(20));
+			const controls = qa(
+				'.agent-field__box, input, [role="listbox"], .agent-provider, .agent-connect__primary, .agent-connect__back'
+			);
+			expect(controls.length).toBeGreaterThan(4);
+			for (const control of controls) {
+				expect(control.style.width).toBe('');
+				expect(control.style.height).toBe('');
+				expect(control.hasAttribute('width')).toBe(false);
+			}
+		});
+	});
+
+	describe('telling the owner what is on screen', () => {
+		it('calls onViewChange when the card gives way to the Connected row and when Change brings it back', async () => {
+			const onViewChange = vi.fn();
+			open({ onViewChange });
+			// Building the card does not call it: the owner is still being built.
+			expect(onViewChange).not.toHaveBeenCalled();
+			await toModelStep();
+			onViewChange.mockClear();
+			primary().click();
+			await flush();
+			expect(onViewChange).toHaveBeenCalled();
+			expect(card.showsCard).toBe(false);
+			onViewChange.mockClear();
+			q('.agent-connected button').click();
+			expect(onViewChange).toHaveBeenCalled();
+			expect(card.showsCard).toBe(true);
+		});
+	});
+
+	describe('a11y and announcements', () => {
+		it('the card is one labelled form; a polite live region announces each step', async () => {
+			vi.useFakeTimers();
+			open();
+			expect(q('form').getAttribute('aria-label')).toBe('Connect a model');
+			const live = q('[role="status"][aria-live="polite"]');
+			choose('openrouter');
+			vi.advanceTimersByTime(50);
+			expect(live.textContent).toBe('Step 2 of 3. Add your OpenRouter key');
+		});
+
+		it('focus goes to the step’s first control after every step change', async () => {
+			open();
+			choose('openrouter');
+			expect(document.activeElement).toBe(keyInput());
+			await submitKey();
+			expect(document.activeElement).toBe(q('[role="listbox"]'));
+			back().click();
+			expect(document.activeElement).toBe(keyInput());
+			back().click();
+			expect(document.activeElement.dataset.provider).toBe('openrouter');
+		});
+
+		it('every string from a provider or the list is rendered as text', async () => {
+			open();
+			const evil = '<img src=x onerror=alert(1)>';
+			loadModels.mockResolvedValue(failed({ code: 'PROVIDER_AUTH', status: 401, detail: evil }));
+			choose('openrouter');
+			await submitKey();
+			qa('button')
+				.find((button) => button.textContent === 'Details')
+				.click();
+			expect(q('img')).toBe(null);
+			expect(q('.agent-error__details').textContent).toContain(evil);
 		});
 	});
 
 	it('labels the model chip', () => {
 		expect(modelLabel('gpt-5')).toBe('GPT-5');
 		expect(modelLabel('big-pickle')).toBe('big-pickle');
-	});
-});
-
-describe('connect card states (#21)', () => {
-	const submitWithKey = (card, value) => {
-		card.root.querySelector('input[aria-label="API key"]').value = value;
-		card.root.requestSubmit();
-	};
-
-	it('locks while checking and shows "Key not accepted" on a wrong key', async () => {
-		let resolve;
-		const check = vi.fn(() => new Promise((r) => (resolve = r)));
-		const card = createConnectCard({ onConnected: vi.fn(), check });
-		document.body.append(card.root);
-		submitWithKey(card, 'bad-key-value');
-		expect(card.root.querySelector('button[type=submit]').disabled).toBe(true);
-		resolve({ ok: false, outcome: 'wrong-key' });
-		await flush();
-		expect(card.root.querySelector('button[type=submit]').disabled).toBe(false);
-		expect(card.root.textContent).toContain('Key not accepted');
-		expect(card.root.outerHTML).not.toContain('bad-key-value');
-		card.root.remove();
-	});
-
-	it('no tool calling offers "Pick another"', async () => {
-		const card = createConnectCard({
-			onConnected: vi.fn(),
-			check: async () => ({ ok: false, outcome: 'no-tools' }),
-		});
-		submitWithKey(card, 'k');
-		await flush();
-		expect(card.root.textContent).toContain("This model can't use tools");
-		expect(card.root.textContent).toContain('Pick another');
-	});
-
-	it('relay offline goes to the thread, not the card', async () => {
-		const onRelayOffline = vi.fn();
-		const card = createConnectCard({
-			onConnected: vi.fn(),
-			onRelayOffline,
-			check: async () => ({ ok: false, outcome: 'relay-offline' }),
-		});
-		submitWithKey(card, 'k');
-		await flush();
-		expect(onRelayOffline).toHaveBeenCalled();
-		expect(card.root.textContent).not.toContain('relay');
-	});
-
-	it('the key field is a password input with no autofill', () => {
-		const card = createConnectCard({ onConnected: vi.fn() });
-		const key = card.root.querySelector('input[aria-label="API key"]');
-		expect(key.type).toBe('password');
-		expect(key.autocomplete).toBe('off');
-		expect(card.root.textContent).toContain('Makes one tiny billed call');
-	});
-});
-
-describe('provider dropdown (#69)', () => {
-	const choose = (card, value) => {
-		const select = card.root.querySelector('select');
-		select.value = value;
-		select.dispatchEvent(new Event('change', { bubbles: true }));
-	};
-	const modelInput = (card) => card.root.querySelector('input[aria-label="Model"]');
-
-	it('offers OpenAI, OpenCode Zen and Anthropic in one labelled dropdown, not a row of buttons', () => {
-		const card = createConnectCard({ onConnected: vi.fn() });
-		document.body.append(card.root);
-		const selects = card.root.querySelectorAll('select');
-		expect(selects).toHaveLength(1);
-		const select = selects[0];
-		expect([...select.options].map((option) => [option.value, option.textContent])).toEqual([
-			['openai', 'OpenAI'],
-			['opencode-zen', 'OpenCode Zen'],
-			['anthropic', 'Anthropic'],
-		]);
-		// Visible label, tied to the control.
-		expect(select.labels).toHaveLength(1);
-		expect(select.labels[0].textContent).toBe('Provider');
-		expect(select.labels[0].classList.contains('agent-sr-only')).toBe(false);
-		// Native keyboard behaviour: in the tab order, not disabled, not removed from it.
-		expect(select.disabled).toBe(false);
-		expect(select.tabIndex).toBe(0);
-		// No provider pills or radios remain; the only buttons are show-key and Check.
-		expect(card.root.querySelectorAll('input[type=radio], fieldset')).toHaveLength(0);
-		const buttons = [...card.root.querySelectorAll('button')];
-		expect(
-			buttons.map((button) => button.getAttribute('aria-label') || button.textContent)
-		).toEqual(['Show key', 'Check connection']);
-		// The arrow is decoration only.
-		expect(
-			card.root
-				.querySelector('.agent-connect__select-wrap .material-symbols-rounded')
-				.getAttribute('aria-hidden')
-		).toBe('true');
-		card.root.remove();
-	});
-
-	it('lists exactly the providers the shared config supports', () => {
-		const card = createConnectCard({ onConnected: vi.fn() });
-		const values = [...card.root.querySelectorAll('select option')].map((option) => option.value);
-		expect(values).toEqual(Object.keys(PROVIDERS));
-		expect(Object.keys(MODEL_SUGGESTIONS)).toEqual(Object.keys(PROVIDERS));
-	});
-
-	it('starts on OpenAI with its default model', () => {
-		const card = createConnectCard({ onConnected: vi.fn() });
-		expect(card.root.querySelector('select').value).toBe('openai');
-		expect(modelInput(card).value).toBe('gpt-5');
-	});
-
-	it("choosing a provider sets that provider's default model and suggestions", () => {
-		const card = createConnectCard({ onConnected: vi.fn() });
-		choose(card, 'anthropic');
-		expect(modelInput(card).value).toBe('claude-sonnet-5-5');
-		const suggestions = () =>
-			[...card.root.querySelectorAll('datalist option')].map((option) => option.value);
-		expect(suggestions()).toEqual(MODEL_SUGGESTIONS.anthropic);
-		choose(card, 'opencode-zen');
-		expect(modelInput(card).value).toBe('big-pickle');
-		expect(suggestions()).toEqual(MODEL_SUGGESTIONS['opencode-zen']);
-		choose(card, 'openai');
-		expect(modelInput(card).value).toBe('gpt-5');
-		expect(suggestions()).toEqual(MODEL_SUGGESTIONS.openai);
-	});
-
-	it('a model typed for one provider is replaced when another provider is chosen', () => {
-		const card = createConnectCard({ onConnected: vi.fn() });
-		modelInput(card).value = 'my-custom-model';
-		choose(card, 'anthropic');
-		expect(modelInput(card).value).toBe('claude-sonnet-5-5');
-		// Staying on the same provider never touches what the user typed.
-		modelInput(card).value = 'claude-haiku-5-5';
-		choose(card, 'anthropic');
-		expect(modelInput(card).value).toBe('claude-sonnet-5-5');
-	});
-
-	it('every default model resolves to an API format the provider supports', () => {
-		for (const [provider, models] of Object.entries(MODEL_SUGGESTIONS)) {
-			for (const model of models) {
-				const protocol = resolveProviderProtocol(provider, model);
-				expect(PROVIDERS[provider].protocols).toContain(protocol);
-			}
-		}
-		expect(resolveProviderProtocol('anthropic', MODEL_SUGGESTIONS.anthropic[0])).toBe('messages');
-	});
-
-	it('hands the Anthropic choice, model and key to the check, then to onConnected', async () => {
-		let seen;
-		let checked;
-		const check = vi.fn(async (config) => {
-			// The card clears its copy once connected, so snapshot it here.
-			checked = { ...config };
-			return { ok: true };
-		});
-		const onConnected = vi.fn((config) => {
-			seen = { ...config };
-		});
-		const card = createConnectCard({ onConnected, check });
-		document.body.append(card.root);
-		choose(card, 'anthropic');
-		const key = card.root.querySelector('input[aria-label="API key"]');
-		key.value = 'sk-ant-secret-xyz';
-		card.root.requestSubmit();
-		await flush();
-		expect(check).toHaveBeenCalledOnce();
-		expect(checked).toEqual({
-			provider: 'anthropic',
-			model: 'claude-sonnet-5-5',
-			apiKey: 'sk-ant-secret-xyz',
-		});
-		expect(seen).toEqual({
-			provider: 'anthropic',
-			model: 'claude-sonnet-5-5',
-			apiKey: 'sk-ant-secret-xyz',
-		});
-		// Memory only: the field is cleared and the key is nowhere in the DOM.
-		expect(key.value).toBe('');
-		expect(card.root.outerHTML).not.toContain('sk-ant-secret-xyz');
-		expect(document.body.innerHTML).not.toContain('sk-ant-secret-xyz');
-		expect(JSON.stringify({ ...localStorage })).not.toContain('sk-ant-secret-xyz');
-		card.root.remove();
-	});
-
-	it('the dropdown locks while a check runs and unlocks after', async () => {
-		let resolve;
-		const check = vi.fn(() => new Promise((r) => (resolve = r)));
-		const card = createConnectCard({ onConnected: vi.fn(), check });
-		document.body.append(card.root);
-		choose(card, 'anthropic');
-		card.root.querySelector('input[aria-label="API key"]').value = 'k';
-		card.root.requestSubmit();
-		expect(card.root.querySelector('select').disabled).toBe(true);
-		resolve({ ok: false, outcome: 'wrong-key' });
-		await flush();
-		expect(card.root.querySelector('select').disabled).toBe(false);
-		expect(card.root.textContent).toContain('Key not accepted');
-		// The chosen provider survives a failed check.
-		expect(card.root.querySelector('select').value).toBe('anthropic');
-		card.root.remove();
-	});
-
-	it('two cards on one page keep their labels and controls separate', () => {
-		const first = createConnectCard({ onConnected: vi.fn() });
-		const second = createConnectCard({ onConnected: vi.fn() });
-		document.body.append(first.root, second.root);
-		const ids = [first, second].map((card) => card.root.querySelector('select').id);
-		expect(new Set(ids).size).toBe(2);
-		choose(first, 'anthropic');
-		expect(second.root.querySelector('select').value).toBe('openai');
-		first.root.remove();
-		second.root.remove();
-	});
-});
-
-describe('live model list (#76)', () => {
-	const SECRET = 'sk-live-list-secret-123';
-	const model = (id, overrides = {}) => ({
-		id,
-		tools: true,
-		vision: false,
-		price: { input: 3, output: 15 },
-		released: '2025-01-01',
-		...overrides,
-	});
-	// What the relay returns for OpenAI, in the relay's own (unsorted) order.
-	const OPENAI_LIST = [
-		model('gpt-3.5-turbo', { tools: false }),
-		model('o3', { released: '2025-04-16' }),
-		model('gpt-5-mini', { released: '2025-08-07', price: { input: 0.25, output: 2 } }),
-		model('gpt-5', { released: '2025-08-07', vision: true, price: { input: 1.25, output: 10 } }),
-		model('gpt-new', { tools: null, vision: null, price: null, released: null }),
-		model('text-embedding-3-small', { tools: false }),
-	];
-	const ZEN_LIST = [
-		model('big-pickle', { price: { input: 0, output: 0 } }),
-		model('beam-free', { price: { input: 0, output: 0 } }),
-		model('gpt-6-astra', { price: { input: 10, output: 50 } }),
-	];
-	const choose = (card, value) => {
-		const select = card.root.querySelector('select');
-		select.value = value;
-		select.dispatchEvent(new Event('change', { bubbles: true }));
-	};
-	const optionFor = (card, id) => card.root.querySelector(`[role="option"][data-id="${id}"]`);
-	const optionIds = (card) =>
-		[...card.root.querySelectorAll('[role="option"]')].map((o) => o.dataset.id ?? 'custom');
-	const selectedId = (card) =>
-		card.root.querySelector('[role="option"][aria-selected="true"]')?.dataset.id;
-	const listbox = (card) => card.root.querySelector('[role="listbox"]');
-	const press = (card, key) =>
-		listbox(card).dispatchEvent(
-			new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
-		);
-
-	/** Card connected to a provider with a list, as a user would reach it. */
-	async function connected({
-		provider = 'openai',
-		list = OPENAI_LIST,
-		check = vi.fn(async () => ({ ok: true })),
-		loadModels = vi.fn(async () => ({ ok: true, models: list })),
-		onConnected = vi.fn(),
-		onRelayOffline = vi.fn(),
-	} = {}) {
-		const card = createConnectCard({ onConnected, check, loadModels, onRelayOffline });
-		document.body.append(card.root);
-		if (provider !== 'openai') choose(card, provider);
-		card.root.querySelector('input[aria-label="API key"]').value = SECRET;
-		card.root.requestSubmit();
-		await flush();
-		return { card, check, loadModels, onConnected, onRelayOffline };
-	}
-
-	afterEach(() => {
-		document.body.innerHTML = '';
-	});
-
-	it('before connecting it is exactly the key step: default model, no list, no list request', () => {
-		const loadModels = vi.fn();
-		const card = createConnectCard({ onConnected: vi.fn(), loadModels });
-		document.body.append(card.root);
-		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('gpt-5');
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
-		expect(card.root.querySelector('[role="listbox"]')).toBeNull();
-		expect(card.showsModels).toBe(false);
-		expect(card.root.textContent).toContain('Connect a model');
-		expect(loadModels).not.toHaveBeenCalled();
-	});
-
-	it('after a successful check the Model field becomes the key’s models, with the verified one selected', async () => {
-		const { card, loadModels, onConnected } = await connected();
-		expect(loadModels).toHaveBeenCalledOnce();
-		expect(loadModels.mock.calls[0][0]).toEqual({ provider: 'openai', apiKey: SECRET });
-		expect(card.showsModels).toBe(true);
-		expect(listbox(card)).not.toBeNull();
-		// The text field, the key field and Check connection are gone; the provider dropdown stays.
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(true);
-		expect(card.root.querySelector('.agent-connect__key').hidden).toBe(true);
-		expect(card.root.querySelector('.agent-connect__actions').hidden).toBe(true);
-		const select = card.root.querySelector('select');
-		expect(select.disabled).toBe(false);
-		expect(select.value).toBe('openai');
-		expect(card.root.textContent).toContain('Choose a model');
-		expect(card.root.textContent).toContain('6 models');
-		expect(selectedId(card)).toBe('gpt-5');
-		// The Check button is gone, so keyboard focus moves to the list instead of the page.
-		expect(document.activeElement).toBe(listbox(card));
-		// The model that just passed the check is connected exactly once.
-		expect(onConnected).toHaveBeenCalledOnce();
-		expect(onConnected).toHaveBeenCalledWith({
-			provider: 'openai',
-			model: 'gpt-5',
-			apiKey: SECRET,
-		});
-	});
-
-	it('lists recommended first, then tool-capable newest first, unknown, then greyed models last', async () => {
-		const { card } = await connected();
-		expect(optionIds(card)).toEqual([
-			'gpt-5',
-			'gpt-5-mini',
-			'o3',
-			'gpt-new',
-			'gpt-3.5-turbo',
-			'text-embedding-3-small',
-			'custom',
-		]);
-	});
-
-	it('shows Free / Paid / Tools / Vision with text, "?" for unknown, and greys out non-tool models', async () => {
-		const { card } = await connected({
-			list: [...OPENAI_LIST, model('free-model', { price: { input: 0, output: 0 }, vision: true })],
-		});
-		const badgesOf = (id) =>
-			[...optionFor(card, id).querySelectorAll('.agent-badge')].map((b) => [
-				b.dataset.badge,
-				b.querySelector('.agent-badge__label').textContent,
-				b.querySelector('.material-symbols-rounded').textContent,
-			]);
-		// Each badge is an icon plus a text label.
-		expect(badgesOf('gpt-5')).toEqual([
-			['paid', 'Paid', 'paid'],
-			['tools', 'Tools', 'build'],
-			['vision', 'Vision', 'visibility'],
-		]);
-		expect(badgesOf('free-model')).toEqual([
-			['free', 'Free', 'money_off'],
-			['tools', 'Tools', 'build'],
-			['vision', 'Vision', 'visibility'],
-		]);
-		expect(optionFor(card, 'gpt-new').textContent).toContain('Tools ?');
-		expect(optionFor(card, 'gpt-new').querySelector('.agent-model__price')).toBeNull();
-		const blocked = optionFor(card, 'gpt-3.5-turbo');
-		expect(blocked.getAttribute('aria-disabled')).toBe('true');
-		expect(blocked.textContent).toContain(NO_TOOLS_REASON);
-	});
-
-	it('a non-tool model cannot be chosen by click or keyboard: nothing is checked or connected', async () => {
-		const { card, check, onConnected } = await connected();
-		check.mockClear();
-		onConnected.mockClear();
-		optionFor(card, 'gpt-3.5-turbo').click();
-		listbox(card).focus();
-		press(card, 'End');
-		press(card, 'ArrowUp');
-		press(card, 'ArrowUp');
-		expect(listbox(card).querySelector('.is-active').dataset.id).toBe('gpt-3.5-turbo');
-		press(card, 'Enter');
-		press(card, ' ');
-		await flush();
-		expect(check).not.toHaveBeenCalled();
-		expect(onConnected).not.toHaveBeenCalled();
-		expect(selectedId(card)).toBe('gpt-5');
-	});
-
-	it('choosing a model that uses tools switches with no billed call', async () => {
-		const { card, check, onConnected } = await connected();
-		check.mockClear();
-		onConnected.mockClear();
-		optionFor(card, 'o3').click();
-		await flush();
-		expect(check).not.toHaveBeenCalled();
-		expect(onConnected).toHaveBeenCalledOnce();
-		expect(onConnected).toHaveBeenCalledWith({ provider: 'openai', model: 'o3', apiKey: SECRET });
-		expect(selectedId(card)).toBe('o3');
-		// Choosing the model already in use does nothing.
-		optionFor(card, 'o3').click();
-		expect(onConnected).toHaveBeenCalledOnce();
-	});
-
-	it('works from the keyboard: arrows to a model, Enter to use it', async () => {
-		const { card, onConnected } = await connected();
-		onConnected.mockClear();
-		listbox(card).focus();
-		press(card, 'ArrowDown');
-		press(card, 'Enter');
-		await flush();
-		expect(onConnected).toHaveBeenCalledWith({
-			provider: 'openai',
-			model: 'gpt-5-mini',
-			apiKey: SECRET,
-		});
-		expect(selectedId(card)).toBe('gpt-5-mini');
-	});
-
-	it('a model whose tool support is unknown is verified with one tiny call before it is used', async () => {
-		let resolve;
-		const check = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true })
-			.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
-		const { card, onConnected } = await connected({ check });
-		onConnected.mockClear();
-		optionFor(card, 'gpt-new').click();
-		// While it checks: the list ignores input and is marked busy; nothing is connected yet.
-		expect(check).toHaveBeenCalledTimes(2);
-		expect(check.mock.calls[1][0]).toEqual({
-			provider: 'openai',
-			model: 'gpt-new',
-			apiKey: SECRET,
-		});
-		expect(listbox(card).getAttribute('aria-busy')).toBe('true');
-		expect(card.root.querySelector('select').disabled).toBe(true);
-		optionFor(card, 'o3').click();
-		expect(check).toHaveBeenCalledTimes(2);
-		expect(onConnected).not.toHaveBeenCalled();
-		resolve({ ok: true });
-		await flush();
-		expect(onConnected).toHaveBeenCalledWith({
-			provider: 'openai',
-			model: 'gpt-new',
-			apiKey: SECRET,
-		});
-		expect(selectedId(card)).toBe('gpt-new');
-		expect(listbox(card).hasAttribute('aria-busy')).toBe(false);
-		// The model just proven to work is now shown as using tools.
-		expect(optionFor(card, 'gpt-new').textContent).not.toContain('Tools ?');
-	});
-
-	it('an unknown model that fails the check is not used and says why', async () => {
-		const check = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true })
-			.mockResolvedValueOnce({ ok: false, outcome: 'no-tools' });
-		const { card, onConnected } = await connected({ check });
-		onConnected.mockClear();
-		optionFor(card, 'gpt-new').click();
-		await flush();
-		expect(onConnected).not.toHaveBeenCalled();
-		expect(selectedId(card)).toBe('gpt-5');
-		expect(card.root.textContent).toContain("This model can't use tools");
-		// "Pick another" returns to the list, not to a text field.
-		const pick = [...card.root.querySelectorAll('button')].find(
-			(b) => b.textContent === 'Pick another'
-		);
-		pick.click();
-		expect(document.activeElement).toBe(listbox(card));
-		// Relay offline goes to the thread, like the first check.
-		const offline = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true })
-			.mockResolvedValueOnce({ ok: false, outcome: 'relay-offline' });
-		const second = await connected({ check: offline });
-		second.onConnected.mockClear();
-		optionFor(second.card, 'gpt-new').click();
-		await flush();
-		expect(second.onRelayOffline).toHaveBeenCalledWith('relay-offline');
-		expect(second.onConnected).not.toHaveBeenCalled();
-	});
-
-	it('a key that stops working while the list is shown sends the user back to enter one again', async () => {
-		const check = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true })
-			.mockResolvedValueOnce({ ok: false, outcome: 'wrong-key' });
-		const { card, onConnected } = await connected({ check });
-		onConnected.mockClear();
-		optionFor(card, 'gpt-new').click();
-		await flush();
-		expect(onConnected).not.toHaveBeenCalled();
-		expect(card.showsModels).toBe(false);
-		expect(card.root.textContent).toContain('Key not accepted');
-		expect(card.root.querySelector('.agent-connect__key').hidden).toBe(false);
-		expect(document.activeElement).toBe(card.root.querySelector('input[aria-label="API key"]'));
-	});
-
-	it('counts one model in the singular', async () => {
-		const { card } = await connected({
-			loadModels: vi.fn(async () => ({ ok: true, models: [model('gpt-5')] })),
-		});
-		expect(card.root.textContent).toContain('1 model');
-		expect(card.root.textContent).not.toContain('1 models');
-	});
-
-	it('Custom… opens one field; a valid ID is verified, used and added to the list', async () => {
-		const { card, check, onConnected } = await connected();
-		check.mockClear();
-		onConnected.mockClear();
-		const custom = card.root.querySelector('.agent-connect__custom');
-		expect(custom.hidden).toBe(true);
-		listbox(card).focus();
-		press(card, 'End');
-		press(card, 'Enter');
-		expect(custom.hidden).toBe(false);
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		expect(document.activeElement).toBe(input);
-		input.value = 'my-fine-tune:v2';
-		card.root.requestSubmit();
-		await flush();
-		expect(check).toHaveBeenCalledOnce();
-		expect(check.mock.calls[0][0]).toEqual({
-			provider: 'openai',
-			model: 'my-fine-tune:v2',
-			apiKey: SECRET,
-		});
-		expect(onConnected).toHaveBeenCalledWith({
-			provider: 'openai',
-			model: 'my-fine-tune:v2',
-			apiKey: SECRET,
-		});
-		expect(custom.hidden).toBe(true);
-		expect(selectedId(card)).toBe('my-fine-tune:v2');
-		expect(optionIds(card)[0]).toBe('my-fine-tune:v2');
-		expect(card.root.textContent).toContain('7 models');
-		// Focus is not lost to the page when the field closes.
-		expect(document.activeElement).toBe(listbox(card));
-	});
-
-	it('Custom… rejects an invalid ID before any call, and refuses a listed model that cannot use tools', async () => {
-		const { card, check, onConnected } = await connected();
-		check.mockClear();
-		onConnected.mockClear();
-		card.root.querySelector('[data-custom="true"]').click();
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		for (const bad of ['', 'has space', '-leading', 'a'.repeat(161), '<script>']) {
-			input.value = bad;
-			card.root.requestSubmit();
-			await flush();
-			expect(card.root.textContent).toContain('Enter a valid model ID');
-		}
-		input.value = 'gpt-3.5-turbo';
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.textContent).toContain(NO_TOOLS_REASON);
-		expect(check).not.toHaveBeenCalled();
-		expect(onConnected).not.toHaveBeenCalled();
-		// An ID already in the list that is known to use tools needs no billed call either.
-		input.value = 'o3';
-		card.root.requestSubmit();
-		await flush();
-		expect(check).not.toHaveBeenCalled();
-		expect(onConnected).toHaveBeenCalledWith({ provider: 'openai', model: 'o3', apiKey: SECRET });
-	});
-
-	it('Esc in the custom field closes it, returns to the list and does not reach the panel', async () => {
-		const { card } = await connected();
-		card.root.querySelector('[data-custom="true"]').click();
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		const outer = vi.fn();
-		document.body.addEventListener('keydown', outer);
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		expect(card.root.querySelector('.agent-connect__custom').hidden).toBe(true);
-		expect(document.activeElement).toBe(listbox(card));
-		expect(outer).not.toHaveBeenCalled();
-		document.body.removeEventListener('keydown', outer);
-	});
-
-	it('Esc in the custom field also clears a failure shown for the ID that was typed', async () => {
-		const check = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true })
-			.mockResolvedValueOnce({ ok: false, outcome: 'no-tools' });
-		const { card } = await connected({ check });
-		card.root.querySelector('[data-custom="true"]').click();
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		input.value = 'some-chat-model';
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.textContent).toContain("This model can't use tools");
-		expect(card.root.textContent).toContain('Pick another');
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		expect(card.root.querySelector('.agent-connect__custom').hidden).toBe(true);
-		expect(card.root.textContent).not.toContain("This model can't use tools");
-		expect(card.root.textContent).not.toContain('Pick another');
-		expect(card.root.querySelector('.agent-connect__result').childElementCount).toBe(0);
-		expect(document.activeElement).toBe(listbox(card));
-		// The same goes for an ID that never reached the check.
-		card.root.querySelector('[data-custom="true"]').click();
-		input.value = 'has space';
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.textContent).toContain('Enter a valid model ID');
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		expect(card.root.textContent).not.toContain('Enter a valid model ID');
-	});
-
-	it('the key is never in the DOM, attributes, storage or any URL while the list is shown', async () => {
-		const setItem = vi.spyOn(Storage.prototype, 'setItem');
-		const check = vi.fn(async () => ({ ok: true }));
-		const { card } = await connected({ check });
-		optionFor(card, 'gpt-new').click();
-		await flush();
-		card.root.querySelector('[data-custom="true"]').click();
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		input.value = 'typed-model';
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.querySelector('input[aria-label="API key"]').value).toBe('');
-		expect(document.body.innerHTML).not.toContain(SECRET);
-		expect(card.root.outerHTML).not.toContain(SECRET);
-		expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain(SECRET);
-		expect(setItem).not.toHaveBeenCalled();
-		setItem.mockRestore();
-	});
-
-	it('if the list cannot be loaded the card behaves as before: connected, no list', async () => {
-		for (const loadModels of [
-			vi.fn(async () => ({ ok: false })),
-			vi.fn(async () => ({ ok: true, models: [] })),
-			vi.fn(async () => {
-				throw new Error('boom');
-			}),
-		]) {
-			const { card, onConnected } = await connected({ loadModels });
-			expect(card.showsModels).toBe(false);
-			expect(listbox(card)).toBeNull();
-			expect(onConnected).toHaveBeenCalledOnce();
-			expect(onConnected.mock.calls[0][0].model).toBe('gpt-5');
-			expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
-			card.root.remove();
-		}
-	});
-
-	it('a failed check never asks for the list', async () => {
-		const loadModels = vi.fn();
-		const { card } = await connected({
-			check: vi.fn(async () => ({ ok: false, outcome: 'wrong-key' })),
-			loadModels,
-		});
-		expect(loadModels).not.toHaveBeenCalled();
-		expect(card.showsModels).toBe(false);
-		expect(card.root.textContent).toContain('Key not accepted');
-	});
-
-	it('Zen: free models show Free, and a model Noddy cannot route to is greyed out with its own reason', async () => {
-		const { card } = await connected({ provider: 'opencode-zen', list: ZEN_LIST });
-		expect(optionIds(card)).toEqual(['big-pickle', 'gpt-6-astra', 'beam-free', 'custom']);
-		expect(
-			[...optionFor(card, 'big-pickle').querySelectorAll('.agent-badge')].map(
-				(b) => b.dataset.badge
-			)
-		).toEqual(['free', 'tools']);
-		const blocked = optionFor(card, 'beam-free');
-		expect(blocked.getAttribute('aria-disabled')).toBe('true');
-		expect(blocked.textContent).toContain(NO_FORMAT_REASON);
-		blocked.click();
-		// A custom ID of an unknown Zen family gets the same answer, with no billed call.
-		card.root.querySelector('[data-custom="true"]').click();
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		input.value = 'mystery-model';
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.textContent).toContain(NO_FORMAT_REASON);
-	});
-
-	it('the provider dropdown stays; another provider drops the list and goes back to its own key step', async () => {
-		const { card, onConnected } = await connected();
-		choose(card, 'anthropic');
-		expect(card.showsModels).toBe(false);
-		expect(listbox(card)).toBeNull();
-		// The rows themselves are gone, not just hidden.
-		expect(card.root.querySelectorAll('[role="option"]')).toHaveLength(0);
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
-		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('claude-sonnet-5-5');
-		expect(card.root.querySelector('.agent-connect__key').hidden).toBe(false);
-		expect(card.root.textContent).toContain('Connect a model');
-		// Back to the first provider: its list was dropped with the change, so it asks for the key again.
-		choose(card, 'openai');
-		expect(card.showsModels).toBe(false);
-		expect(listbox(card)).toBeNull();
-		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('gpt-5');
-		expect(card.root.querySelector('input[aria-label="API key"]').value).toBe('');
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.textContent).toContain('Enter a model ID and an API key');
-		// The connection the first check made was never touched.
-		expect(onConnected).toHaveBeenCalledOnce();
-	});
-
-	it('changing provider forgets the key copy: nothing can be verified with it any more', async () => {
-		const { card, check } = await connected();
-		check.mockClear();
-		choose(card, 'anthropic');
-		choose(card, 'openai');
-		// No list, no Custom… and no billed call with the first key.
-		expect(card.root.querySelector('[data-custom="true"]')).toBeNull();
-		card.root.requestSubmit();
-		await flush();
-		expect(check).not.toHaveBeenCalled();
-		expect(document.body.innerHTML).not.toContain(SECRET);
-	});
-
-	it('changing provider while Custom… is open closes it', async () => {
-		const { card } = await connected();
-		card.root.querySelector('[data-custom="true"]').click();
-		const custom = card.root.querySelector('.agent-connect__custom');
-		const input = card.root.querySelector('input[aria-label="Custom model ID"]');
-		input.value = 'half-typed';
-		expect(custom.hidden).toBe(false);
-		choose(card, 'anthropic');
-		expect(custom.hidden).toBe(true);
-		expect(input.value).toBe('');
-	});
-
-	it('connecting another provider replaces the list and forgets the first key', async () => {
-		const loadModels = vi.fn(async ({ provider }) => ({
-			ok: true,
-			models:
-				provider === 'anthropic'
-					? [model('claude-sonnet-5-5'), model('claude-old', { tools: false })]
-					: OPENAI_LIST,
-		}));
-		const check = vi.fn(async () => ({ ok: true }));
-		const { card, onConnected } = await connected({ check, loadModels });
-		choose(card, 'anthropic');
-		card.root.querySelector('input[aria-label="API key"]').value = 'sk-ant-second';
-		card.root.requestSubmit();
-		await flush();
-		expect(loadModels).toHaveBeenLastCalledWith({ provider: 'anthropic', apiKey: 'sk-ant-second' });
-		expect(optionIds(card)).toEqual(['claude-sonnet-5-5', 'claude-old', 'custom']);
-		expect(onConnected).toHaveBeenLastCalledWith({
-			provider: 'anthropic',
-			model: 'claude-sonnet-5-5',
-			apiKey: 'sk-ant-second',
-		});
-		// Leaving a provider drops its list and key copy, however it got there.
-		choose(card, 'openai');
-		expect(card.showsModels).toBe(false);
-		expect(card.root.querySelectorAll('[role="option"]')).toHaveLength(0);
-		check.mockClear();
-		choose(card, 'anthropic');
-		expect(card.showsModels).toBe(false);
-		expect(card.root.querySelector('[data-custom="true"]')).toBeNull();
-		card.root.requestSubmit();
-		await flush();
-		expect(check).not.toHaveBeenCalled();
-		expect(document.body.innerHTML).not.toContain('sk-ant-second');
-		expect(document.body.innerHTML).not.toContain(SECRET);
-	});
-
-	it('a failed check for another provider leaves the first connection alone', async () => {
-		const check = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true })
-			.mockResolvedValueOnce({ ok: false, outcome: 'wrong-key' });
-		const { card, onConnected } = await connected({ check });
-		choose(card, 'anthropic');
-		card.root.querySelector('input[aria-label="API key"]').value = 'bad-key';
-		card.root.requestSubmit();
-		await flush();
-		expect(card.root.textContent).toContain('Key not accepted');
-		expect(card.showsModels).toBe(false);
-		// No new connection was made, so the controller still holds the first one.
-		expect(onConnected).toHaveBeenCalledOnce();
-	});
-
-	it('reset and clearKey drop the list and its key copy and return to the key step', async () => {
-		const { card, check } = await connected();
-		card.reset();
-		expect(card.showsModels).toBe(false);
-		expect(listbox(card)).toBeNull();
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
-		const again = await connected();
-		again.card.clearKey();
-		expect(again.card.showsModels).toBe(false);
-		expect(again.card.root.querySelector('input[aria-label="API key"]').value).toBe('');
-		expect(check).toHaveBeenCalledOnce();
-	});
-
-	it('every list and check dependency is injectable, so no test needs the network', async () => {
-		const fetchSpy = vi.fn();
-		vi.stubGlobal('fetch', fetchSpy);
-		await connected();
-		expect(fetchSpy).not.toHaveBeenCalled();
-		vi.unstubAllGlobals();
-	});
-});
-
-describe('fetchModels (#76)', () => {
-	const config = { provider: 'anthropic', apiKey: 'sk-ant-list-secret' };
-
-	it('posts the provider and key in the body to the relay, never in the URL', async () => {
-		const fetchImpl = vi.fn().mockResolvedValue(
-			json(200, {
-				provider: 'anthropic',
-				catalog: 'live',
-				models: [
-					{
-						id: 'claude-sonnet-5-5',
-						tools: true,
-						vision: true,
-						price: { input: 3, output: 15 },
-						released: '2026-03',
-					},
-				],
-			})
-		);
-		const answer = await fetchModels(config, fetchImpl);
-		expect(answer).toEqual({
-			ok: true,
-			models: [
-				{
-					id: 'claude-sonnet-5-5',
-					tools: true,
-					vision: true,
-					price: { input: 3, output: 15 },
-					released: '2026-03',
-				},
-			],
-		});
-		const [url, init] = fetchImpl.mock.calls[0];
-		expect(url).toBe('/api/agent/models');
-		expect(url).not.toContain('sk-ant');
-		expect(init.method).toBe('POST');
-		expect(JSON.parse(init.body)).toEqual({ provider: 'anthropic', apiKey: config.apiKey });
-		expect(init.headers['Content-Type']).toBe('application/json');
-	});
-
-	it('a relay error, a network failure or unreadable data is simply "no list"', async () => {
-		expect(
-			await fetchModels(
-				config,
-				vi.fn().mockResolvedValue(json(401, { error: { code: 'PROVIDER_AUTH' } }))
-			)
-		).toEqual({ ok: false });
-		expect(
-			await fetchModels(config, vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
-		).toEqual({ ok: false });
-		expect(
-			await fetchModels(
-				config,
-				vi.fn().mockResolvedValue({
-					ok: true,
-					json: async () => {
-						throw new Error('bad json');
-					},
-				})
-			)
-		).toEqual({ ok: false });
-		expect(
-			await fetchModels(config, vi.fn().mockResolvedValue(json(200, { models: 'x' })))
-		).toEqual({
-			ok: true,
-			models: [],
-		});
+		// A vendor prefix is dropped: the end of the ID names the model, and the chip is short.
+		expect(modelLabel('google/gemma-4-26b-a4b-it:free')).toBe('gemma-4-26b-a4b-it:free');
+		expect(modelLabel('~anthropic/claude-sonnet-latest')).toBe('claude-sonnet-latest');
+		expect(modelLabel('openai/gpt-5')).toBe('GPT-5');
 	});
 });

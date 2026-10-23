@@ -79,14 +79,14 @@ function providerOptions(value, fromProvider) {
 	if (fromProvider && record(value)) {
 		value = Object.fromEntries(
 			Object.entries(value)
-				.filter(([key]) => ['openai', 'anthropic', 'opencode-zen'].includes(key))
+				.filter(([key]) => ['openai', 'anthropic', 'opencode-zen', 'openrouter'].includes(key))
 				.map(([key, details]) => [
 					key,
 					Object.fromEntries(Object.entries(details).filter(([name]) => allowed.includes(name))),
 				])
 		);
 	}
-	keys(value, ['openai', 'anthropic', 'opencode-zen']);
+	keys(value, ['openai', 'anthropic', 'opencode-zen', 'openrouter']);
 	// Only opaque continuation data, not arbitrary provider settings or URLs.
 	for (const details of Object.values(value)) {
 		keys(details, allowed);
@@ -243,7 +243,10 @@ export function validateMessages(
 }
 
 export function validateRequest(body, definitions) {
-	keys(body, ['provider', 'protocol', 'model', 'apiKey', 'messages', 'context']);
+	keys(body, ['provider', 'protocol', 'model', 'apiKey', 'messages', 'context', 'purpose']);
+	// `purpose: "check"` marks the connect flow's one tiny test message. It only lets the
+	// relay return a sanitized provider message in the error (`detail`); a run never sends it.
+	if (body.purpose !== undefined && body.purpose !== 'check') invalid();
 	if (!MODEL_ID_PATTERN.test(shortString(body.model))) invalid('Enter a valid model ID.');
 	let protocol;
 	try {
@@ -280,6 +283,7 @@ export function validateRequest(body, definitions) {
 		protocol,
 		model: body.model,
 		apiKey: body.apiKey,
+		purpose: body.purpose,
 		messages: validateMessages(body.messages, new Set(definitions.map((tool) => tool.name))),
 		context: body.context ?? {},
 	};
@@ -294,7 +298,7 @@ export function validateRequest(body, definitions) {
 export function validateModelsRequest(body) {
 	keys(body, ['provider', 'apiKey']);
 	if (typeof body.provider !== 'string' || !Object.hasOwn(PROVIDERS, body.provider))
-		invalid('Choose OpenAI, OpenCode Zen or Anthropic.');
+		invalid('Choose OpenRouter, OpenCode Zen, OpenAI or Anthropic.');
 	if (!/^[\x21-\x7e]{1,512}$/.test(shortString(body.apiKey, 512)))
 		invalid('Enter a valid provider API key.');
 	return { provider: body.provider, apiKey: body.apiKey };

@@ -33,6 +33,9 @@ const MAX_MODELS_PER_PROVIDER = 2000;
  * @property {boolean|null} vision  accepts image input; null when unknown
  * @property {{input:number, output:number}|null} price  USD per million tokens; null when unknown
  * @property {string|null} released  release date as the catalog writes it
+ * @property {number|null} context  context window in tokens; null when unknown
+ * @property {boolean|null} text  can write text; null when the catalog does not say
+ * @property {boolean} deprecated  the catalog marks the model deprecated
  */
 
 const isPrice = (value) =>
@@ -52,7 +55,10 @@ export function normalizeEntry(raw) {
 	const tools = notChat ? false : typeof raw.tool_call === 'boolean' ? raw.tool_call : null;
 	const input =
 		record(raw.modalities) && Array.isArray(raw.modalities.input) ? raw.modalities.input : null;
+	const output =
+		record(raw.modalities) && Array.isArray(raw.modalities.output) ? raw.modalities.output : null;
 	const cost = record(raw.cost) ? raw.cost : null;
+	const context = record(raw.limit) ? raw.limit.context : null;
 	return {
 		tools,
 		vision: input ? input.includes('image') : null,
@@ -64,6 +70,10 @@ export function normalizeEntry(raw) {
 			typeof raw.release_date === 'string' && /^\d{4}(-\d{2}){0,2}$/.test(raw.release_date)
 				? raw.release_date
 				: null,
+		// The app's required capabilities (src/agent/model-requirements.js) need these three.
+		context: Number.isInteger(context) && context > 0 && context <= 100_000_000 ? context : null,
+		text: output ? output.includes('text') : null,
+		deprecated: raw.status === 'deprecated',
 	};
 }
 
@@ -167,6 +177,32 @@ export async function readJsonCapped(response, maxBytes) {
 		chunks.push(value);
 	}
 	return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+/**
+ * The start of a response body as text, never more than `maxBytes` and never throwing.
+ * Used to find a failed provider's message; the text itself is not relayed (errors.js).
+ * @param {Response} response
+ * @param {number} maxBytes
+ * @returns {Promise<string>}
+ */
+export async function readTextCapped(response, maxBytes) {
+	try {
+		if (!response.body?.getReader) return (await response.text()).slice(0, maxBytes);
+		const reader = response.body.getReader();
+		const chunks = [];
+		let size = 0;
+		while (size < maxBytes) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(value);
+			size += value.byteLength;
+		}
+		await reader.cancel().catch(() => {});
+		return Buffer.concat(chunks).subarray(0, maxBytes).toString('utf8');
+	} catch {
+		return '';
+	}
 }
 
 /**

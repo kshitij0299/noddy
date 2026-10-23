@@ -337,9 +337,24 @@ describe('controller wiring (#21)', () => {
 		expect(threadCopyFor({ code: 'RELAY_OFFLINE' })).toBe(
 			'Noddy relay is off · drawing by hand still works'
 		);
-		expect(threadCopyFor({ code: 'PROVIDER_UNAVAILABLE' })).toBe(
-			'Provider not responding · try again'
+		expect(threadCopyFor({ code: 'PROVIDER_UNAVAILABLE' }, 'openrouter')).toBe(
+			"502 · OpenRouter isn't responding — try again, or pick another model."
 		);
+		expect(threadCopyFor({ code: 'CANCELLED' })).toBe('Provider not responding · try again');
+	});
+
+	it('a provider failure in the thread says what the connect flow says: status, plain words, the fix', () => {
+		expect(threadCopyFor({ code: 'PROVIDER_AUTH', status: 401 }, 'openrouter')).toBe(
+			'401 · Key not accepted — check you copied the whole key.'
+		);
+		expect(threadCopyFor({ code: 'PROVIDER_CREDITS', status: 402 }, 'openrouter')).toBe(
+			'402 · Out of credits — add credits, or pick a free model.'
+		);
+		expect(threadCopyFor({ code: 'PROVIDER_LIMIT', status: 429 }, 'openrouter')).toBe(
+			'429 · Rate limited — try another free model or wait a minute.'
+		);
+		expect(threadCopyFor({ code: 'NO_MODEL' })).toBe('Connect a model first');
+		expect(threadCopyFor({ message: 'Something odd' })).toBe('Something odd');
 	});
 
 	it('card actions reach the controller, the composer or the review actions', async () => {
@@ -379,175 +394,262 @@ describe('controller wiring (#21)', () => {
 		expect(lines.some((text) => /coming in M7/.test(text))).toBe(false);
 	});
 
-	it('the connect card hands the key to the controller and never renders or stores it', async () => {
-		const setItem = vi.spyOn(Storage.prototype, 'setItem');
-		const controller = fakeController({ connected: false });
-		const seen = {};
-		controller.connect = vi.fn((config) => {
-			seen.connect = { ...config };
-		});
-		const check = vi.fn(async (config) => {
-			seen.check = config.apiKey;
-			return { ok: true };
-		});
-		const panel = panelFixture({
-			controller,
-			check,
-			loadModels: async () => ({ ok: false }),
-		});
-		const card = panel.thread.querySelector('.agent-connect');
-		const key = card.querySelector('input[type=password]');
-		key.value = 'sk-very-secret';
-		card.requestSubmit();
-		await flush();
-		expect(seen.check).toBe('sk-very-secret');
-		expect(seen.connect).toEqual({ provider: 'openai', model: 'gpt-5', apiKey: 'sk-very-secret' });
-		// The panel drops its own copy once the controller has it.
-		expect(controller.connect.mock.calls[0][0].apiKey).toBe('');
-		expect(key.value).toBe('');
-		expect(panel.host.outerHTML).not.toContain('sk-very-secret');
-		expect(setItem).not.toHaveBeenCalled();
-	});
-
-	describe('live model list (#76)', () => {
+	describe('connect flow in the panel (#82)', () => {
 		const model = (id, overrides = {}) => ({
 			id,
 			tools: true,
 			vision: false,
 			price: { input: 3, output: 15 },
 			released: '2025-01-01',
+			context: 200_000,
+			text: true,
+			deprecated: false,
 			...overrides,
 		});
+		const free = { input: 0, output: 0 };
 		const LIST = [
-			model('gpt-5', { vision: true }),
-			model('gpt-5-mini'),
-			model('o3'),
-			model('gpt-3.5-turbo', { tools: false }),
+			model('vendor/free-one:free', { price: free }),
+			model('vendor/paid-one'),
+			model('vendor/paid-two'),
+			model('vendor/no-tools', { tools: false }),
 		];
-		const connectedPanel = async (loadModels = vi.fn(async () => ({ ok: true, models: LIST }))) => {
-			const panel = panelFixture({
-				check: vi.fn(async () => ({ ok: true })),
-				loadModels,
-				createSession: () => sessionStub(),
-			});
-			const card = panel.thread.querySelector('.agent-connect');
-			card.querySelector('input[type=password]').value = 'sk-panel-secret';
-			card.requestSubmit();
-			await flush();
-			return { panel, card, loadModels };
+		const memory = (initial = {}) => {
+			const data = new Map(Object.entries(initial));
+			return {
+				data,
+				getItem: (key) => (data.has(key) ? data.get(key) : null),
+				setItem: vi.fn((key, value) => data.set(key, String(value))),
+				removeItem: (key) => data.delete(key),
+			};
 		};
-		const stepLines = (panel) =>
-			[...panel.thread.querySelectorAll('agent-step-line')].map((line) => line.textContent);
+		const listOf = (models = LIST) => vi.fn(async () => ({ ok: true, models, freeRequests: null }));
+		const host = (panel) => panel.thread.querySelector('.agent-connect-host');
+		const option = (panel, id) =>
+			[...host(panel).querySelectorAll('[role="option"]')].find((node) => node.dataset.id === id);
+		const primary = (panel) => host(panel).querySelector('.agent-connect__primary');
 
-		it('keeps the connect card on screen as the key’s model list once connected', async () => {
-			const { panel, card } = await connectedPanel();
-			expect(panel.controller.connected).toBe(true);
-			expect(panel.model).toBe('gpt-5');
-			expect(card.hidden).toBe(false);
-			expect(card.querySelector('[role="listbox"]')).not.toBeNull();
-			// The suggestion chips show too: the agent is ready.
-			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(false);
-			expect(stepLines(panel).filter((text) => /Connected/.test(text))).toHaveLength(1);
-			expect(panel.host.outerHTML).not.toContain('sk-panel-secret');
-		});
-
-		it('choosing another model reconnects with it and updates the one Connected line', async () => {
-			const { panel, card } = await connectedPanel();
-			card.querySelector('[role="option"][data-id="o3"]').click();
-			await flush();
-			expect(panel.controller.connected).toBe(true);
-			expect(panel.model).toBe('o3');
-			expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('o3');
-			const connected = stepLines(panel).filter((text) => /Connected/.test(text));
-			expect(connected).toHaveLength(1);
-			expect(connected[0]).toContain('o3');
-			// A model that cannot use tools is not chosen.
-			card.querySelector('[role="option"][data-id="gpt-3.5-turbo"]').click();
-			await flush();
-			expect(panel.model).toBe('o3');
-		});
-
-		it('keyboard focus stays on the list after Check connection and after choosing a model', async () => {
-			const { panel, card } = await connectedPanel();
-			const list = card.querySelector('[role="listbox"]');
-			expect(document.activeElement).toBe(list);
-			expect(document.activeElement).not.toBe(panel.composer.input);
-			// Arrow to a model and press Enter: it is chosen and the list keeps focus.
-			const key = (name) =>
-				list.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
-			key('ArrowDown');
-			key('ArrowDown');
-			key('Enter');
-			await flush();
-			expect(panel.model).toBe('o3');
-			expect(document.activeElement).toBe(list);
-			expect(list.getAttribute('aria-activedescendant')).toBe(
-				card.querySelector('[role="option"][data-id="o3"]').id
-			);
-		});
-
-		it('focus goes to the composer when focus was elsewhere or there is no list', async () => {
-			const noList = await connectedPanel(vi.fn(async () => ({ ok: false })));
-			expect(document.activeElement).toBe(noList.panel.composer.input);
-			noList.panel.dispose();
-			// With a list, but the owner moved on while the check ran.
+		/** Drives the three steps: OpenRouter, a key, the pre-selected model. */
+		async function connectedPanel({
+			loadModels = listOf(),
+			storage = memory(),
+			check,
+			key,
+			controller,
+		} = {}) {
 			const panel = panelFixture({
-				check: vi.fn(async () => ({ ok: true })),
-				loadModels: vi.fn(async () => ({ ok: true, models: LIST })),
+				...(controller ? { controller } : {}),
+				check: check ?? vi.fn(async () => ({ ok: true })),
+				loadModels,
+				storage,
 				createSession: () => sessionStub(),
 			});
-			const card = panel.thread.querySelector('.agent-connect');
-			card.querySelector('input[type=password]').value = 'sk-panel-secret';
-			card.requestSubmit();
-			const elsewhere = document.createElement('button');
-			document.body.append(elsewhere);
-			elsewhere.focus();
+			host(panel).querySelector('button[data-provider="openrouter"]').click();
+			host(panel).querySelector('input.agent-field__input').value = key ?? 'sk-or-panel-secret';
+			primary(panel).click();
 			await flush();
-			expect(panel.model).toBe('gpt-5');
+			primary(panel).click();
+			await flush();
+			return { panel, loadModels, storage };
+		}
+
+		it('starts on the provider step: the mark, the title and the first step, with no model', () => {
+			const panel = panelFixture({ controller: fakeController({ connected: false }) });
+			expect(panel.thread.querySelector('.agent-panel__empty-title').textContent).toBe(
+				'What are we drawing?'
+			);
+			expect(host(panel).querySelector('.agent-connect__title').textContent).toBe(
+				'Choose a provider'
+			);
+			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
+			expect(
+				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
+			).toBe(true);
+		});
+
+		it('hands the key to the controller once, blanks the panel’s copy, and never renders or stores it', async () => {
+			const controller = fakeController({ connected: false });
+			const seen = {};
+			controller.connect = vi.fn((config) => {
+				seen.connect = { ...config };
+			});
+			const check = vi.fn(async (config) => {
+				seen.check = { ...config };
+				return { ok: true };
+			});
+			const storage = memory();
+			const setItem = vi.spyOn(Storage.prototype, 'setItem');
+			const { panel } = await connectedPanel({ controller, check, storage, key: 'sk-very-secret' });
+			expect(seen.check).toEqual({
+				provider: 'openrouter',
+				model: 'vendor/free-one:free',
+				apiKey: 'sk-very-secret',
+			});
+			expect(seen.connect).toEqual(seen.check);
+			// The panel drops its own copy once the controller has it.
+			expect(controller.connect.mock.calls[0][0].apiKey).toBe('');
+			expect(panel.host.outerHTML).not.toContain('sk-very-secret');
+			expect(panel.host.textContent).not.toContain('sk-very-secret');
+			// Only the provider and model are remembered, and never in the browser's real storage.
+			expect(JSON.stringify([...storage.data.values()])).not.toContain('sk-very-secret');
+			expect(setItem).not.toHaveBeenCalled();
+		});
+
+		it('once connected the card steps aside as one Connected row; the suggestions appear', async () => {
+			const { panel } = await connectedPanel();
+			expect(panel.controller.connected).toBe(true);
+			expect(panel.model).toBe('vendor/free-one:free');
+			const row = host(panel).querySelector('.agent-connected');
+			expect(row.querySelector('.agent-connected__head').textContent).toContain('OpenRouter');
+			expect(row.querySelector('.agent-connected__model').textContent).toBe('vendor/free-one:free');
+			expect(host(panel).querySelector('form')).toBe(null);
+			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(false);
+			expect(
+				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
+			).toBe(false);
+			// The chip drops the vendor prefix; the Connected row keeps the whole ID.
+			expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('free-one:free');
+			// No step line is added: the Connected row is the feedback.
+			expect(panel.thread.querySelectorAll('agent-step-line')).toHaveLength(0);
+		});
+
+		it('focus goes to the composer once connected', async () => {
+			const { panel } = await connectedPanel();
 			expect(document.activeElement).toBe(panel.composer.input);
 		});
 
-		it('without a list the card steps aside as it always did', async () => {
-			const { panel, card } = await connectedPanel(vi.fn(async () => ({ ok: false })));
+		it('Change opens the model step; choosing another model reconnects with it', async () => {
+			const { panel } = await connectedPanel();
+			host(panel).querySelector('.agent-connected button').click();
+			expect(host(panel).querySelector('[role="listbox"]')).not.toBe(null);
+			// Only models that work with Noddy's tools are offered.
+			expect(option(panel, 'vendor/no-tools')).toBe(undefined);
+			option(panel, 'vendor/paid-two').click();
+			primary(panel).click();
+			await flush();
 			expect(panel.controller.connected).toBe(true);
-			expect(card.hidden).toBe(true);
-			expect(card.querySelector('[role="listbox"]')).toBeNull();
+			expect(panel.model).toBe('vendor/paid-two');
+			expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('paid-two');
+			expect(host(panel).querySelector('.agent-connected').textContent).toContain(
+				'vendor/paid-two'
+			);
 		});
 
-		it('a disconnect returns the card to the key step and drops the list', async () => {
-			const { panel, card } = await connectedPanel();
+		it('Change brings the card back and the suggestions step aside until a model is connected again', async () => {
+			const { panel } = await connectedPanel();
+			const chips = panel.thread.querySelector('.agent-panel__chips');
+			expect(chips.hidden).toBe(false);
+			host(panel).querySelector('.agent-connected button').click();
+			expect(chips.hidden).toBe(true);
+			expect(
+				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
+			).toBe(true);
+			primary(panel).click();
+			await flush();
+			expect(chips.hidden).toBe(false);
+		});
+
+		it('a disconnect returns the card: the key is gone, the remembered model waits for a new key', async () => {
+			const { panel } = await connectedPanel();
 			panel.controller.disconnect();
 			expect(panel.controller.connected).toBe(false);
-			expect(card.hidden).toBe(false);
-			expect(card.querySelector('[role="listbox"]')).toBeNull();
-			expect(card.querySelector('input[aria-label="Model"]').hidden).toBe(false);
+			expect(host(panel).querySelector('form')).not.toBe(null);
+			expect(host(panel).querySelector('.agent-connect__title').textContent).toBe(
+				'Reconnect to OpenRouter'
+			);
+			expect(host(panel).querySelector('input.agent-field__input').value).toBe('');
+			expect(host(panel).querySelector('[role="listbox"]')).toBe(null);
 			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
 		});
 
-		it('after the first message the card leaves the thread; clearing the chat brings the list back', async () => {
-			const { panel, card } = await connectedPanel();
+		it('after the first message the card leaves the thread; clearing the chat brings the Connected row back', async () => {
+			const { panel } = await connectedPanel();
+			const root = host(panel);
 			panel.handleEvent({ type: 'start', prompt: 'Draw a', attachments: [], context });
 			panel.handleEvent({ type: 'finish' });
-			expect(panel.thread.contains(card)).toBe(false);
+			expect(panel.thread.contains(root)).toBe(false);
 			panel.handleEvent({ type: 'clear' });
-			expect(panel.thread.contains(card)).toBe(true);
-			expect(card.hidden).toBe(false);
-			expect(card.querySelector('[role="option"][aria-selected="true"]').dataset.id).toBe('gpt-5');
+			expect(panel.thread.contains(root)).toBe(true);
+			expect(root.querySelector('.agent-connected')).not.toBe(null);
 		});
 
-		it('Esc on the list minimizes the panel, but Esc that cancels a keyboard move does not', async () => {
-			const { panel, card } = await connectedPanel();
-			const list = card.querySelector('[role="listbox"]');
-			list.focus();
-			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-			list.dispatchEvent(
+		it('a reload asks only for the key: the remembered provider and model are offered', async () => {
+			const storage = memory();
+			const first = await connectedPanel({ storage });
+			first.panel.dispose();
+			panels.splice(panels.indexOf(first.panel), 1);
+			const check = vi.fn(async () => ({ ok: true }));
+			const panel = panelFixture({
+				check,
+				loadModels: listOf(),
+				storage,
+				createSession: () => sessionStub(),
+			});
+			expect(host(panel).querySelector('.agent-connect__title').textContent).toBe(
+				'Reconnect to OpenRouter'
+			);
+			expect(host(panel).querySelector('.agent-connect__line').textContent).toBe(
+				'Model: vendor/free-one:free'
+			);
+			host(panel).querySelector('input.agent-field__input').value = 'sk-or-panel-secret';
+			primary(panel).click();
+			await flush();
+			expect(check).toHaveBeenCalledTimes(1);
+			expect(check.mock.calls[0][0].model).toBe('vendor/free-one:free');
+			expect(panel.model).toBe('vendor/free-one:free');
+		});
+
+		it('the fixes for a failed request appear when the request has ended, not while it is still open', async () => {
+			const controller = fakeController({ connected: true, running: true });
+			const panel = panelFixture({ controller });
+			panel.handleEvent({
+				type: 'connection',
+				connected: true,
+				provider: 'openrouter',
+				model: 'a/b:free',
+			});
+			panel.handleEvent({ type: 'start', prompt: 'Draw a', attachments: [], context });
+			panel.handleEvent({ type: 'error', message: 'x', code: 'PROVIDER_AUTH', status: 401 });
+			const bubble = panel.thread.querySelector('.agent-bubble--error');
+			expect(bubble.textContent).toContain('401 · Key not accepted');
+			// The agent is still running: the buttons would do nothing yet, so they are not there.
+			expect(bubble.querySelector('button')).toBe(null);
+			controller.running = false;
+			panel.handleEvent({ type: 'finish' });
+			const labels = [...bubble.querySelectorAll('button')].map((button) => button.textContent);
+			expect(labels).toEqual(['Change model', 'Re-enter key']);
+			expect(bubble.textContent).toContain('This starts a new chat.');
+		});
+
+		it('Esc inside the card does not minimize the panel', async () => {
+			const panel = panelFixture({ controller: fakeController({ connected: false }) });
+			const row = host(panel).querySelector('button[data-provider="openrouter"]');
+			row.focus();
+			row.dispatchEvent(
 				new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
 			);
 			expect(panel.mode).toBe('open');
-			list.dispatchEvent(
-				new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+		});
+
+		it('a run error from the provider names the status and offers Change model; Change starts a new chat', async () => {
+			const { panel } = await connectedPanel();
+			panel.handleEvent({ type: 'start', prompt: 'Draw a', attachments: [], context });
+			panel.handleEvent({
+				type: 'error',
+				message: 'The provider account is out of credits.',
+				code: 'PROVIDER_CREDITS',
+				status: 402,
+			});
+			const bubble = panel.thread.querySelector('.agent-bubble--error');
+			expect(bubble.textContent).toContain(
+				'402 · Out of credits — add credits, or pick a free model.'
 			);
-			expect(panel.mode).toBe('minimized');
+			const change = [...bubble.querySelectorAll('button')].find(
+				(button) => button.textContent === 'Change model'
+			);
+			expect(bubble.textContent).toContain('This starts a new chat.');
+			panel.handleEvent({ type: 'finish' });
+			change.click();
+			expect(host(panel).querySelector('[role="listbox"]')).not.toBe(null);
 		});
 	});
 
