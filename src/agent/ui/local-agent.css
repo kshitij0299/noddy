@@ -18,6 +18,7 @@ button.agent-icon-button.agent-local-toggle[aria-pressed='true'] {
 	border-radius: var(--radius-md);
 	background: var(--color-bg-surface);
 	color: var(--color-text-primary);
+	text-align: left;
 	overflow-wrap: anywhere;
 	user-select: all;
 }

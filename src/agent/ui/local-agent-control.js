@@ -13,6 +13,19 @@ import { el, icon } from './cards/card-shell.js';
 import './local-agent.css';
 
 /**
+ * MCP clientInfo names are ids ("claude-code"); the chip shows "Claude Code".
+ * @param {String} name
+ * @returns {String}
+ */
+export function clientLabel(name) {
+	const words = String(name || '')
+		.split(/[-_\s]+/)
+		.filter(Boolean);
+	if (!words.length) return 'Local agent';
+	return words.map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
+}
+
+/**
  * @param {Object} panel - hooks from agent-panel.js
  * @param {HTMLElement} panel.header
  * @param {HTMLElement} panel.before - the header node the switch goes in front of
@@ -41,6 +54,8 @@ export function mountLocalAgent(panel) {
 	/** @type {HTMLElement | null} */
 	let commandBubble = null;
 	let starting = false;
+	/** The client the thread last announced, so a repeated event adds no second line. */
+	let announced = null;
 
 	const link = createLocalAgentLink({
 		createSession: panel.createSession,
@@ -51,16 +66,20 @@ export function mountLocalAgent(panel) {
 		},
 	});
 
-	function onState({ state, client, reason }) {
+	function onState({ state, client: name, reason }) {
+		const client = clientLabel(name);
 		const on = state !== 'off';
 		button.setAttribute('aria-pressed', String(on));
 		panel.setBusy(on);
 		if (state === 'connected') {
 			panel.setChip(`${client} · connected`);
-			panel.addStep('kept', `${client} connected`);
+			if (announced !== client) panel.addStep('kept', `${client} connected`);
+			announced = client;
 		} else if (state === 'waiting') {
 			panel.setChip('Local agent · waiting');
+			announced = null;
 		} else {
+			announced = null;
 			panel.setChip(null);
 			retireCommand();
 			const copy = {

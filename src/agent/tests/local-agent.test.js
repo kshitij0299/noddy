@@ -207,9 +207,11 @@ describe('agent panel: Local agent switch', () => {
 		await mountPanel();
 		toggle().click();
 		await settle();
-		bridge.send('client', { name: 'Claude Code' });
+		bridge.send('client', { name: 'claude-code' });
+		bridge.send('client', { name: 'claude-code' });
 		await settle();
 		expect(chip().textContent).toBe('Claude Code · connected');
+		expect(panel.thread.textContent.split('Claude Code connected').length - 1).toBe(1);
 		bridge.send('call', {
 			id: 'c1',
 			session: 's1',
