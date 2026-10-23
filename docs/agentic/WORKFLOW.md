@@ -89,6 +89,7 @@ Most cost comes from browser-heavy QA, fix rounds, cold starts and mid-run resta
 - **Design and UX judgement** (UX notes, design reviews, Figma work): **Opus 5.5**.
 - **Read-only or mechanical work** (QA checks, browser driving, inventories, research digests): **Sonnet 5.5** is fine.
 - **Fable:** don't use it unless the owner asks.
+- **Effort: medium for every agent** (developer, fix, UI, QA). Never Ultracode, xhigh or max for subagents; they must not inherit a high effort from the orchestrating chat, so set `effort: medium` explicitly when spawning. Go to high only for a protected-area (undo/history, serialization) fix that failed QA twice, and say so in the PR.
 
 **Rules for every run:**
 - **Mutation testing only in tier 3.**

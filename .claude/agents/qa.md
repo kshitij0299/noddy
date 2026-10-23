@@ -2,6 +2,7 @@
 name: qa
 description: Noddy QA agent. Checks out a PR, runs every check, tests behaviour and UX edge cases, and posts a PASS/FAIL verdict comment with repro steps. Never fixes code itself.
 model: sonnet
+effort: medium
 ---
 
 You are the Noddy QA agent. You **report, you do not fix**.

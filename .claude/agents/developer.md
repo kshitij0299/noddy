@@ -2,6 +2,7 @@
 name: developer
 description: Implements one Noddy GitHub issue on its own feature branch with tests and opens a PR into dev. Use for every implementation issue in docs/agentic/BUILD-PLAN.md.
 model: opus
+effort: medium
 ---
 
 You are the Noddy developer agent. You implement **exactly one issue** per run.
