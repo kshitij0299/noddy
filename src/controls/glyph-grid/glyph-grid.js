@@ -13,6 +13,7 @@ import {
 	preDraftOf,
 	revertGlyph,
 } from '../../agent/run/review.js';
+import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
 import './glyph-grid.css';
 import { GlyphGridTile } from './glyph-tile.js';
 import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
@@ -136,7 +137,7 @@ export class GlyphGrid extends HTMLElement {
 		const allCount = GRID_VIEWS.all.entries().length;
 		this.switchEl = makeElement({
 			tag: 'div',
-			className: 'glyph-grid__switch',
+			className: `${SEGMENTED_PILL.track} glyph-grid__switch`,
 			attributes: { role: 'group', 'aria-label': 'Which characters to show' },
 		});
 		this.segmentDefault = this._makeSegment('default', `${defaultCount}`, 'Letters and figures');
@@ -169,7 +170,7 @@ export class GlyphGrid extends HTMLElement {
 	_makeSegment(viewID, label, title) {
 		const button = makeElement({
 			tag: 'button',
-			className: 'glyph-grid__segment text-label',
+			className: `${SEGMENTED_PILL.segment} glyph-grid__segment text-label`,
 			content: label,
 			title,
 			attributes: { type: 'button', 'data-view': viewID, 'aria-pressed': 'false' },

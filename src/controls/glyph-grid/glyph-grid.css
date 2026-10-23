@@ -1,7 +1,7 @@
 /* --------------------------------------------------------------
 	<glyph-grid> — Letters & figures shelf (issue #14).
 	Figma: flow-02 / flow-05 / flow-07, components GlyphTile, StatusMark,
-	SegmentedPill (50:78). Tokens only (src/common/colors.css); type via the
+	SegmentedPill (61:187, shared). Tokens only (src/common/colors.css); type via the
 	.text-* roles in resets.css. This stylesheet never sets font properties
 	on glyph art: the SVG inside a tile carries [data-font-content] and is
 	rendered from project outlines (Contract 2).
@@ -27,44 +27,10 @@
 	color: var(--color-text-primary);
 }
 
-/* SegmentedPill: 36px tall, selected segment on bg/accent */
+/* SegmentedPill (shared, src/controls/segmented-pill): the header sits on
+   canvas, where bg/subtle disappears, so the track is bg/surface (flow-02) */
 .glyph-grid__switch {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
-	padding: 2px;
-	height: 36px;
-	border-radius: var(--radius-full);
-	background: var(--color-bg-surface);
-	border: 1px solid var(--color-border-default);
-}
-
-.glyph-grid__segment {
-	appearance: none;
-	border: 0;
-	margin: 0;
-	padding: 0 var(--space-3);
-	height: 30px;
-	border-radius: var(--radius-full);
-	background: transparent;
-	color: var(--color-text-secondary);
-	cursor: pointer;
-	white-space: nowrap;
-}
-
-.glyph-grid__segment:hover {
-	color: var(--color-text-primary);
-	background: var(--color-bg-subtle);
-}
-
-.glyph-grid__segment[aria-pressed='true'] {
-	background: var(--color-bg-accent);
-	color: var(--color-text-on-accent);
-}
-
-.glyph-grid__segment:focus-visible {
-	outline: var(--focus-ring);
-	outline-offset: var(--focus-ring-offset);
+	--segmented-pill-bg: var(--color-bg-surface);
 }
 
 /* Legend: mark + Mono count per status with a count, --space-4 apart */

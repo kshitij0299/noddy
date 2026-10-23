@@ -1,0 +1,100 @@
+/* --------------------------------------------------------------
+	SegmentedPill (Figma component 61:187; flow-02 / flow-05).
+	Shared by the Workspace grid switch ("62 | All 116") and the specimen
+	card's mode pill (Text / Spacing / Waterfall).
+
+	Shape: one quiet track, 36px tall, radius/full, an equal 4px inset on
+	every side (--space-1), and 4px between segments. A segment is 28px tall
+	(36 - 2 x 4), so its radius/full is concentric with the track. The selected
+	segment is a peach pill (bg/accent, text/on-accent); an unselected segment
+	has no background or shape at all, just its label in text/secondary.
+
+	The legacy global `button`, `button:hover`, `button:focus` and
+	`button:active` rule in resets.css (specificity 0,1,1) sets padding,
+	margin, a border, a 4px radius, a grey fill and a shadow. Every state is
+	pinned below at 0,2,1 or more (pattern from PR #45 / #57), so hover,
+	focus and press can only change paint, never geometry or shape.
+
+	Tokens only (src/common/colors.css). Type comes from the .text-* role on
+	the segment (grid switch) or the icon font (mode pill). No font
+	properties are set here.
+-------------------------------------------------------------- */
+
+.segmented-pill {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	box-sizing: border-box;
+	gap: var(--space-1);
+	height: 36px;
+	padding: var(--space-1);
+	border-radius: var(--radius-full);
+	/* A component sets --segmented-pill-bg when its track sits on a surface
+	   that bg/subtle would disappear into (the grid header sits on canvas). */
+	background-color: var(--segmented-pill-bg, var(--color-bg-subtle));
+}
+
+/* Icon-only segments (mode pill): 36 wide x 28 tall, so 3 segments make the
+   124px Figma pill. */
+.segmented-pill--icons {
+	--segmented-pill-segment-width: 36px;
+	--segmented-pill-segment-px: 0px;
+}
+
+/* Segment geometry and rest paint, in every state */
+button.segmented-pill__segment,
+button.segmented-pill__segment:hover,
+button.segmented-pill__segment:focus,
+button.segmented-pill__segment:active {
+	appearance: none;
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: var(--segmented-pill-segment-width, auto);
+	height: 28px;
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0 var(--segmented-pill-segment-px, var(--space-3));
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	white-space: nowrap;
+	/* Paint only: the global `all 80ms` would also animate the outline in */
+	transition: background-color 120ms ease, color 120ms ease;
+}
+
+/* Hover on an unselected segment: text colour only, no shape */
+button.segmented-pill__segment:hover {
+	color: var(--color-text-primary);
+}
+
+/* Selected segment: bg/accent pill, same box as every other segment */
+button.segmented-pill__segment[aria-pressed='true'],
+button.segmented-pill__segment[aria-pressed='true']:hover,
+button.segmented-pill__segment[aria-pressed='true']:focus,
+button.segmented-pill__segment[aria-pressed='true']:active,
+button.segmented-pill__segment[aria-checked='true'],
+button.segmented-pill__segment[aria-checked='true']:hover,
+button.segmented-pill__segment[aria-checked='true']:focus,
+button.segmented-pill__segment[aria-checked='true']:active {
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+/* Focus: a ring for the keyboard only. The legacy `button:focus` outline
+   would also show on a mouse click. The ring sits outside the 4px inset, so
+   it reaches the track edge and is never clipped (the track clips nothing). */
+button.segmented-pill__segment:focus:not(:focus-visible) {
+	outline: none;
+}
+
+button.segmented-pill__segment:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}

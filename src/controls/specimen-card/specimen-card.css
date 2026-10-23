@@ -34,46 +34,8 @@ specimen-card .specimen__bar {
 	height: 36px;
 }
 
-/* Mode pill: 124×36, bg/subtle, radius/full, three 36px icon segments */
-specimen-card .specimen__mode-pill {
-	display: flex;
-	flex: 0 0 auto;
-	gap: 8px;
-	height: 36px;
-	padding: 0;
-	background: var(--color-bg-subtle, var(--secondary));
-	border-radius: var(--radius-full, 999px);
-}
-
-specimen-card .specimen__mode {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 36px;
-	height: 36px;
-	padding: 0;
-	margin: 0;
-	border: none;
-	border-radius: var(--radius-full, 999px);
-	background: transparent;
-	color: var(--color-text-primary, var(--foreground));
-	cursor: pointer;
-	transition: background-color 120ms ease;
-}
-
-specimen-card .specimen__mode:hover {
-	background: var(--color-bg-accent-subtle, var(--secondary));
-}
-
-specimen-card .specimen__mode[aria-checked='true'] {
-	background: var(--color-bg-accent, var(--primary));
-	color: var(--color-text-on-accent, var(--primary-foreground));
-}
-
-specimen-card .specimen__mode:focus-visible {
-	outline: var(--focus-ring, 2px solid var(--ring));
-	outline-offset: var(--focus-ring-offset, 2px);
-}
+/* Mode pill: the shared SegmentedPill (src/controls/segmented-pill), icon
+   variant: 124×36, bg/subtle, three 36×28 segments */
 
 /* Size slider: 80px track, 8px thumb, Mono value at the right edge */
 specimen-card .specimen__size {

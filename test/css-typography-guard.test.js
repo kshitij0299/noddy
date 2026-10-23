@@ -46,6 +46,7 @@ const GLOBAL_STYLESHEETS = [
 	'src/controls/progress-indicator/progress-indicator.css',
 	// Side-effect imports (document-wide once their module loads).
 	'src/controls/glyph-grid/glyph-grid.css',
+	'src/controls/segmented-pill/segmented-pill.css',
 	'src/pages/focus-mode.css',
 	'src/agent/ui/cards/agent-cards.css',
 	'src/agent/ui/agent-panel.css',
