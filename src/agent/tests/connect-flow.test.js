@@ -5,6 +5,7 @@ import {
 	RELAY_OFF_COPY,
 	SEARCH_THRESHOLD,
 	captionFor,
+	checkKeyText,
 	checkTypedModel,
 	countLine,
 	describeError,
@@ -150,6 +151,56 @@ describe('the pasted key (#82)', () => {
 		expect(normalizeKey('sk-or-v1 abc')).toBe('sk-or-v1 abc');
 		expect(normalizeKey('')).toBe('');
 		expect(normalizeKey(undefined)).toBe('');
+	});
+});
+
+describe('key text the relay would refuse (QA #83 item 4)', () => {
+	it('drops a leading "Bearer " or "Authorization: Bearer " copied from a curl example', () => {
+		expect(normalizeKey('Bearer sk-or-v1-abc')).toBe('sk-or-v1-abc');
+		expect(normalizeKey('  authorization: bearer sk-or-v1-abc ')).toBe('sk-or-v1-abc');
+		expect(normalizeKey('"Bearer sk-or-v1-abc"')).toBe('sk-or-v1-abc');
+		// "Bearer" without a space after it may be part of a key: left alone.
+		expect(normalizeKey('Bearersk-abc')).toBe('Bearersk-abc');
+	});
+
+	it('names a space, a non-ASCII character, an empty field and a too-long text before anything is sent', () => {
+		expect(checkKeyText('  sk-or-v1-abc ')).toEqual({ ok: true, key: 'sk-or-v1-abc' });
+		expect(checkKeyText('')).toMatchObject({ ok: false, reason: 'empty' });
+		expect(checkKeyText('sk-or v1')).toMatchObject({ ok: false, reason: 'space' });
+		expect(checkKeyText('sk-or-v1-ключ')).toMatchObject({ ok: false, reason: 'characters' });
+		expect(checkKeyText('a'.repeat(513))).toMatchObject({ ok: false, reason: 'long' });
+		expect(checkKeyText('a'.repeat(512))).toMatchObject({ ok: true });
+		for (const value of ['sk-or v1', 'sk-or-v1-ключ', 'a'.repeat(513)]) {
+			const result = checkKeyText(value);
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.text).toContain('Nothing was sent.');
+		}
+	});
+
+	it('relay-local codes are reported as the relay, never as the provider', () => {
+		for (const code of ['INVALID_REQUEST', 'TOO_LARGE', 'INVALID_ORIGIN']) {
+			const view = describeError(
+				{ code, status: 400, message: 'Enter a valid provider API key.' },
+				{ provider: 'openrouter', key: 'sk-or-v1-secret' }
+			);
+			expect(view.kind).toBe('relay');
+			expect(view.text).not.toMatch(/OpenRouter|openrouter\.ai/);
+			expect(view.details).toContainEqual(['From', 'Noddy relay, on this computer']);
+			expect(JSON.stringify(view)).not.toContain('sk-or-v1-secret');
+		}
+	});
+});
+
+describe('a router whose price varies (QA #83 note)', () => {
+	it('is not pre-selected while anything else can be, and its caption says it can bill', () => {
+		const router = model('openrouter/auto', { price: null, varies: true, vision: true });
+		const paid = model('vendor/paid');
+		const groups = groupModels([router, paid], { now: NOW });
+		expect(preselect(groups, NOW)).toBe('vendor/paid');
+		expect(preselect(groupModels([router], { now: NOW }), NOW)).toBe('openrouter/auto');
+		expect(captionFor('openrouter', router)).toBe(
+			"This model's price varies — it bills your OpenRouter account."
+		);
 	});
 });
 

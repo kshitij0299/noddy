@@ -73,6 +73,17 @@ export function providerMessage(error) {
 	return typeof error?.message === 'string' && error.message ? error.message : undefined;
 }
 
+/** A sentence that says the model or route cannot use tools. */
+const TOOL_WORDS = String.raw`(?:tools?|tool use|tool calling|tool calls|function calling)`;
+const NO_TOOLS = new RegExp(
+	String.raw`\b(?:no endpoints found that support|(?:does|do)(?:n't| not) support|not support(?:ed)?|unsupported)\b[^.]{0,40}?\b` +
+		TOOL_WORDS +
+		String.raw`\b|\b` +
+		TOOL_WORDS +
+		String.raw`\b[^.]{0,30}?\b(?:is|are|isn't|aren't)?\s*not supported\b`,
+	'i'
+);
+
 /**
  * A fixed word for the cases where the card can say something sharper than the status.
  * @param {number} status
@@ -84,8 +95,9 @@ export function deriveHint(status, haystack) {
 	if ([400, 404, 422].includes(status)) {
 		// OpenRouter: "No endpoints found matching your data policy (Free model publication)".
 		if (/data policy|privacy|publication/i.test(haystack)) return 'data-policy';
-		// OpenRouter: "No endpoints found that support tool use."
-		if (/\btools?\b/i.test(haystack)) return 'no-tools';
+		// OpenRouter: "No endpoints found that support tool use." Only a sentence that says tools
+		// are not supported counts: a 400 about a bad tool schema ("tools[0].function...") does not.
+		if (NO_TOOLS.test(haystack)) return 'no-tools';
 	}
 	return undefined;
 }

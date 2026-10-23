@@ -31,6 +31,7 @@ import {
 	NO_FORMAT_COPY,
 	RELAY_OFF_COPY,
 	captionFor,
+	checkKeyText,
 	checkTypedModel,
 	defaultStorage,
 	describeError,
@@ -61,6 +62,22 @@ export function modelLabel(model = '') {
 
 const STEP_COUNT = 3;
 let cardCount = 0;
+
+/** The shortest the Step 3 list gets when it is fitted to a short panel (about four rows). */
+const LIST_MIN_HEIGHT = 136;
+
+/**
+ * The element that scrolls the card (the panel's thread), or null.
+ * @param {Element} node
+ * @returns {HTMLElement|null}
+ */
+function scrollParent(node) {
+	for (let at = node.parentElement; at; at = at.parentElement) {
+		const { overflowY } = getComputedStyle(at);
+		if (overflowY === 'auto' || overflowY === 'scroll') return at;
+	}
+	return null;
+}
 
 /**
  * @typedef {Object} Connection
@@ -187,11 +204,13 @@ export function createConnectCard({
 		const block = el('div', 'agent-error');
 		block.setAttribute('role', 'alert');
 		const line = el('div', 'agent-error__line');
-		line.append(
-			icon('error', 'agent-error__icon'),
-			srOnly('Failed: '),
-			el('span', 'agent-error__text text-body-small', view.text)
-		);
+		const text = el('span', 'agent-error__text text-body-small');
+		// A key prefix ("sk-or-") never breaks across two lines.
+		for (const part of view.text.split(/(\bsk-[a-z]+-|\bsk-)/)) {
+			if (!part) continue;
+			text.append(/^sk-/.test(part) ? el('span', 'agent-nowrap', part) : part);
+		}
+		line.append(icon('error', 'agent-error__icon'), srOnly('Failed: '), text);
 		block.append(line);
 		const actions = el('div', 'agent-error__actions text-body-small');
 		for (const link of view.links) {
@@ -505,9 +524,44 @@ export function createConnectCard({
 		const primary = primaryButton('Use this model');
 		const back = backButton();
 		back.addEventListener('click', goBack);
+		// The failure of "Use this model" and the cost line sit in the sticky action stack, right
+		// above the button they are about, so they are on screen at any panel height.
 		const actions = el('div', 'agent-connect__actions');
-		actions.append(primary, back);
-		nodes.push(errorSlot, caption, actions);
+		actions.append(errorSlot, caption, primary, back);
+		nodes.push(actions);
+
+		// The list gives up height until the whole step fits the panel, so the count line, "Use a
+		// model ID" and the cost line are never below the fold (QA #83: 1440x900, 1024x768, 390x844).
+		let frame = 0;
+		/** @type {Element|null} */
+		let watched = null;
+		function fitList() {
+			frame = 0;
+			const box = /** @type {HTMLElement|null} */ (list?.root.querySelector('.agent-models__list'));
+			const scroller = box && form.isConnected ? scrollParent(form) : null;
+			if (!box || !scroller || !scroller.clientHeight) return;
+			// The thread is watched too (the window or the panel changes height), once it is known.
+			if (observer && watched !== scroller) {
+				observer.observe(scroller);
+				watched = scroller;
+			}
+			box.style.maxHeight = '';
+			const overflow = scroller.scrollHeight - scroller.clientHeight;
+			if (overflow <= 1) return;
+			const height = box.getBoundingClientRect().height;
+			const fitted = Math.max(LIST_MIN_HEIGHT, Math.floor(height - overflow));
+			if (fitted < height) box.style.maxHeight = `${fitted}px`;
+		}
+		const queueFit = () => {
+			if (!frame) frame = requestAnimationFrame(fitList);
+		};
+		/** @type {ResizeObserver|null} */
+		let observer = null;
+		if (list && typeof ResizeObserver === 'function') {
+			observer = new ResizeObserver(queueFit);
+			observer.observe(form);
+			queueFit();
+		}
 
 		function updateCaption() {
 			const model = state.models.find((item) => item.id === state.picked);
@@ -541,6 +595,12 @@ export function createConnectCard({
 				else idInput?.focus();
 			},
 			redraw: draw,
+			dispose() {
+				observer?.disconnect();
+				observer = null;
+				if (frame) cancelAnimationFrame(frame);
+				frame = 0;
+			},
 			setBusy(on) {
 				list?.setBusy(on);
 				if (idInput) idInput.readOnly = on;
@@ -715,8 +775,11 @@ export function createConnectCard({
 
 	async function submitKey() {
 		const key = /** @type {any} */ (view).read();
-		if (!key) {
-			/** @type {any} */ (view).showError(localError('Paste your key first.'));
+		// Text the relay would refuse (a space, a non-ASCII character) is named here: nothing is
+		// sent, so the provider is never blamed for it.
+		const text = checkKeyText(key);
+		if (!text.ok) {
+			/** @type {any} */ (view).showError(localError(text.text));
 			return;
 		}
 		// A key that was already checked: on to the models, nothing to send.

@@ -864,6 +864,18 @@ const failureCases = [
 		expect: { code: 'PROVIDER_MODEL', http: 422, hint: 'no-tools' },
 	},
 	{
+		name: 'OpenRouter 400 about a bad tool schema is not "no tools"',
+		status: 400,
+		upstream: {
+			error: {
+				message:
+					"Invalid schema for function 'set_glyph': tools[0].function.parameters is invalid.",
+				code: 400,
+			},
+		},
+		expect: { code: 'PROVIDER_REQUEST', http: 422 },
+	},
+	{
 		name: 'OpenRouter 429',
 		status: 429,
 		upstream: { error: { message: 'Rate limit exceeded: free-models-per-min.', code: 429 } },

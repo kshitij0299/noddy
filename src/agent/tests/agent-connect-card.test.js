@@ -240,6 +240,42 @@ describe('the stepped connect card (#82)', () => {
 			expect(keyInput().getAttribute('aria-invalid')).toBe('true');
 		});
 
+		it('a pasted "Bearer " is dropped and the key alone is checked (QA #83 item 4)', async () => {
+			await submitKey(`Bearer ${KEY}`);
+			expect(loadModels).toHaveBeenCalledTimes(1);
+			expect(loadModels.mock.calls[0][0]).toEqual({ provider: 'openrouter', apiKey: KEY });
+		});
+
+		it.each([
+			['a space inside', 'sk-or-v1 abc', 'space in it'],
+			['a non-ASCII character', 'sk-or-v1-abcé', 'characters a key never has'],
+			['far too long', `sk-or-${'a'.repeat(600)}`, 'too long'],
+		])(
+			'text with %s is named in plain words and nothing is sent (QA #83 item 4)',
+			async (_, value, words) => {
+				await submitKey(value);
+				expect(loadModels).not.toHaveBeenCalled();
+				const alert = q('[role="alert"]').textContent;
+				expect(alert).toContain(words);
+				expect(alert).toContain('Nothing was sent.');
+				expect(alert).not.toContain('OpenRouter isn');
+				expect(document.activeElement).toBe(keyInput());
+			}
+		);
+
+		it('a relay refusal is never blamed on the provider', async () => {
+			loadModels.mockResolvedValue(
+				failed({ code: 'INVALID_REQUEST', status: 400, message: 'Enter a valid provider API key.' })
+			);
+			await submitKey();
+			const alert = q('[role="alert"]');
+			expect(alert.textContent).toContain("Noddy's relay refused that key text");
+			expect(alert.textContent).not.toContain('OpenRouter');
+			alert.querySelector('button.agent-link-button').click();
+			expect(alert.querySelector('dl').textContent).toContain('Noddy relay, on this computer');
+			expect(alert.querySelector('dl').textContent).not.toContain('openrouter.ai');
+		});
+
 		it('Back returns to the provider step', () => {
 			back().click();
 			expect(card.step).toBe(1);
@@ -1147,12 +1183,29 @@ describe('the stepped connect card (#82)', () => {
 			for (const step of [2, 3]) {
 				card.open(step === 2 ? 'key' : 'model');
 				const actions = q('.agent-connect__actions');
-				expect([...actions.children].map((node) => node.dataset.action)).toEqual([
-					'primary',
-					'back',
-				]);
-				expect(actions.children[0].type).toBe('submit');
+				const buttons = [...actions.children].filter((node) => node.tagName === 'BUTTON');
+				expect(buttons.map((node) => node.dataset.action)).toEqual(['primary', 'back']);
+				expect(buttons[0].type).toBe('submit');
 			}
+		});
+
+		it('Step 3: the failure of "Use this model" and the cost line sit in the sticky stack, above the button (QA #83 item 1)', async () => {
+			open();
+			await toModelStep();
+			check.mockResolvedValue({ ok: false, error: { code: 'PROVIDER_CREDITS', status: 402 } });
+			primary().click();
+			await flush();
+			const actions = q('.agent-connect__actions');
+			const kids = [...actions.children];
+			const alert = q('[role="alert"]');
+			expect(actions.contains(alert)).toBe(true);
+			const slot = kids.findIndex((node) => node.classList.contains('agent-connect__error'));
+			const caption = kids.findIndex((node) => node.classList.contains('agent-connect__caption'));
+			const button = kids.findIndex((node) => node.dataset.action === 'primary');
+			expect(slot).toBeGreaterThanOrEqual(0);
+			expect(slot).toBeLessThan(caption);
+			expect(caption).toBeLessThan(button);
+			expect(alert.textContent).toContain('402 · Out of credits');
 		});
 
 		it('there is no native select, datalist or popover on any step or state', async () => {

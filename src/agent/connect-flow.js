@@ -88,8 +88,9 @@ export function forget(storage = defaultStorage()) {
 // ---- The key field ----------------------------------------------------------------------------
 
 /**
- * What was pasted → the key to send. Surrounding whitespace and one pair of matching quotes
- * are removed; nothing inside the key is ever changed, so it is never turned into a different key.
+ * What was pasted → the key to send. Surrounding whitespace, one pair of matching quotes and a
+ * leading `Bearer ` (copied from a curl example) are removed; nothing inside the key is ever
+ * changed, so it is never turned into a different key.
  * @param {string} text
  */
 export function normalizeKey(text) {
@@ -98,7 +99,46 @@ export function normalizeKey(text) {
 	if (key.length >= 2 && '\'"`'.includes(quote) && key.at(-1) === quote) {
 		key = key.slice(1, -1).trim();
 	}
-	return key;
+	return key.replace(/^(?:authorization\s*:\s*)?bearer\s+/i, '').trim();
+}
+
+/** The most the relay accepts, so the same limit is checked before anything is sent. */
+export const KEY_MAX_LENGTH = 512;
+
+/**
+ * Whether a pasted key can be sent at all. The relay refuses anything but visible ASCII
+ * (letters, digits and punctuation) and answers with a generic 400; this says the same thing
+ * in plain words, before a request, so the card never blames the provider for text that never
+ * left the browser. A key that merely looks wrong (the wrong prefix) is still sent: only the
+ * provider can say it is not valid.
+ * @param {string} text  what is in the field
+ * @returns {{ok: true, key: string} | {ok: false, reason: 'empty'|'space'|'characters'|'long', text: string}}
+ */
+export function checkKeyText(text) {
+	const key = normalizeKey(text);
+	if (!key) return { ok: false, reason: 'empty', text: 'Paste your key first.' };
+	if (/\s/.test(key)) {
+		return {
+			ok: false,
+			reason: 'space',
+			text: 'That has a space in it, so it is not a key — paste only the key. Nothing was sent.',
+		};
+	}
+	if (key.length > KEY_MAX_LENGTH) {
+		return {
+			ok: false,
+			reason: 'long',
+			text: 'That is too long to be a key — paste only the key. Nothing was sent.',
+		};
+	}
+	if (!/^[\x21-\x7e]+$/.test(key)) {
+		return {
+			ok: false,
+			reason: 'characters',
+			text: 'That has characters a key never has — copy the key again. Nothing was sent.',
+		};
+	}
+	return { ok: true, key };
 }
 
 // ---- The model list ---------------------------------------------------------------------------
@@ -145,19 +185,19 @@ export function groupModels(models, { provider, now = Date.now(), text = '' } = 
 
 /**
  * The model to start on: the first model of the first group, skipping one that ends within
- * two weeks. '' when nothing can be chosen.
+ * two weeks and, while there is anything else, a router whose price varies (choosing one can
+ * bill an amount nobody can name up front). '' when nothing can be chosen.
  * @param {ReturnType<typeof groupModels>} groups
  * @param {number} now
  */
 export function preselect(groups, now) {
-	for (const group of groups) {
-		const pick = group.models.find((model) => {
-			const days = daysUntilExpiry(model, now);
-			return !(days !== null && days <= PRESELECT_SKIP_DAYS);
-		});
-		if (pick) return pick.id;
-	}
-	return '';
+	const ends = (model) => {
+		const days = daysUntilExpiry(model, now);
+		return days !== null && days <= PRESELECT_SKIP_DAYS;
+	};
+	const candidates = groups.flatMap((group) => group.models).filter((model) => !ends(model));
+	const pick = candidates.find((model) => !model.varies) ?? candidates[0];
+	return pick?.id ?? '';
 }
 
 export const NO_FORMAT_COPY = "Noddy doesn't support this model's API format yet — pick another.";
@@ -213,8 +253,10 @@ export function noSupportedNote(provider, listed) {
  * @param {import('./model-list.js').ListedModel|undefined} model
  */
 export function captionFor(provider, model) {
-	if (!model?.price) return '';
 	const label = PROVIDERS[provider]?.label ?? 'your provider';
+	// A router (OpenRouter's `auto`) picks the model per request, so no price can be named.
+	if (model?.varies) return `This model's price varies — it bills your ${label} account.`;
+	if (!model?.price) return '';
 	return isFree(model)
 		? 'Free models may keep what you send.'
 		: `Paid models bill your ${label} account.`;
@@ -247,7 +289,23 @@ const STATUS_FOR_CODE = Object.freeze({
 	BUSY: 429,
 });
 
-export const RELAY_OFF_COPY = "Noddy relay is off · drawing by hand still works";
+export const RELAY_OFF_COPY = 'Noddy relay is off · drawing by hand still works';
+
+/**
+ * Codes the relay answers with itself, before any provider is involved. Their `status` is the
+ * relay's own, so it is never shown as the provider's and never blamed on it.
+ */
+const RELAY_CODES = new Set([
+	'INVALID_REQUEST',
+	'INVALID_JSON',
+	'CONTENT_TYPE',
+	'INVALID_HOST',
+	'INVALID_ORIGIN',
+	'LOCAL_ONLY',
+	'NOT_FOUND',
+	'TOOLS_UNAVAILABLE',
+	'TOO_LARGE',
+]);
 
 /**
  * @typedef {Object} ConnectError
@@ -261,7 +319,7 @@ export const RELAY_OFF_COPY = "Noddy relay is off · drawing by hand still works
 
 /**
  * @typedef {Object} ErrorView
- * @property {string} kind  auth | credits | free-tier | forbidden | data-policy | no-tools | model | request | limit | unavailable | offline | local
+ * @property {string} kind  auth | credits | free-tier | forbidden | data-policy | no-tools | model | request | limit | unavailable | relay | offline | local
  * @property {string} text  `{status} · {what happened} — {what to do}`
  * @property {Array<{label: string, href: string}>} links  "Add credits ↗", "Open settings ↗"
  * @property {Array<[string, string]>} details  label/value rows of the Details disclosure
@@ -283,6 +341,7 @@ export function describeError(error = {}, { provider = '', key = '' } = {}) {
 		return view('offline', RELAY_OFF_COPY, { focus: 'key' });
 	}
 	const code = error.code ?? '';
+	if (RELAY_CODES.has(code)) return relayRefusal(error, code);
 	const status = Number.isInteger(error.status) ? error.status : STATUS_FOR_CODE[code];
 	const lead = status ? `${status} · ` : '';
 	const details = detailRows(error, status, spec);
@@ -362,6 +421,27 @@ export function describeError(error = {}, { provider = '', key = '' } = {}) {
 				}
 			);
 	}
+}
+
+/**
+ * The relay itself said no (a malformed request, a wrong origin): nothing reached the provider,
+ * so the words are about Noddy and the request, and Details names the relay as the source.
+ * @param {ConnectError} error
+ * @param {string} code
+ * @returns {ErrorView}
+ */
+function relayRefusal(error, code) {
+	const message = typeof error.message === 'string' ? error.message.slice(0, 160) : '';
+	/** @type {Array<[string, string]>} */
+	const details = [];
+	if (Number.isInteger(error.status)) details.push(['Status', String(error.status)]);
+	details.push(['From', 'Noddy relay, on this computer']);
+	if (message) details.push(['Message', `"${message}"`]);
+	const text =
+		code === 'INVALID_REQUEST' && /api key/i.test(message)
+			? "Noddy's relay refused that key text — paste only the key, with no spaces or quotes. Nothing was sent."
+			: "Noddy's relay refused the request before it reached the provider — reload Noddy and try again.";
+	return view('relay', text, { details, focus: 'key' });
 }
 
 /** @returns {ErrorView} */

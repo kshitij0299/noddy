@@ -291,9 +291,16 @@ button.agent-icon-button:focus-visible {
 	margin-top: 0;
 }
 
+/* While the card shows, nothing sits under it: the room goes to the Step 3 list. */
+.agent-panel__empty[data-connecting] {
+	padding-bottom: 0;
+}
+
 /* On a short screen the card needs the room more than the greeting does: the mark and the title
-   step aside while a card is showing (they are back once a model is connected). */
-@media (max-height: 800px) {
+   step aside while a card is showing, on every step so the card never moves between steps (they
+   are back once a model is connected). 1000px: below that the Step 3 list would drop under
+   about five rows with the greeting on screen. */
+@media (max-height: 1000px) {
 	.agent-panel__empty[data-connecting] > .agent-mark,
 	.agent-panel__empty[data-connecting] > .agent-panel__empty-title {
 		display: none;
@@ -855,6 +862,8 @@ button.agent-card__button.is-checking {
 	border: 1px solid var(--color-border-default);
 	border-radius: var(--radius-md);
 	background: var(--color-bg-surface);
+	/* Paint only: the global `all 80ms` would animate the height the card fits to the panel. */
+	transition: border-color 80ms ease;
 }
 
 .agent-models__list:focus {
@@ -1447,4 +1456,9 @@ button.agent-pill:focus-visible {
 
 .agent-checkpoint > button {
 	flex: none;
+}
+
+/* A key prefix such as "sk-or-" in an error never breaks across two lines. */
+.agent-nowrap {
+	white-space: nowrap;
 }
