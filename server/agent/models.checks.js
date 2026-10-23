@@ -1529,3 +1529,45 @@ test('requirements over a Zen list: free first, formats Noddy cannot speak are n
 	// Zen's own junk entry ("test") belongs to no known family: nothing to route it to.
 	assert.equal(why('test').status, 'unsupported');
 });
+
+test('the key is never logged: no console or stream output, for lists, bad keys and echoing providers', async () => {
+	const written = [];
+	const consoleMethods = ['log', 'info', 'warn', 'error', 'debug', 'trace'];
+	const originals = Object.fromEntries(consoleMethods.map((name) => [name, console[name]]));
+	const stdoutWrite = process.stdout.write;
+	const stderrWrite = process.stderr.write;
+	const record = (...args) => written.push(args.map(String).join(' '));
+	for (const name of consoleMethods) console[name] = record;
+	// node:test reports through the streams too: only chunks that mention the key matter here.
+	process.stdout.write = function (chunk, ...rest) {
+		record(chunk);
+		return stdoutWrite.call(this, chunk, ...rest);
+	};
+	process.stderr.write = function (chunk, ...rest) {
+		record(chunk);
+		return stderrWrite.call(this, chunk, ...rest);
+	};
+	try {
+		// A provider that echoes the key in its failure, and a list that works.
+		const echoing = mockTransport({ listStatus: 401 });
+		await withRelay({ transport: echoing }, async ({ post }) => {
+			assert.equal((await post({ provider: 'openai', apiKey: KEY })).status, 401);
+			assert.equal((await post({ provider: 'openrouter', apiKey: KEY })).status, 401);
+		});
+		const working = mockTransport();
+		await withRelay({ transport: working }, async ({ post }) => {
+			for (const provider of ['openai', 'opencode-zen', 'anthropic', 'openrouter']) {
+				assert.equal((await post({ provider, apiKey: KEY })).status, 200);
+			}
+		});
+	} finally {
+		for (const name of consoleMethods) console[name] = originals[name];
+		process.stdout.write = stdoutWrite;
+		process.stderr.write = stderrWrite;
+	}
+	assert.equal(
+		written.some((line) => line.includes(KEY)),
+		false,
+		'the key reached a log'
+	);
+});

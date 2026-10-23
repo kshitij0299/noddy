@@ -382,13 +382,28 @@ export function createAgentPanel({
 		connect.focus();
 	}
 
+	/** A provider failure whose fixes wait for the request to end (the buttons need an idle agent). */
+	let pendingFixes = null;
+
+	/** Put the fixes on the bubble, if they can be used now: not during a request or a whole-set run. */
+	function offerFixes() {
+		const fixes = pendingFixes;
+		pendingFixes = null;
+		if (!fixes || controller.running || runs.active || !fixes.bubble.isConnected) return;
+		fixes.bubble.append(errorActions(fixes.view));
+	}
+
 	function addError(error) {
 		const bubble = el('div', 'agent-bubble agent-bubble--agent agent-bubble--error text-body');
 		const provided = describeRunError(error, providerId);
 		const text = el('span', 'agent-bubble__text', threadCopyFor(error, providerId));
 		bubble.append(icon('error', 'agent-bubble__icon'), srOnly('Error: '), text);
-		if (provided && !controller.running) bubble.append(errorActions(provided));
 		append(bubble);
+		if (provided) {
+			// The controller reports the error while its request is still open: the fixes follow at 'finish'.
+			pendingFixes = { bubble, view: provided };
+			if (!controller.running) offerFixes();
+		}
 		// An error is always brought into view, wherever the reader was.
 		thread.scrollTop = thread.scrollHeight;
 		return bubble;
@@ -585,6 +600,7 @@ export function createAgentPanel({
 				status.running = false;
 				typing.remove();
 				composer.setBusy(false);
+				offerFixes();
 				// Small asks get a receipt only (no plan, no gate).
 				if (runEdits.submitted.length) {
 					addReceipt('chat', [...new Set(runEdits.submitted)]);

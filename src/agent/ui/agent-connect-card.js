@@ -580,17 +580,19 @@ export function createConnectCard({
 		if (ready) onViewChange();
 	}
 
+	/**
+	 * The Connected row: two lines in a 56px box (the height of a provider row). Line one is the
+	 * provider with its Free or Paid badge, line two the model ID, which is long on OpenRouter
+	 * (`vendor/name:variant`) and is cut with an ellipsis only here; the full ID is in `title`
+	 * and in the text a screen reader gets. "Change" sits at the right, centred.
+	 */
 	function renderConnectedRow() {
 		const { provider, model, tier } = state.connected;
-		const text = el('span', 'agent-connected__text text-body');
-		text.title = `${PROVIDERS[provider].label} · ${model}`;
-		text.append(el('span', '', `${PROVIDERS[provider].label} · `), el('span', 'text-mono', model));
-		const change = /** @type {HTMLButtonElement} */ (
-			cardButton({ label: 'Change', action: 'change', variant: 'ghost' })
-		);
-		change.type = 'button';
-		change.addEventListener('click', openChange);
-		const parts = [icon('check_circle', 'agent-connected__icon'), text];
+		const label = PROVIDERS[provider].label;
+		const text = el('span', 'agent-connected__text');
+		text.title = `${label} · ${model}`;
+		const head = el('span', 'agent-connected__head text-label');
+		head.append(el('span', '', label));
 		if (tier) {
 			const badge = el('span', `agent-badge agent-badge--${tier}`);
 			badge.dataset.badge = tier;
@@ -598,9 +600,15 @@ export function createConnectCard({
 				icon(tier === 'free' ? 'money_off' : 'paid', 'agent-badge__icon'),
 				el('span', 'agent-badge__label', tier === 'free' ? 'Free' : 'Paid')
 			);
-			parts.push(badge);
+			head.append(badge);
 		}
-		connectedRow.replaceChildren(...parts, change);
+		text.append(head, el('span', 'agent-connected__model text-mono-small', model));
+		const change = /** @type {HTMLButtonElement} */ (
+			cardButton({ label: 'Change', action: 'change', variant: 'ghost' })
+		);
+		change.type = 'button';
+		change.addEventListener('click', openChange);
+		connectedRow.replaceChildren(icon('check_circle', 'agent-connected__icon'), text, change);
 	}
 
 	/**

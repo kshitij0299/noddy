@@ -50,9 +50,10 @@ describe('one form grid for the connect flow (#82)', () => {
 		expect(coarse?.[1]).toBe('44px');
 	});
 
-	it('fields, the search field, the Connected row and the primary and Back buttons all use that token', () => {
+	it('fields, the search field and the primary and Back buttons all use that token, and two-line rows are 56px', () => {
 		expect(valueOf('.agent-field__box', 'height')).toContain('var(--control-h)');
-		expect(valueOf('.agent-connected', 'height')).toContain('var(--control-h)');
+		// The Connected row has two lines, like a provider row: 56px.
+		expect(valueOf('.agent-connected', 'height')).toEqual(['56px']);
 		const button = 'form.agent-connect .agent-connect__actions button.agent-card__button';
 		expect(valueOf(button, 'height')).toEqual(['var(--control-h)']);
 		expect(valueOf(button, 'width')).toEqual(['100%']);

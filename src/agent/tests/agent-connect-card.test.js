@@ -837,12 +837,17 @@ describe('the stepped connect card (#82)', () => {
 			await flush();
 		}
 
-		it('a passing test collapses the card to one Connected row: provider · model, Free, Change', async () => {
+		it('a passing test collapses the card to one Connected row: provider and Free on one line, the model ID under it, Change', async () => {
 			await connect();
 			expect(card.showsCard).toBe(false);
 			const row = q('.agent-connected');
 			expect(row.getAttribute('role')).toBe('status');
-			expect(row.textContent).toContain('OpenRouter · vendor/free-big:free');
+			expect(row.querySelector('.agent-connected__head').textContent).toContain('OpenRouter');
+			// The whole ID is shown (cut by CSS only when it is too long) and is in the title.
+			expect(row.querySelector('.agent-connected__model').textContent).toBe('vendor/free-big:free');
+			expect(row.querySelector('.agent-connected__text').title).toBe(
+				'OpenRouter · vendor/free-big:free'
+			);
 			expect(row.querySelector('[data-badge="free"]').textContent).toContain('Free');
 			expect(row.querySelector('button').textContent).toBe('Change');
 			expect(q('form')).toBe(null);

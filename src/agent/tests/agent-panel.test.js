@@ -499,7 +499,8 @@ describe('controller wiring (#21)', () => {
 			expect(panel.controller.connected).toBe(true);
 			expect(panel.model).toBe('vendor/free-one:free');
 			const row = host(panel).querySelector('.agent-connected');
-			expect(row.textContent).toContain('OpenRouter · vendor/free-one:free');
+			expect(row.querySelector('.agent-connected__head').textContent).toContain('OpenRouter');
+			expect(row.querySelector('.agent-connected__model').textContent).toBe('vendor/free-one:free');
 			expect(host(panel).querySelector('form')).toBe(null);
 			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(false);
 			expect(
@@ -595,6 +596,28 @@ describe('controller wiring (#21)', () => {
 			expect(check).toHaveBeenCalledTimes(1);
 			expect(check.mock.calls[0][0].model).toBe('vendor/free-one:free');
 			expect(panel.model).toBe('vendor/free-one:free');
+		});
+
+		it('the fixes for a failed request appear when the request has ended, not while it is still open', async () => {
+			const controller = fakeController({ connected: true, running: true });
+			const panel = panelFixture({ controller });
+			panel.handleEvent({
+				type: 'connection',
+				connected: true,
+				provider: 'openrouter',
+				model: 'a/b:free',
+			});
+			panel.handleEvent({ type: 'start', prompt: 'Draw a', attachments: [], context });
+			panel.handleEvent({ type: 'error', message: 'x', code: 'PROVIDER_AUTH', status: 401 });
+			const bubble = panel.thread.querySelector('.agent-bubble--error');
+			expect(bubble.textContent).toContain('401 · Key not accepted');
+			// The agent is still running: the buttons would do nothing yet, so they are not there.
+			expect(bubble.querySelector('button')).toBe(null);
+			controller.running = false;
+			panel.handleEvent({ type: 'finish' });
+			const labels = [...bubble.querySelectorAll('button')].map((button) => button.textContent);
+			expect(labels).toEqual(['Change model', 'Re-enter key']);
+			expect(bubble.textContent).toContain('This starts a new chat.');
 		});
 
 		it('Esc inside the card does not minimize the panel', async () => {
