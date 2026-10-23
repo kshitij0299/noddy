@@ -2,6 +2,7 @@ import { getCurrentProject, getCurrentProjectEditor } from '../../app/main.js';
 import { charToHex } from '../../common/character_ids.js';
 import { makeElement } from '../../common/dom.js';
 import { subscribeToItemChanged } from '../../project_editor/item_changed.js';
+import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
 
 // --------------------------------------------------------------
 // Specimen card — the hero of the Workspace page
@@ -337,13 +338,13 @@ export class SpecimenCard extends HTMLElement {
 		// Mode pill (radio group, icons only, accessible labels)
 		this.pill = makeElement({
 			tag: 'div',
-			className: 'specimen__mode-pill',
+			className: `${SEGMENTED_PILL.trackIcons} specimen__mode-pill`,
 			attributes: { role: 'radiogroup', 'aria-label': 'Mode' },
 		});
 		SPECIMEN_MODES.forEach((m) => {
 			const button = makeElement({
 				tag: 'button',
-				className: 'specimen__mode',
+				className: `${SEGMENTED_PILL.segment} specimen__mode`,
 				attributes: {
 					type: 'button',
 					role: 'radio',
