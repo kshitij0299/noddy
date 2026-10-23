@@ -80,11 +80,14 @@ const abortIfNeeded = (signal) => {
  * One request, one captured editor and glyph. No global editor swapping, no
  * arbitrary property writes, and no model-controlled permissions. The UI should
  * create a new session per Send and retain the last one for its inline Undo.
+ * `grantOpen: false` (the local agent bridge) skips the Send-time hand-off below: an
+ * external agent has no Send, so the open glyph stays LOCKED_OPEN.
  */
 export function createNativeToolSession({
 	getEditor = getCurrentProjectEditor,
 	makeCanvas,
 	jobScope,
+	grantOpen = true,
 } = {}) {
 	const editor = getEditor();
 	const project = editor?.project;
@@ -94,7 +97,7 @@ export function createNativeToolSession({
 	// is the user's hand-off for this request only (open lock, not Yours).
 	// The grant is UI-minted here; the model can never create one.
 	const requestGrant =
-		glyphId && openGlyphId(editor) === glyphId
+		grantOpen && glyphId && openGlyphId(editor) === glyphId
 			? grantConsent(editor, glyphId, { open: true })
 			: undefined;
 	// The agent's job on the bound glyph. "Take over" aborts it, and every

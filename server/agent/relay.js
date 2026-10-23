@@ -38,7 +38,7 @@ export function assertLocalRequest(req, requireOrigin = false) {
 	}
 }
 
-function sendJSON(res, status, data) {
+export function sendJSON(res, status, data) {
 	if (res.destroyed || res.writableEnded) return;
 	res.writeHead(status, {
 		'Content-Type': 'application/json; charset=utf-8',
@@ -49,7 +49,7 @@ function sendJSON(res, status, data) {
 	res.end(JSON.stringify(data));
 }
 
-async function readBody(req, signal, maxBytes = LIMITS.bodyBytes) {
+export async function readBody(req, signal, maxBytes = LIMITS.bodyBytes) {
 	const tooLarge =
 		maxBytes === LIMITS.bodyBytes
 			? 'Agent request exceeds 8 MB. Remove or resize attachments.'
@@ -150,7 +150,9 @@ const ROUTES = Object.freeze({
  * injections are functions, not environment flags or browser-controlled fields.
  * `transport` is the fetch used for the model-list GETs and the models.dev
  * catalog; both go through fixed URL allowlists (providers.js).
- * @param {{loadRegistry?:typeof loadNativeRegistry, generateStep?:typeof generateAgentStep, timeoutMs?:number, transport?:typeof fetch, catalog?:ReturnType<typeof createCatalogSource>, listModels?:(request:{provider:string, apiKey:string}, options:{signal:AbortSignal}) => Promise<unknown>, modelsTimeoutMs?:number, devKeys?:{openrouter?:string}}} options
+ * `localAgent` is true only on the Vite dev server, where the local agent bridge runs
+ * (local-agent.js); `/api/agent/config` reports it so the panel can offer the switch.
+ * @param {{localAgent?:boolean, loadRegistry?:typeof loadNativeRegistry, generateStep?:typeof generateAgentStep, timeoutMs?:number, transport?:typeof fetch, catalog?:ReturnType<typeof createCatalogSource>, listModels?:(request:{provider:string, apiKey:string}, options:{signal:AbortSignal}) => Promise<unknown>, modelsTimeoutMs?:number, devKeys?:{openrouter?:string}}} options
  */
 export function createAgentMiddleware(options = {}) {
 	const limiters = { step: createLimiter(), models: createLimiter() };
@@ -180,7 +182,11 @@ export function createAgentMiddleware(options = {}) {
 		try {
 			assertLocalRequest(req, req.method === 'POST');
 			if (req.method === 'GET' && req.url === '/api/agent/config') {
-				return sendJSON(res, 200, { providers: PROVIDERS, limits: LIMITS });
+				return sendJSON(res, 200, {
+					providers: PROVIDERS,
+					limits: LIMITS,
+					localAgent: options.localAgent === true,
+				});
 			}
 			route = Object.hasOwn(ROUTES, req.url) ? ROUTES[req.url] : null;
 			if (!route) throw new RelayError('NOT_FOUND', 'Unknown agent endpoint.', 404);

@@ -136,6 +136,20 @@ export async function probeRelay(fetchImpl = globalThis.fetch) {
 }
 
 /**
+ * Does this server offer Local agent? Only the dev server's config says localAgent: true.
+ * @param {typeof fetch} [fetchImpl]
+ * @returns {Promise<Boolean>}
+ */
+export async function probeLocalAgent(fetchImpl = globalThis.fetch) {
+	try {
+		const response = await fetchImpl('/api/agent/config', { method: 'GET' });
+		return response.ok && (await response.json())?.localAgent === true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * @param {Object} [options]
  * @param {Object} [options.controller] - an agent controller; built when omitted
  * @param {Function} [options.createSession]
@@ -147,6 +161,9 @@ export async function probeRelay(fetchImpl = globalThis.fetch) {
  * @param {() => any} [options.getEditor]
  * @param {(glyphId: String) => void} [options.openGlyph] - "Edit by hand"
  * @param {'open'|'minimized'} [options.initialMode]
+ * @param {(() => Promise<Object>) | null} [options.loadLocalAgent] - the dev-only Local agent
+ *   module (local-agent-control.js); null in the build, so the bridge is never bundled
+ * @param {typeof probeLocalAgent} [options.probeLocal]
  */
 export function createAgentPanel({
 	controller: providedController,
@@ -163,6 +180,9 @@ export function createAgentPanel({
 			.catch(() => {});
 	},
 	initialMode = matches(NARROW_QUERY) ? 'minimized' : 'open',
+	// import.meta.env.DEV is false in `vite build`, so the import is dropped from the bundle.
+	loadLocalAgent = import.meta.env.DEV ? () => import('./local-agent-control.js') : null,
+	probeLocal = probeLocalAgent,
 } = {}) {
 	registerAgentCards();
 
@@ -212,6 +232,11 @@ export function createAgentPanel({
 	let modelId = '';
 	let providerId = '';
 	let lastPrompt = '';
+	/** Local agent (dev server only): its chip label while on, and the switch. */
+	let localChip = null;
+	/** @type {{on: Boolean, state: String, stop: Function, dispose: Function} | null} */
+	let localAgent = null;
+	let disposed = false;
 	/** @type {Map<String, HTMLElement>} */
 	const toolLines = new Map();
 	let runEdits = { changed: false, failed: false, glyphId: '', submitted: [] };
@@ -245,7 +270,8 @@ export function createAgentPanel({
 	// ---- Composer ----
 	const composer = createPanelComposer({
 		onSubmit: (draft) => submit(draft),
-		onStop: () => controller.stop(),
+		// While Local agent is on, Stop turns it off; otherwise it stops the built-in agent.
+		onStop: () => (localAgent?.on ? localAgent.stop() : controller.stop()),
 		getReferences: () => controller.references || [],
 		onAttachError: (message) => addError({ message }),
 	});
@@ -536,6 +562,33 @@ export function createAgentPanel({
 		return card;
 	}
 
+	/** A tool event's step line (the built-in agent's and the local agent's calls). */
+	function showTool(event) {
+		const name = String(event.name || '').replaceAll('_', ' ');
+		if (event.state === 'running') {
+			toolLines.set(event.name, addStep('info', `${name}…`));
+		} else {
+			const ok = event.state === 'done';
+			if (EDIT_TOOLS.has(event.name)) {
+				if (ok && event.result?.changed) runEdits.changed = true;
+				if (!ok) runEdits.failed = true;
+				const submittedId = event.result?.glyph?.glyphId;
+				if (event.name === 'submit_glyph' && ok && event.result?.changed && submittedId)
+					runEdits.submitted.push(submittedId);
+			}
+			const line = toolLines.get(event.name);
+			const copy = ok
+				? { tone: 'kept', text: name }
+				: {
+						tone: 'failed',
+						text: `${name} · ${event.result?.error?.message || 'not applied'}`,
+				  };
+			if (line) line.render(copy);
+			else addStep(copy.tone, copy.text);
+			toolLines.delete(event.name);
+		}
+	}
+
 	// ---- Controller events → thread ----
 	function onEvent(event) {
 		switch (event.type) {
@@ -563,32 +616,9 @@ export function createAgentPanel({
 			case 'text':
 				addBubble(event.text, 'agent');
 				break;
-			case 'tool': {
-				const name = String(event.name || '').replaceAll('_', ' ');
-				if (event.state === 'running') {
-					toolLines.set(event.name, addStep('info', `${name}…`));
-				} else {
-					const ok = event.state === 'done';
-					if (EDIT_TOOLS.has(event.name)) {
-						if (ok && event.result?.changed) runEdits.changed = true;
-						if (!ok) runEdits.failed = true;
-						const submittedId = event.result?.glyph?.glyphId;
-						if (event.name === 'submit_glyph' && ok && event.result?.changed && submittedId)
-							runEdits.submitted.push(submittedId);
-					}
-					const line = toolLines.get(event.name);
-					const copy = ok
-						? { tone: 'kept', text: name }
-						: {
-								tone: 'failed',
-								text: `${name} · ${event.result?.error?.message || 'not applied'}`,
-						  };
-					if (line) line.render(copy);
-					else addStep(copy.tone, copy.text);
-					toolLines.delete(event.name);
-				}
+			case 'tool':
+				showTool(event);
 				break;
-			}
 			case 'error':
 				if (event.code === 'STOPPED') addStep('info', 'Stopped · finished edits are kept');
 				else {
@@ -619,7 +649,7 @@ export function createAgentPanel({
 			case 'connection':
 				modelId = event.connected ? event.model : '';
 				providerId = event.connected ? event.provider : '';
-				chip.textContent = event.connected ? modelLabel(event.model) : 'No model';
+				if (!localChip) chip.textContent = event.connected ? modelLabel(event.model) : 'No model';
 				// A disconnect also drops the list (and the key copy kept for it).
 				if (!event.connected) connect.reset();
 				renderEmptyState();
@@ -989,6 +1019,38 @@ export function createAgentPanel({
 	};
 	document.addEventListener('keydown', onDocumentKey);
 
+	// ---- Local agent (dev server only) ----
+	if (import.meta.env.DEV && loadLocalAgent) {
+		probeLocal()
+			.then((available) => (available ? loadLocalAgent() : null))
+			.then((module) => {
+				if (!module || disposed) return;
+				localAgent = module.mountLocalAgent({
+					header,
+					before: minimizeButton,
+					setChip(label) {
+						localChip = label;
+						chip.textContent = label ?? (modelId ? modelLabel(modelId) : 'No model');
+						chip.toggleAttribute('data-local', !!label);
+					},
+					setBusy(busy) {
+						if (busy) empty.remove();
+						composer.setBusy(busy || !!controller.running);
+						renderStatus();
+					},
+					append,
+					addStep,
+					addError,
+					showTool,
+					addReceipt: (ids) => addReceipt('chat', ids),
+					isBusy: () => working() || runs.active,
+					createSession,
+				});
+			})
+			.catch(() => {
+				/* No Local agent: the panel works as before. */
+			});
+	}
 	panel.append(header, thread, runBar.root, composer.root);
 	host.append(scrim, panel, pill.root);
 	showEmpty();
@@ -1026,7 +1088,13 @@ export function createAgentPanel({
 			Object.assign(status, partial);
 			renderStatus();
 		},
+		/** The Local agent switch once mounted (dev server only), else null. */
+		get localAgent() {
+			return localAgent;
+		},
 		dispose() {
+			disposed = true;
+			localAgent?.dispose();
 			document.removeEventListener('keydown', onDocumentKey);
 			document.removeEventListener(RETRY_GLYPHS_EVENT, onRetryGlyphs);
 			if (runs.active) runs.stop();

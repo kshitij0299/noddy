@@ -1,0 +1,29 @@
+/* Local agent (dev server only; loaded with local-agent-control.js). */
+
+/* The switch: pressed reads as on (tint + accent icon), never colour alone (aria-pressed). */
+button.agent-icon-button.agent-local-toggle[aria-pressed='true'] {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+/* The command bubble: same bubble, the command in a quiet mono block. */
+.agent-local {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.agent-local__command {
+	display: block;
+	padding: var(--space-2);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	text-align: left;
+	overflow-wrap: anywhere;
+	user-select: all;
+}
+
+.agent-local__actions {
+	display: flex;
+	gap: var(--space-3);
+}

@@ -162,6 +162,15 @@ describe('write tools respect the lock', () => {
 		expect(write().error.code).toBe('LOCKED_OPEN');
 	});
 
+	it('a local agent session (grantOpen: false) gets no hand-off for the open glyph', () => {
+		openInFocus(ID);
+		const local = createNativeToolSession({ grantOpen: false });
+		expect(local.getContext().lock).toBe('open');
+		expect(write(local).error.code).toBe('LOCKED_OPEN');
+		expect(rsb()).not.toBe(77);
+		local.dispose();
+	});
+
 	it('Hand to agent lifts the open and Yours locks; Take back restores them', () => {
 		const publish = vi.spyOn(editor, 'publish');
 		openInFocus(ID);
