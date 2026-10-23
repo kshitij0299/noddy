@@ -1,20 +1,14 @@
 /**
- * Pure helpers for the live model list (M4, #76): what a model's badges are,
- * the order they are listed in, and the copy. No DOM, network or credentials.
+ * Pure helpers for the live model list (M4, #76, #82): what a model's badges are, how its
+ * price and end date read, and how the relay's answer is read. No DOM, network or credentials.
  *
- * A listed model is `{id, tools, vision, price, released}` as the relay's
- * POST /api/agent/models returns it. `null` always means "not known", never
- * "no": a model missing from the catalog has no price badge and is allowed with
- * Tools "?"; only an explicit `tools: false` blocks a model.
+ * A listed model is `{id, tools, vision, price, released, context, text, deprecated}` as the
+ * relay's POST /api/agent/models returns it (OpenRouter adds `expires` and `varies`). `null` always
+ * means "not known", never "no". Which models are offered at all, and in what order, is decided
+ * in ONE place: `model-requirements.js`.
  */
 
-import { MODEL_ID_PATTERN, resolveProviderProtocol } from './provider-config.js';
-
-/** One line, shown in the row itself, for a model the agent cannot use. */
-export const NO_TOOLS_REASON = "Can't use tools — the agent needs them";
-
-/** OpenCode Zen model whose API format Automatic routing does not know (or Noddy cannot speak yet). */
-export const NO_FORMAT_REASON = "Noddy doesn't support this model's API format yet";
+import { MODEL_ID_PATTERN } from './provider-config.js';
 
 /**
  * @typedef {Object} ListedModel
@@ -23,51 +17,13 @@ export const NO_FORMAT_REASON = "Noddy doesn't support this model's API format y
  * @property {boolean|null} vision
  * @property {{input: number, output: number}|null} price  USD per million tokens
  * @property {string|null} released
+ * @property {number|null} [context]  context window in tokens
+ * @property {boolean|null} [text]  writes text
+ * @property {boolean} [deprecated]  the catalog marks the model deprecated
+ * @property {string|null} [expires]  OpenRouter only: the date the model goes away (YYYY-MM-DD)
+ * @property {boolean} [varies]  OpenRouter only: the price varies (a router), so it is neither Free nor Paid
  * @property {boolean} [custom]  typed by the user, not in the key's list
- * @property {boolean} [unsupported]  set by `annotateModels`: no known API format for this model
  */
-
-/**
- * A model can be chosen unless the agent cannot use it: no tool calling (an explicit
- * `false`, never merely unknown) or no API format Noddy can route to.
- */
-export function isSelectable(model) {
-	return model.tools !== false && !model.unsupported;
-}
-
-/** The one-line reason a model is not selectable, or '' when it is. */
-export function reasonFor(model) {
-	if (model.tools === false) return NO_TOOLS_REASON;
-	return model.unsupported ? NO_FORMAT_REASON : '';
-}
-
-/**
- * Whether Automatic routing can send this model somewhere (OpenAI and Anthropic always
- * can; a Zen model of an unknown or unsupported family cannot, and the list has no
- * Advanced format choice). Same function the browser's connect and the relay use.
- * @param {string} provider
- * @param {string} id
- */
-export function hasKnownFormat(provider, id) {
-	try {
-		resolveProviderProtocol(provider, id);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-/**
- * Mark the models Noddy cannot route to. Returns new objects.
- * @param {string} provider
- * @param {ListedModel[]} models
- * @returns {ListedModel[]}
- */
-export function annotateModels(provider, models) {
-	return models.map((model) =>
-		hasKnownFormat(provider, model.id) ? { ...model } : { ...model, unsupported: true }
-	);
-}
 
 /** Free = both costs are 0. */
 export function isFree(model) {
@@ -77,6 +33,41 @@ export function isFree(model) {
 /** Paid = a price is known and it is not both 0. Unknown price is neither. */
 export function isPaid(model) {
 	return !!model.price && !isFree(model);
+}
+
+/** 'free', 'paid', or undefined when the price is unknown or varies. What is remembered and shown on the Connected row. */
+export function tierOf(model) {
+	if (isFree(model)) return 'free';
+	return isPaid(model) ? 'paid' : undefined;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whole days from `now` until the model's end date (negative once it has ended), or null
+ * when it has none. The date is read as UTC midnight at the end of that day.
+ * @param {ListedModel} model
+ * @param {number} now  epoch ms
+ */
+export function daysUntilExpiry(model, now) {
+	if (!model.expires) return null;
+	const end = Date.parse(`${model.expires}T23:59:59Z`);
+	return Number.isFinite(end) ? Math.floor((end - now) / DAY_MS) : null;
+}
+
+/**
+ * "Ends 31 Oct" for a model that goes away within `withinDays` (default 30), else ''.
+ * @param {ListedModel} model
+ * @param {number} now
+ * @param {number} [withinDays]
+ */
+export function expiryNote(model, now, withinDays = 30) {
+	const days = daysUntilExpiry(model, now);
+	if (days === null || days > withinDays) return '';
+	const [, month, day] = /^\d{4}-(\d{2})-(\d{2})/.exec(model.expires) || [];
+	const name = MONTHS[Number(month) - 1];
+	return name ? `Ends ${Number(day)} ${name}` : '';
 }
 
 /** @param {number} amount */
@@ -103,58 +94,26 @@ export function priceSpoken(model) {
 
 /**
  * Badges, in display order. Each has an icon and text, so none depends on colour.
- * Price (Free / Paid) and Vision are facts about the model, so every row shows them.
- * A model that cannot be chosen shows no Tools badge: its row gives the reason instead
- * (a model the agent cannot route to still says Tools when the catalog says it has them).
+ * Price (Free / Paid), Tools and Vision are facts about the model. Every listed model uses
+ * tools (the list only offers models that do), so the Tools badge is for the record and the
+ * accessible name; a row shows only what differs from its group.
  * @param {ListedModel} model
- * @returns {Array<{kind: 'free'|'paid'|'tools'|'tools-unknown'|'vision', label: string, icon: string, spoken?: string}>}
+ * @returns {Array<{kind: 'free'|'paid'|'tools'|'vision', label: string, icon: string}>}
  */
 export function badgesFor(model) {
 	const badges = [];
 	if (isFree(model)) badges.push({ kind: 'free', label: 'Free', icon: 'money_off' });
 	else if (isPaid(model)) badges.push({ kind: 'paid', label: 'Paid', icon: 'paid' });
 	if (model.tools === true) badges.push({ kind: 'tools', label: 'Tools', icon: 'build' });
-	else if (isSelectable(model)) {
-		badges.push({
-			kind: 'tools-unknown',
-			label: 'Tools ?',
-			icon: 'help',
-			spoken: 'Tool support unknown',
-		});
-	}
 	if (model.vision === true) badges.push({ kind: 'vision', label: 'Vision', icon: 'visibility' });
 	return badges;
 }
 
-/**
- * Listing order: the provider's recommended models, then other tool-capable
- * models (newest first), then models whose tool support is unknown, then the
- * models that cannot use tools. Returns a new array.
- * @param {ListedModel[]} models
- * @param {readonly string[]} [recommended]  model IDs, best first
- * @returns {ListedModel[]}
- */
-export function sortModels(models, recommended = []) {
-	const rank = (model) => {
-		if (!isSelectable(model)) return 3;
-		if (recommended.includes(model.id)) return 0;
-		return model.tools === true ? 1 : 2;
-	};
-	return [...models].sort((a, b) => {
-		const byRank = rank(a) - rank(b);
-		if (byRank) return byRank;
-		if (rank(a) === 0) return recommended.indexOf(a.id) - recommended.indexOf(b.id);
-		// Newest first; a model without a date goes after the dated ones.
-		if (a.released !== b.released) {
-			if (!a.released) return 1;
-			if (!b.released) return -1;
-			return a.released < b.released ? 1 : -1;
-		}
-		return a.id.localeCompare(b.id, 'en', { numeric: true });
-	});
-}
+/** Same cap as the relay's. */
+const MAX_LISTED = 1000;
 
 const finiteNumber = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Read the relay's answer defensively. The browser never trusts the shape: bad
@@ -173,7 +132,7 @@ export function readModelList(body) {
 		const id = item.id;
 		if (typeof id !== 'string' || !MODEL_ID_PATTERN.test(id) || seen.has(id)) continue;
 		seen.add(id);
-		models.push({
+		const model = {
 			id,
 			tools: typeof item.tools === 'boolean' ? item.tools : null,
 			vision: typeof item.vision === 'boolean' ? item.vision : null,
@@ -182,8 +141,34 @@ export function readModelList(body) {
 					? { input: item.price.input, output: item.price.output }
 					: null,
 			released: typeof item.released === 'string' ? item.released.slice(0, 10) : null,
-		});
-		if (models.length >= 500) break;
+			// What the requirements in model-requirements.js judge (null = the catalog does not say).
+			context:
+				Number.isInteger(item.context) && item.context > 0 && item.context <= 100_000_000
+					? item.context
+					: null,
+			text: typeof item.text === 'boolean' ? item.text : null,
+			deprecated: item.deprecated === true,
+		};
+		// OpenRouter only.
+		if (typeof item.expires === 'string' && DATE_ONLY.test(item.expires))
+			model.expires = item.expires;
+		if (item.varies === true) model.varies = true;
+		models.push(model);
+		if (models.length >= MAX_LISTED) break;
 	}
 	return models;
+}
+
+/**
+ * OpenRouter's free-request counters from the models response: `{remaining, limit}` or null.
+ * @param {unknown} body
+ * @returns {{remaining: number, limit: number}|null}
+ */
+export function readFreeRequests(body) {
+	const counter = body && typeof body === 'object' ? /** @type {any} */ (body).freeRequests : null;
+	if (!counter || typeof counter !== 'object') return null;
+	const whole = (value) => Number.isInteger(value) && value >= 0 && value <= 1_000_000;
+	return whole(counter.remaining) && whole(counter.limit) && counter.remaining <= counter.limit
+		? { remaining: counter.remaining, limit: counter.limit }
+		: null;
 }

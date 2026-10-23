@@ -40,12 +40,13 @@ import { createCheckpointLine, createRunBar } from './agent-run-bar.js';
 import { CARD_ACTION_EVENT, registerAgentCards } from './cards/index.js';
 import { el, icon, srOnly } from './cards/card-shell.js';
 import {
-	CHECK_COPY,
+	RELAY_OFF_COPY,
 	checkConnection,
 	createConnectCard,
 	fetchModels,
 	modelLabel,
 } from './agent-connect-card.js';
+import { describeRunError } from '../connect-flow.js';
 import { createPanelComposer } from './agent-panel-composer.js';
 import { createAgentPill, derivePillPhase } from './agent-pill.js';
 import './agent-panel.css';
@@ -58,24 +59,25 @@ export const SUGGESTIONS = Object.freeze(['Clean simple sans', 'Geometric']);
 
 /** Error code → one-line thread copy. Unknown codes show the message. */
 export const ERROR_COPY = Object.freeze({
-	RELAY_OFFLINE: CHECK_COPY['relay-offline'],
-	PROVIDER_UNAVAILABLE: CHECK_COPY['provider-down'],
-	CANCELLED: CHECK_COPY['provider-down'],
-	TIMEOUT: CHECK_COPY['provider-down'],
-	PROVIDER_AUTH: 'Key not accepted · reload to connect again',
-	PROVIDER_LIMIT: 'Provider limit reached · check your account',
+	RELAY_OFFLINE: RELAY_OFF_COPY,
+	CANCELLED: 'Provider not responding · try again',
+	TIMEOUT: 'Provider not responding · try again',
 	NO_GLYPH: 'Open a glyph first · the agent edits one glyph at a time',
 	NO_MODEL: 'Connect a model first',
 });
 
 /**
- * @param {{code?: String, message?: String}} error
+ * One-line thread copy for an error. A provider failure says what the connect flow says:
+ * `{status} · {what happened} — {what to do}` (see connect-flow.js `describeError`).
+ * @param {{code?: String, status?: Number, hint?: String, message?: String}} error
+ * @param {String} [provider]  the connected provider, for its name
  * @returns {String}
  */
-export function threadCopyFor(error = {}) {
+export function threadCopyFor(error = {}, provider = '') {
+	const provided = describeRunError(error, provider);
+	if (provided) return provided.text;
 	return ERROR_COPY[error.code] || error.message || 'Something went wrong · try again';
 }
-
 
 /**
  * 'glyph-0x61' → 'a'.
@@ -141,6 +143,7 @@ export async function probeRelay(fetchImpl = globalThis.fetch) {
  * @param {typeof checkConnection} [options.check]
  * @param {typeof fetchModels} [options.loadModels] - the key's live model list
  * @param {typeof probeRelay} [options.probe]
+ * @param {Storage|null} [options.storage] - where the provider and model are remembered
  * @param {() => any} [options.getEditor]
  * @param {(glyphId: String) => void} [options.openGlyph] - "Edit by hand"
  * @param {'open'|'minimized'} [options.initialMode]
@@ -152,6 +155,7 @@ export function createAgentPanel({
 	check = checkConnection,
 	loadModels = fetchModels,
 	probe = probeRelay,
+	storage: providedStorage = undefined,
 	getEditor = getCurrentProjectEditor,
 	openGlyph = (glyphId) => {
 		import('../../pages/focus_mode.js')
@@ -206,8 +210,7 @@ export function createAgentPanel({
 	let mode = initialMode === 'minimized' ? 'minimized' : 'open';
 	let savedScroll = 0;
 	let modelId = '';
-	/** The "Connected · model" step line, while the empty state is still on screen. */
-	let connectedLine = null;
+	let providerId = '';
 	let lastPrompt = '';
 	/** @type {Map<String, HTMLElement>} */
 	const toolLines = new Map();
@@ -251,6 +254,8 @@ export function createAgentPanel({
 	const connect = createConnectCard({
 		check,
 		loadModels,
+		storage: providedStorage,
+		onViewChange: () => renderEmptyState(),
 		onConnected(config) {
 			try {
 				controller.connect(config);
@@ -260,7 +265,6 @@ export function createAgentPanel({
 			}
 			config.apiKey = '';
 		},
-		onRelayOffline: () => addError({ code: 'RELAY_OFFLINE' }),
 	});
 
 	const empty = el('div', 'agent-panel__empty');
@@ -288,9 +292,11 @@ export function createAgentPanel({
 
 	function renderEmptyState() {
 		const connected = controller.connected;
-		chips.hidden = !connected;
-		// Connected, the card steps aside unless it is showing the key's model list.
-		connect.root.hidden = connected && !connect.showsModels;
+		// The suggestions come once a model is connected and the card has stepped aside as the
+		// Connected row. While the card shows, the block anchors to the top so it never moves
+		// between steps.
+		chips.hidden = !(connected && !connect.showsCard);
+		empty.toggleAttribute('data-connecting', connect.showsCard);
 	}
 
 	function showEmpty() {
@@ -331,13 +337,57 @@ export function createAgentPanel({
 		return append(bubble);
 	}
 
+	/**
+	 * The fixes a provider failure offers in the thread: a link to the provider's page where it
+	 * has one, "Change model" and, for a refused key, "Re-enter key". Changing the model starts
+	 * a new chat, because opaque continuation data from one model must not reach another.
+	 * @param {ReturnType<typeof describeRunError>} view
+	 */
+	function errorActions(view) {
+		const row = el('div', 'agent-bubble__actions text-body-small');
+		for (const link of view.links) {
+			const anchor = /** @type {HTMLAnchorElement} */ (el('a', 'agent-link', `${link.label} ↗`));
+			anchor.href = link.href;
+			anchor.target = '_blank';
+			anchor.rel = 'noopener noreferrer';
+			row.append(anchor);
+		}
+		const change = /** @type {HTMLButtonElement} */ (
+			el('button', 'agent-link-button', 'Change model')
+		);
+		change.type = 'button';
+		change.addEventListener('click', () => changeModel('model'));
+		row.append(change);
+		if (view.reenterKey) {
+			const again = /** @type {HTMLButtonElement} */ (
+				el('button', 'agent-link-button', 'Re-enter key')
+			);
+			again.type = 'button';
+			again.addEventListener('click', () => changeModel('key'));
+			row.append(again);
+		}
+		row.append(el('span', 'agent-bubble__note', 'This starts a new chat.'));
+		return row;
+	}
+
+	/** Back to the connect card (a new chat), on its key or model step. */
+	function changeModel(where) {
+		if (controller.running || runs.active) return;
+		try {
+			controller.clear?.();
+		} catch {
+			return;
+		}
+		connect.open(where);
+		connect.focus();
+	}
+
 	function addError(error) {
 		const bubble = el('div', 'agent-bubble agent-bubble--agent agent-bubble--error text-body');
-		bubble.append(
-			icon('error', 'agent-bubble__icon'),
-			srOnly('Error: '),
-			el('span', '', threadCopyFor(error))
-		);
+		const provided = describeRunError(error, providerId);
+		const text = el('span', 'agent-bubble__text', threadCopyFor(error, providerId));
+		bubble.append(icon('error', 'agent-bubble__icon'), srOnly('Error: '), text);
+		if (provided && !controller.running) bubble.append(errorActions(provided));
 		append(bubble);
 		// An error is always brought into view, wherever the reader was.
 		thread.scrollTop = thread.scrollHeight;
@@ -552,28 +602,13 @@ export function createAgentPanel({
 			}
 			case 'connection':
 				modelId = event.connected ? event.model : '';
+				providerId = event.connected ? event.provider : '';
 				chip.textContent = event.connected ? modelLabel(event.model) : 'No model';
 				// A disconnect also drops the list (and the key copy kept for it).
 				if (!event.connected) connect.reset();
 				renderEmptyState();
-				if (event.connected) {
-					const text = `Connected · ${modelLabel(event.model)} · tools ok`;
-					// Choosing another model from the list before the first message updates the
-					// line instead of stacking a new one for every switch.
-					if (connectedLine?.isConnected && empty.isConnected) {
-						connectedLine.render({ tone: 'kept', text });
-					} else {
-						connectedLine = addStep('kept', text);
-					}
-					// While the key's model list is on screen and focus is in it, stay there so
-					// the list can be browsed (Tab goes on to the composer). Otherwise the
-					// composer is next, as before the list existed.
-					if (!(connect.showsModels && connect.root.contains(document.activeElement))) {
-						composer.input.focus();
-					}
-				} else {
-					connectedLine = null;
-				}
+				// The Connected row is the feedback; the composer is the next step.
+				if (event.connected) composer.input.focus();
 				break;
 			default:
 				break;

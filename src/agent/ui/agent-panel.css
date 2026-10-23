@@ -213,8 +213,23 @@ button.agent-icon-button:focus-visible {
 
 .agent-bubble--error {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--space-2);
+}
+
+/* The fixes a provider failure offers: links, Change model, Re-enter key. */
+.agent-bubble__actions {
+	display: flex;
+	flex: 1 0 100%;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1) var(--space-3);
+	padding-left: calc(18px + var(--space-2));
+}
+
+.agent-bubble__note {
+	color: var(--color-text-secondary);
 }
 
 .agent-bubble__icon {
@@ -271,6 +286,20 @@ button.agent-icon-button:focus-visible {
 	text-align: center;
 }
 
+.agent-panel__log:has(> .agent-panel__empty[data-connecting]) {
+	/* The block stays at the top while the card is showing, so it never moves between steps. */
+	margin-top: 0;
+}
+
+/* On a short screen the card needs the room more than the greeting does: the mark and the title
+   step aside while a card is showing (they are back once a model is connected). */
+@media (max-height: 800px) {
+	.agent-panel__empty[data-connecting] > .agent-mark,
+	.agent-panel__empty[data-connecting] > .agent-panel__empty-title {
+		display: none;
+	}
+}
+
 .agent-panel__empty-title {
 	margin: 0;
 	color: var(--color-text-primary);
@@ -325,204 +354,504 @@ button.agent-suggestion:focus-visible {
 	font-size: 18px;
 }
 
-/* ---- Connect card (Plan-card shell) ---- */
-.agent-connect {
+/* ---- Connect flow (M4, #82): one form grid for all three steps ----
+   The card is 352px in the 384px panel, padding 16px, so the content is 320px. Every field,
+   list, provider row, primary and Back button is 100% of that width, in one column, at one
+   control height (`--control-h`), on the 4px grid. Labels sit above their field, helper and
+   error text directly under it, and the action stack (primary, then Back, both full width) is
+   the same on every step. Tokens only. */
+.agent-connect-host {
+	--control-h: 40px;
 	width: 352px;
 	max-width: 100%;
 	text-align: left;
 	margin: 0;
 }
 
-.agent-connect[hidden] {
+/* Fingers need a bigger target: phone widths and coarse pointers. */
+@media (pointer: coarse), (max-width: 759px) {
+	.agent-connect-host {
+		--control-h: 44px;
+	}
+}
+
+.agent-connect-host [hidden] {
 	display: none;
 }
 
-/* Provider: one labelled dropdown. Label left, field fills the row, so the
-   card stays as short as it was with the old pill row. */
-.agent-connect__provider {
-	display: flex;
-	align-items: center;
-	gap: var(--space-3);
-	min-width: 0;
+form.agent-connect {
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	/* Field groups are 16px apart, and so are the body and the action stack. */
+	gap: var(--space-4);
 }
 
-/* Legacy `label:hover` (resets.css) turns labels black; pin the colour. */
-label.agent-connect__label,
-label.agent-connect__label:hover {
+/* Step header: title left, "Step n of 3" right, then a 4px bar of three equal segments. */
+.agent-connect__header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.agent-connect__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-3);
+	min-height: var(--space-6);
+}
+
+.agent-connect__title {
+	margin: 0;
+	color: var(--color-text-primary);
+}
+
+.agent-connect__title:focus {
+	outline: none;
+}
+
+.agent-connect__count {
 	flex: none;
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+}
+
+.agent-connect__progress {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: var(--space-1);
+	height: var(--space-1);
+}
+
+.agent-connect__segment {
+	border-radius: var(--radius-full);
+	background: var(--color-bg-track);
+}
+
+.agent-connect__segment.is-on {
+	background: var(--color-bg-accent);
+}
+
+.agent-connect__line,
+.agent-connect__status,
+.agent-connect__caption {
 	margin: 0;
 	color: var(--color-text-secondary);
 }
 
-.agent-connect__select-wrap {
-	position: relative;
-	flex: 1 1 auto;
-	min-width: 0;
+.agent-connect__status {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
 }
 
-/* Same box as the Model and API key fields (36px, radius-md, 1px border). */
-select.agent-connect__select,
-select.agent-connect__select:hover,
-select.agent-connect__select:focus {
-	appearance: none;
+.agent-connect__status-icon {
+	color: var(--color-status-kept);
+}
+
+.agent-connect__caption:empty,
+.agent-connect__error:empty {
+	display: none;
+}
+
+/* ---- Provider rows (Step 1): 56px, 8px apart, full width ---- */
+.agent-connect__providers {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+button.agent-provider,
+button.agent-provider:hover,
+button.agent-provider:focus,
+button.agent-provider:active {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
 	box-sizing: border-box;
-	display: block;
 	width: 100%;
-	height: 36px;
+	height: 56px;
+	min-height: 0;
 	margin: 0;
-	padding: 0 calc(var(--space-3) + 20px) 0 var(--space-3);
+	padding: 0 var(--space-3) 0 var(--space-4);
 	border: 1px solid var(--color-border-default);
 	border-radius: var(--radius-md);
-	background: var(--color-bg-surface);
+	background-color: var(--color-bg-surface);
 	color: var(--color-text-primary);
 	box-shadow: none;
+	text-align: left;
 	cursor: pointer;
-	text-overflow: ellipsis;
 	transition: background-color 120ms ease;
 }
 
 /* Paint-only hover: only the fill changes, never the box. */
-select.agent-connect__select:hover:not(:disabled) {
-	background: var(--color-bg-subtle);
+button.agent-provider:hover {
+	background-color: var(--color-bg-subtle);
 }
 
-select.agent-connect__select:focus {
+button.agent-provider:focus {
 	outline: none;
 }
 
-select.agent-connect__select:focus-visible {
+button.agent-provider:focus-visible {
 	outline: var(--focus-ring);
 	outline-offset: var(--focus-ring-offset);
 }
 
-select.agent-connect__select:disabled {
-	cursor: default;
-	opacity: 0.5;
-}
-
-/* The native list inherits the surface so the dark theme stays readable. */
-select.agent-connect__select option {
-	background: var(--color-bg-surface);
-	color: var(--color-text-primary);
-}
-
-.agent-connect__select-wrap > .material-symbols-rounded {
-	position: absolute;
-	top: 50%;
-	right: var(--space-3);
-	transform: translateY(-50%);
-	font-size: 20px;
-	color: var(--color-text-secondary);
-	pointer-events: none;
-}
-
-input.agent-connect__input,
-input.agent-connect__input:hover,
-input.agent-connect__input:focus {
-	box-sizing: border-box;
-	width: 100%;
-	height: 36px;
-	margin: 0;
-	padding: 0 var(--space-3);
-	border: 1px solid var(--color-border-default);
-	border-radius: var(--radius-md);
-	background: var(--color-bg-surface);
-	color: var(--color-text-primary);
-	box-shadow: none;
-}
-
-/* Text fields always show the focus ring token on focus (QA #60). */
-input.agent-connect__input:focus,
-input.agent-connect__input:focus-visible {
-	outline: var(--focus-ring);
-	outline-offset: var(--focus-ring-offset);
-}
-
-input.agent-connect__input.is-invalid {
-	border-color: var(--color-status-failed);
-}
-
-.agent-connect__key {
-	display: flex;
-	align-items: center;
-	gap: var(--space-1);
-}
-
-.agent-connect__note {
-	color: var(--color-text-secondary);
-}
-
-.agent-connect__line {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: var(--space-2);
-}
-
-.agent-connect__line > .material-symbols-rounded {
-	font-size: 18px;
-	color: var(--color-status-failed);
-}
-
-.agent-connect__result:empty {
-	display: none;
-}
-
-/* Elements the card toggles with `hidden` (their own display rules would beat the UA's). */
-.agent-connect [hidden] {
-	display: none;
-}
-
-/* ---- Live model list (M4, #76) ---- */
-.agent-connect__models {
+.agent-provider__text {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-2);
-	min-width: 0;
-}
-
-.agent-connect__custom {
-	display: flex;
-	align-items: center;
-	gap: var(--space-2);
-}
-
-.agent-connect__custom > input.agent-connect__input {
 	flex: 1 1 auto;
-	width: auto;
 	min-width: 0;
 }
 
-.agent-models {
+.agent-provider__name {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.agent-provider__tag {
+	padding: 2px var(--space-2);
+	border-radius: var(--radius-full);
+	background: var(--color-bg-accent-subtle);
+	color: var(--color-text-primary);
+}
+
+.agent-provider__hint {
+	color: var(--color-text-secondary);
+}
+
+.agent-provider__chevron {
+	flex: none;
+	color: var(--color-text-secondary);
+}
+
+/* ---- Field: label row above, box, then one reserved helper/error line ---- */
+.agent-field {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-1);
 	min-width: 0;
 }
 
-.agent-models__head {
+.agent-field__label-row {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
+	gap: var(--space-3);
+	min-height: var(--space-5);
+	margin-bottom: var(--space-2);
+}
+
+/* Legacy `label:hover` (resets.css) turns labels black; pin the colour. */
+label.agent-field__label,
+label.agent-field__label:hover,
+.agent-field__label {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+.agent-field__box {
+	position: relative;
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	width: 100%;
+	height: var(--control-h);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+}
+
+/* A text field always shows the focus ring token on focus (QA #60). */
+.agent-field__box:focus-within {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+.agent-field__box.is-invalid {
+	border-color: var(--color-status-failed);
+}
+
+input.agent-field__input,
+input.agent-field__input:hover,
+input.agent-field__input:focus {
+	flex: 1 1 auto;
+	box-sizing: border-box;
+	min-width: 0;
+	height: 100%;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: var(--color-text-primary);
+	box-shadow: none;
+	outline: none;
+}
+
+.agent-field__input::placeholder {
+	color: var(--color-text-secondary);
+	opacity: 0.8;
+}
+
+/* Icons live inside the box, 12px from its edge. */
+.agent-field__lead-icon {
+	flex: none;
+	margin-left: var(--space-3);
+	font-size: 20px;
+	color: var(--color-text-secondary);
+}
+
+.agent-field__lead-icon + input.agent-field__input {
+	padding-left: var(--space-2);
+}
+
+button.agent-field__icon-button,
+button.agent-field__icon-button:hover,
+button.agent-field__icon-button:focus,
+button.agent-field__icon-button:active {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	box-sizing: border-box;
+	width: 28px;
+	height: 28px;
+	min-height: 0;
+	margin: 0 var(--space-2) 0 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-secondary);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-field__icon-button:hover {
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+button.agent-field__icon-button:focus {
+	outline: none;
+}
+
+button.agent-field__icon-button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 0;
+}
+
+button.agent-field__icon-button .material-symbols-rounded {
+	font-size: 20px;
+}
+
+/* One reserved line: an error replaces the helper in place, so nothing jumps. */
+.agent-field__message {
+	min-height: var(--space-5);
+	margin-top: var(--space-1);
+	color: var(--color-text-secondary);
+}
+
+/* ---- Links ---- */
+a.agent-link,
+a.agent-link:visited,
+a.agent-link:hover,
+a.agent-link:focus,
+a.agent-link:active {
+	border-radius: var(--radius-sm);
+	background-color: transparent;
+	color: var(--color-text-primary);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+a.agent-link:hover {
+	color: var(--color-text-secondary);
+}
+
+a.agent-link:focus {
+	outline: none;
+}
+
+a.agent-link:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+button.agent-link-button,
+button.agent-link-button:hover,
+button.agent-link-button:focus,
+button.agent-link-button:active {
+	display: inline;
+	height: auto;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-sm);
+	background-color: transparent;
+	color: var(--color-text-primary);
+	font: inherit;
+	box-shadow: none;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+button.agent-link-button:hover {
+	color: var(--color-text-secondary);
+}
+
+button.agent-link-button:focus {
+	outline: none;
+}
+
+button.agent-link-button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+/* ---- Errors: icon + text (the text stays primary), fixes, Details ---- */
+.agent-error {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	color: var(--color-text-primary);
+}
+
+.agent-error__line {
+	display: flex;
+	align-items: flex-start;
 	gap: var(--space-2);
 }
 
-.agent-models__label,
+.agent-error__icon {
+	margin-top: 2px;
+	color: var(--color-status-failed);
+}
+
+.agent-error__text {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.agent-error__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1) var(--space-3);
+	padding-left: calc(18px + var(--space-2));
+}
+
+.agent-error__details {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: var(--space-1) var(--space-3);
+	margin: var(--space-1) 0 0;
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.agent-error__details dt {
+	color: var(--color-text-secondary);
+}
+
+.agent-error__details dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+/* ---- Actions: the same stack on every step ---- */
+.agent-connect__actions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+/* Beats the shared 32px card button (agent-cards.css) in every state. */
+form.agent-connect .agent-connect__actions button.agent-card__button,
+form.agent-connect .agent-connect__actions button.agent-card__button:hover,
+form.agent-connect .agent-connect__actions button.agent-card__button:focus,
+form.agent-connect .agent-connect__actions button.agent-card__button:active,
+form.agent-connect .agent-connect__actions button.agent-card__button:disabled {
+	box-sizing: border-box;
+	width: 100%;
+	height: var(--control-h);
+	font-size: 0.875rem;
+}
+
+.agent-connect__spinner {
+	flex: none;
+	width: 14px;
+	height: 14px;
+	box-sizing: border-box;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: var(--radius-full);
+	animation: agent-pill-spin 1.2s linear infinite;
+}
+
+button.agent-card__button.is-checking {
+	cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-connect__spinner {
+		animation: none;
+	}
+}
+
+/* The actions stay reachable while the card is taller than the panel (Step 3 on a short screen,
+   any step on a phone): they stick to the bottom of the scrolling thread. The negative margins
+   let their fill cover the card's padding, so nothing shows through behind the buttons. */
+.agent-connect__actions {
+	position: sticky;
+	bottom: calc(var(--space-4) * -1);
+	z-index: 2;
+	margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+	padding: var(--space-2) var(--space-4) var(--space-4);
+	background: var(--color-bg-surface);
+	border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* ---- Step 3: the key's models ---- */
+.agent-models {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.agent-models .agent-field__label-row {
+	margin-bottom: var(--space-2);
+}
+
 .agent-models__unit {
 	color: var(--color-text-secondary);
 }
 
-/* The list is the focus target (aria-activedescendant); it scrolls, the card does not grow. */
+.agent-models__search {
+	margin-bottom: var(--space-2);
+}
+
+/* The list is the focus target (or the search field is): it scrolls, the card does not grow. */
 .agent-models__list {
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-1);
-	max-height: min(320px, 45vh);
+	max-height: clamp(168px, 40dvh, 320px);
 	margin: 0;
 	padding: var(--space-1);
 	overflow-y: auto;
 	overscroll-behavior: contain;
+	scroll-padding-top: var(--space-8);
 	border: 1px solid var(--color-border-default);
 	border-radius: var(--radius-md);
 	background: var(--color-bg-surface);
@@ -537,22 +866,49 @@ input.agent-connect__input.is-invalid {
 	outline-offset: var(--focus-ring-offset);
 }
 
-.agent-connect .agent-models__list {
-	background: var(--color-bg-surface);
-}
-
 .agent-models__list.is-busy {
 	cursor: progress;
+}
+
+.agent-models__group {
+	display: flex;
+	flex-direction: column;
+}
+
+.agent-models__group-head {
+	position: sticky;
+	top: calc(var(--space-1) * -1);
+	z-index: 1;
+	padding: var(--space-2) var(--space-2) var(--space-1);
+	background: var(--color-bg-surface);
+	color: var(--color-text-secondary);
+}
+
+.agent-models__group-caption {
+	padding: 0 var(--space-2) var(--space-1);
+	color: var(--color-text-secondary);
+}
+
+.agent-models__none {
+	padding: var(--space-2);
+	color: var(--color-text-secondary);
+}
+
+/* The quiet line under the list: the count, then the way to a model that is not listed. */
+.agent-models__count {
+	margin: var(--space-2) 0 0;
+	color: var(--color-text-secondary);
 }
 
 /* resets.css paints [aria-selected], [aria-disabled] and [aria-busy] with global fills;
    these rules are one class deeper so only the card's own fills apply. */
 .agent-models__list .agent-model {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	gap: var(--space-2);
 	flex: none;
 	box-sizing: border-box;
+	min-height: var(--control-h);
 	padding: var(--space-1) var(--space-2);
 	border-radius: var(--radius-sm);
 	background: transparent;
@@ -562,7 +918,7 @@ input.agent-connect__input.is-invalid {
 }
 
 /* Paint-only states: the box never changes, only its fill and outline. */
-.agent-models__list .agent-model:hover:not(.is-disabled),
+.agent-models__list .agent-model:hover,
 .agent-models__list .agent-model.is-active {
 	background: var(--color-bg-subtle);
 }
@@ -572,16 +928,11 @@ input.agent-connect__input.is-invalid {
 	color: var(--color-text-primary);
 }
 
-/* The keyboard position is drawn only while the list has focus. */
-.agent-models__list:focus-visible .agent-model.is-active {
+/* The keyboard position is drawn only while the list (or its search field) has focus. */
+.agent-models__list:focus-visible .agent-model.is-active,
+.agent-models:focus-within .agent-model.is-active {
 	outline: var(--focus-ring);
 	outline-offset: calc(-1 * var(--focus-ring-width));
-}
-
-.agent-models__list .agent-model.is-disabled {
-	background: transparent;
-	color: var(--color-text-secondary);
-	cursor: not-allowed;
 }
 
 .agent-model__mark {
@@ -590,11 +941,11 @@ input.agent-connect__input.is-invalid {
 }
 
 .agent-model[aria-selected='true'] .agent-model__mark,
-.agent-model--custom .agent-model__mark {
+.agent-model--action .agent-model__mark {
 	visibility: visible;
 }
 
-.agent-model--custom .agent-model__mark {
+.agent-model--action .agent-model__mark {
 	color: var(--color-text-secondary);
 }
 
@@ -614,13 +965,10 @@ input.agent-connect__input.is-invalid {
 	min-width: 0;
 }
 
+/* The ID wraps and is never cut: the end of an ID carries the variant. */
 .agent-model__id {
 	min-width: 0;
 	overflow-wrap: anywhere;
-}
-
-.agent-model.is-disabled .agent-model__id {
-	opacity: 0.65;
 }
 
 .agent-model__meta {
@@ -640,10 +988,7 @@ input.agent-connect__input.is-invalid {
 	color: var(--color-text-secondary);
 }
 
-/* The reason keeps full contrast: it is information, not a disabled control. It takes its
-   own line, so the badges of a model that cannot be chosen sit below it. */
-.agent-model__reason {
-	flex: 1 0 100%;
+.agent-model__ends {
 	color: var(--color-text-secondary);
 }
 
@@ -671,26 +1016,37 @@ input.agent-connect__input.is-invalid {
 	background: var(--color-status-kept-subtle);
 }
 
-.agent-badge--tools-unknown {
-	background: transparent;
-	box-shadow: inset 0 0 0 1px var(--color-border-strong);
-	color: var(--color-text-secondary);
-}
-
-.agent-model[aria-selected='true']
-	.agent-badge:not(.agent-badge--free):not(.agent-badge--tools-unknown) {
+.agent-model[aria-selected='true'] .agent-badge:not(.agent-badge--free) {
 	background: var(--color-bg-surface);
 }
 
-/* A model that cannot be chosen: its badges say what it is, outlined and quiet. */
-.agent-model.is-disabled .agent-badge {
-	background: transparent;
-	box-shadow: inset 0 0 0 1px var(--color-border-default);
-	color: var(--color-text-secondary);
+/* ---- Connected row: one line, the height and shape of a field ---- */
+.agent-connected {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	box-sizing: border-box;
+	width: 100%;
+	height: var(--control-h);
+	padding: 0 var(--space-1) 0 var(--space-3);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
 }
 
-button.agent-card__button.is-checking {
-	cursor: progress;
+.agent-connected__icon {
+	flex: none;
+	color: var(--color-status-kept);
+}
+
+/* Truncated here only; the full ID is in the title and in the text for screen readers. */
+.agent-connected__text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* ---- Composer: pinned bottom, 50px min ---- */
