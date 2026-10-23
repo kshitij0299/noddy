@@ -15,6 +15,29 @@ import {
 const json = (status, body) => ({ ok: status < 400, status, json: async () => body });
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+// The card's Provider and Model are Noddy's own dropdowns (#78): a labelled button that opens
+// a listbox. These drive them the way a user does.
+/** The dropdown button with this visible label ("Provider" or "Model"). */
+const dropdown = (card, label) =>
+	[...card.root.querySelectorAll('button[aria-haspopup="listbox"]')].find(
+		(button) => button.labels[0]?.textContent === label
+	);
+/** What that dropdown button shows. */
+const shown = (card, label) =>
+	dropdown(card, label).querySelector('.agent-dropdown__value').textContent;
+/** The dropdown's listbox: it is in the card only while open. */
+const popover = (card, label) =>
+	card.root.querySelector(`#${dropdown(card, label).getAttribute('aria-controls')}`);
+/** Open the dropdown and click one of its options. */
+const pick = (card, label, id) => {
+	dropdown(card, label).click();
+	popover(card, label).querySelector(`[role="option"][data-id="${id}"]`).click();
+};
+/** Choose a provider through the Provider dropdown. */
+const choose = (card, provider) => pick(card, 'Provider', provider);
+/** The Model dropdown's row (label and button), hidden once the key's models are listed. */
+const modelDropdownRow = (card) => dropdown(card, 'Model').closest('.agent-dropdown');
+
 describe('checkConnection (#21)', () => {
 	const config = { provider: 'openai', model: 'gpt-5', apiKey: 'sk-1' };
 
@@ -133,84 +156,116 @@ describe('connect card states (#21)', () => {
 	});
 });
 
-describe('provider dropdown (#69)', () => {
-	const choose = (card, value) => {
-		const select = card.root.querySelector('select');
-		select.value = value;
-		select.dispatchEvent(new Event('change', { bubbles: true }));
-	};
-	const modelInput = (card) => card.root.querySelector('input[aria-label="Model"]');
-
+describe('provider dropdown (#69, #78)', () => {
 	it('offers OpenAI, OpenCode Zen and Anthropic in one labelled dropdown, not a row of buttons', () => {
 		const card = createConnectCard({ onConnected: vi.fn() });
 		document.body.append(card.root);
-		const selects = card.root.querySelectorAll('select');
-		expect(selects).toHaveLength(1);
-		const select = selects[0];
-		expect([...select.options].map((option) => [option.value, option.textContent])).toEqual([
+		const button = dropdown(card, 'Provider');
+		expect(button.tagName).toBe('BUTTON');
+		expect(button.type).toBe('button');
+		expect(shown(card, 'Provider')).toBe('OpenAI');
+		// Visible label, tied to the control; the name is the label plus the value.
+		expect(button.labels).toHaveLength(1);
+		expect(button.labels[0].textContent).toBe('Provider');
+		expect(button.labels[0].classList.contains('agent-sr-only')).toBe(false);
+		const name = button
+			.getAttribute('aria-labelledby')
+			.split(' ')
+			.map((id) => document.getElementById(id).textContent.replace('expand_more', ''))
+			.join(' ');
+		expect(name).toBe('Provider OpenAI');
+		expect(button.getAttribute('aria-haspopup')).toBe('listbox');
+		expect(button.getAttribute('aria-expanded')).toBe('false');
+		// In the tab order, not disabled.
+		expect(button.disabled).toBe(false);
+		expect(button.tabIndex).toBe(0);
+		// The options are the shared config's, shown once the button is opened.
+		button.click();
+		const list = popover(card, 'Provider');
+		expect(list.getAttribute('role')).toBe('listbox');
+		expect(
+			[...list.querySelectorAll('[role="option"]')].map((option) => [
+				option.dataset.id,
+				option.textContent.replace('check', ''),
+			])
+		).toEqual([
 			['openai', 'OpenAI'],
 			['opencode-zen', 'OpenCode Zen'],
 			['anthropic', 'Anthropic'],
 		]);
-		// Visible label, tied to the control.
-		expect(select.labels).toHaveLength(1);
-		expect(select.labels[0].textContent).toBe('Provider');
-		expect(select.labels[0].classList.contains('agent-sr-only')).toBe(false);
-		// Native keyboard behaviour: in the tab order, not disabled, not removed from it.
-		expect(select.disabled).toBe(false);
-		expect(select.tabIndex).toBe(0);
-		// No provider pills or radios remain; the only buttons are show-key and Check.
+		expect(list.querySelector('[aria-selected="true"]').dataset.id).toBe('openai');
+		button.click();
+		// No provider pills or radios remain; the buttons are the two dropdowns, show-key and Check.
 		expect(card.root.querySelectorAll('input[type=radio], fieldset')).toHaveLength(0);
-		const buttons = [...card.root.querySelectorAll('button')];
 		expect(
-			buttons.map((button) => button.getAttribute('aria-label') || button.textContent)
-		).toEqual(['Show key', 'Check connection']);
-		// The arrow is decoration only.
-		expect(
-			card.root
-				.querySelector('.agent-connect__select-wrap .material-symbols-rounded')
-				.getAttribute('aria-hidden')
-		).toBe('true');
+			[...card.root.querySelectorAll('button')].map(
+				(node) =>
+					node.getAttribute('aria-label') || node.labels?.[0]?.textContent || node.textContent
+			)
+		).toEqual(['Provider', 'Model', 'Show key', 'Check connection']);
+		// The chevron is decoration only.
+		expect(button.querySelector('.material-symbols-rounded').getAttribute('aria-hidden')).toBe(
+			'true'
+		);
+		expect(button.querySelector('.material-symbols-rounded').textContent).toBe('expand_more');
 		card.root.remove();
 	});
 
 	it('lists exactly the providers the shared config supports', () => {
 		const card = createConnectCard({ onConnected: vi.fn() });
-		const values = [...card.root.querySelectorAll('select option')].map((option) => option.value);
+		dropdown(card, 'Provider').click();
+		const values = [...popover(card, 'Provider').querySelectorAll('[role="option"]')].map(
+			(option) => option.dataset.id
+		);
 		expect(values).toEqual(Object.keys(PROVIDERS));
 		expect(Object.keys(MODEL_SUGGESTIONS)).toEqual(Object.keys(PROVIDERS));
 	});
 
 	it('starts on OpenAI with its default model', () => {
 		const card = createConnectCard({ onConnected: vi.fn() });
-		expect(card.root.querySelector('select').value).toBe('openai');
-		expect(modelInput(card).value).toBe('gpt-5');
+		expect(shown(card, 'Provider')).toBe('OpenAI');
+		expect(shown(card, 'Model')).toBe('gpt-5');
 	});
 
 	it("choosing a provider sets that provider's default model and suggestions", () => {
 		const card = createConnectCard({ onConnected: vi.fn() });
+		const suggestions = () => {
+			dropdown(card, 'Model').click();
+			const ids = [...popover(card, 'Model').querySelectorAll('[role="option"]')].map(
+				(option) => option.dataset.id
+			);
+			dropdown(card, 'Model').click();
+			return ids;
+		};
 		choose(card, 'anthropic');
-		expect(modelInput(card).value).toBe('claude-sonnet-5-5');
-		const suggestions = () =>
-			[...card.root.querySelectorAll('datalist option')].map((option) => option.value);
-		expect(suggestions()).toEqual(MODEL_SUGGESTIONS.anthropic);
+		expect(shown(card, 'Provider')).toBe('Anthropic');
+		expect(shown(card, 'Model')).toBe('claude-sonnet-5-5');
+		expect(suggestions()).toEqual([...MODEL_SUGGESTIONS.anthropic, 'custom']);
 		choose(card, 'opencode-zen');
-		expect(modelInput(card).value).toBe('big-pickle');
-		expect(suggestions()).toEqual(MODEL_SUGGESTIONS['opencode-zen']);
+		expect(shown(card, 'Model')).toBe('big-pickle');
+		expect(suggestions()).toEqual([...MODEL_SUGGESTIONS['opencode-zen'], 'custom']);
 		choose(card, 'openai');
-		expect(modelInput(card).value).toBe('gpt-5');
-		expect(suggestions()).toEqual(MODEL_SUGGESTIONS.openai);
+		expect(shown(card, 'Model')).toBe('gpt-5');
+		expect(suggestions()).toEqual([...MODEL_SUGGESTIONS.openai, 'custom']);
 	});
 
-	it('a model typed for one provider is replaced when another provider is chosen', () => {
+	it('a model chosen for one provider is replaced when another provider is chosen', () => {
 		const card = createConnectCard({ onConnected: vi.fn() });
-		modelInput(card).value = 'my-custom-model';
 		choose(card, 'anthropic');
-		expect(modelInput(card).value).toBe('claude-sonnet-5-5');
-		// Staying on the same provider never touches what the user typed.
-		modelInput(card).value = 'claude-haiku-5-5';
+		pick(card, 'Model', 'claude-haiku-5-5');
+		expect(shown(card, 'Model')).toBe('claude-haiku-5-5');
+		// Choosing the provider that is already chosen never touches the model.
 		choose(card, 'anthropic');
-		expect(modelInput(card).value).toBe('claude-sonnet-5-5');
+		expect(shown(card, 'Model')).toBe('claude-haiku-5-5');
+		choose(card, 'openai');
+		expect(shown(card, 'Model')).toBe('gpt-5');
+		// A typed ID is forgotten the same way.
+		pick(card, 'Model', 'custom');
+		card.root.querySelector('input[aria-label="Model ID"]').value = 'my-custom-model';
+		choose(card, 'anthropic');
+		expect(shown(card, 'Model')).toBe('claude-sonnet-5-5');
+		expect(card.root.querySelector('input[aria-label="Model ID"]').hidden).toBe(true);
+		expect(card.root.querySelector('input[aria-label="Model ID"]').value).toBe('');
 	});
 
 	it('every default model resolves to an API format the provider supports', () => {
@@ -268,13 +323,15 @@ describe('provider dropdown (#69)', () => {
 		choose(card, 'anthropic');
 		card.root.querySelector('input[aria-label="API key"]').value = 'k';
 		card.root.requestSubmit();
-		expect(card.root.querySelector('select').disabled).toBe(true);
+		expect(dropdown(card, 'Provider').disabled).toBe(true);
+		expect(dropdown(card, 'Model').disabled).toBe(true);
 		resolve({ ok: false, outcome: 'wrong-key' });
 		await flush();
-		expect(card.root.querySelector('select').disabled).toBe(false);
+		expect(dropdown(card, 'Provider').disabled).toBe(false);
+		expect(dropdown(card, 'Model').disabled).toBe(false);
 		expect(card.root.textContent).toContain('Key not accepted');
 		// The chosen provider survives a failed check.
-		expect(card.root.querySelector('select').value).toBe('anthropic');
+		expect(shown(card, 'Provider')).toBe('Anthropic');
 		card.root.remove();
 	});
 
@@ -282,12 +339,267 @@ describe('provider dropdown (#69)', () => {
 		const first = createConnectCard({ onConnected: vi.fn() });
 		const second = createConnectCard({ onConnected: vi.fn() });
 		document.body.append(first.root, second.root);
-		const ids = [first, second].map((card) => card.root.querySelector('select').id);
-		expect(new Set(ids).size).toBe(2);
+		const ids = [first, second].flatMap((card) => [
+			dropdown(card, 'Provider').id,
+			dropdown(card, 'Model').id,
+			dropdown(card, 'Provider').getAttribute('aria-controls'),
+		]);
+		expect(new Set(ids).size).toBe(6);
 		choose(first, 'anthropic');
-		expect(second.root.querySelector('select').value).toBe('openai');
+		expect(shown(second, 'Provider')).toBe('OpenAI');
 		first.root.remove();
 		second.root.remove();
+	});
+});
+
+describe('Noddy dropdowns in the connect card (#78)', () => {
+	const SECRET = 'sk-dropdown-secret-456';
+	const key = (target, k, init = {}) => {
+		const event = new KeyboardEvent('keydown', {
+			key: k,
+			bubbles: true,
+			cancelable: true,
+			...init,
+		});
+		target.dispatchEvent(event);
+		return event;
+	};
+	const natives = (card) => card.root.querySelectorAll('select, datalist, input[list], option');
+	const modelId = (card) => card.root.querySelector('input[aria-label="Model ID"]');
+	const submitWith = (card, value = SECRET) => {
+		card.root.querySelector('input[aria-label="API key"]').value = value;
+		card.root.requestSubmit();
+	};
+
+	afterEach(() => {
+		document.body.innerHTML = '';
+	});
+
+	it('has no native select or datalist, with every dropdown closed or open, and after connecting', async () => {
+		const card = createConnectCard({
+			onConnected: vi.fn(),
+			check: async () => ({ ok: true }),
+			loadModels: async () => ({
+				ok: true,
+				models: [{ id: 'gpt-5', tools: true, vision: null, price: null, released: null }],
+			}),
+		});
+		document.body.append(card.root);
+		expect(natives(card)).toHaveLength(0);
+		dropdown(card, 'Provider').click();
+		expect(natives(card)).toHaveLength(0);
+		dropdown(card, 'Provider').click();
+		dropdown(card, 'Model').click();
+		expect(natives(card)).toHaveLength(0);
+		dropdown(card, 'Model').click();
+		submitWith(card);
+		await flush();
+		expect(card.showsModels).toBe(true);
+		expect(natives(card)).toHaveLength(0);
+		dropdown(card, 'Provider').click();
+		expect(natives(card)).toHaveLength(0);
+		expect(document.body.querySelector('select, datalist')).toBeNull();
+	});
+
+	it('the Model dropdown offers the provider’s suggestions, default first, then Custom…', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		dropdown(card, 'Model').click();
+		const rows = [...popover(card, 'Model').querySelectorAll('[role="option"]')];
+		expect(rows.map((row) => row.dataset.id)).toEqual(['gpt-5', 'gpt-5-mini', 'custom']);
+		expect(rows.at(-1).textContent).toContain('Custom…');
+		expect(rows.at(-1).querySelector('.agent-model__mark').textContent).toBe('edit');
+		expect(rows[0].getAttribute('aria-selected')).toBe('true');
+		// Ids and text are the shared suggestions, nothing else.
+		expect(rows.slice(0, -1).map((row) => row.dataset.id)).toEqual([...MODEL_SUGGESTIONS.openai]);
+	});
+
+	it('Check connection tries the suggestion that was chosen', async () => {
+		let checked;
+		const check = vi.fn(async (config) => {
+			// The card clears its copy once connected, so snapshot it here.
+			checked = { ...config };
+			return { ok: true };
+		});
+		const card = createConnectCard({ onConnected: vi.fn(), check });
+		document.body.append(card.root);
+		pick(card, 'Model', 'gpt-5-mini');
+		expect(shown(card, 'Model')).toBe('gpt-5-mini');
+		submitWith(card);
+		await flush();
+		expect(checked).toEqual({ provider: 'openai', model: 'gpt-5-mini', apiKey: SECRET });
+	});
+
+	it('Custom… shows one ID field, focuses it, and Check connection tries the typed ID', async () => {
+		let checked;
+		const check = vi.fn(async (config) => {
+			checked = { ...config };
+			return { ok: true };
+		});
+		const card = createConnectCard({ onConnected: vi.fn(), check });
+		document.body.append(card.root);
+		expect(modelId(card).hidden).toBe(true);
+		pick(card, 'Model', 'custom');
+		expect(shown(card, 'Model')).toBe('Custom…');
+		expect(modelId(card).hidden).toBe(false);
+		expect(document.activeElement).toBe(modelId(card));
+		// The ID field sits right after the dropdowns, in the card's field grid.
+		expect(modelId(card).parentElement.classList.contains('agent-connect__fields')).toBe(true);
+		modelId(card).value = '  my-fine-tune:v2  ';
+		submitWith(card);
+		await flush();
+		expect(checked).toEqual({ provider: 'openai', model: 'my-fine-tune:v2', apiKey: SECRET });
+	});
+
+	it('an empty Custom… ID asks for one and puts focus in the field', async () => {
+		const check = vi.fn();
+		const card = createConnectCard({ onConnected: vi.fn(), check });
+		document.body.append(card.root);
+		pick(card, 'Model', 'custom');
+		submitWith(card);
+		await flush();
+		expect(check).not.toHaveBeenCalled();
+		expect(card.root.textContent).toContain('Enter a model ID and an API key');
+		expect(document.activeElement).toBe(modelId(card));
+	});
+
+	it('choosing a suggestion again closes the ID field and forgets what was typed', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		pick(card, 'Model', 'custom');
+		modelId(card).value = 'half-typed';
+		pick(card, 'Model', 'gpt-5-mini');
+		expect(modelId(card).hidden).toBe(true);
+		expect(modelId(card).value).toBe('');
+		expect(shown(card, 'Model')).toBe('gpt-5-mini');
+	});
+
+	it('Esc in the ID field gives up and returns to the default model, without reaching the panel', () => {
+		const outer = vi.fn();
+		document.body.addEventListener('keydown', outer);
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		pick(card, 'Model', 'custom');
+		modelId(card).value = 'half-typed';
+		key(modelId(card), 'Escape');
+		expect(modelId(card).hidden).toBe(true);
+		expect(shown(card, 'Model')).toBe('gpt-5');
+		expect(document.activeElement).toBe(dropdown(card, 'Model'));
+		expect(outer).not.toHaveBeenCalled();
+		document.body.removeEventListener('keydown', outer);
+	});
+
+	it('the Provider dropdown works from the keyboard and returns focus to its button', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		const button = dropdown(card, 'Provider');
+		button.focus();
+		key(button, 'ArrowDown');
+		expect(button.getAttribute('aria-expanded')).toBe('true');
+		const list = popover(card, 'Provider');
+		expect(document.activeElement).toBe(list);
+		key(list, 'ArrowDown');
+		key(list, 'Enter');
+		expect(shown(card, 'Provider')).toBe('OpenCode Zen');
+		expect(shown(card, 'Model')).toBe('big-pickle');
+		expect(button.getAttribute('aria-expanded')).toBe('false');
+		expect(document.activeElement).toBe(button);
+	});
+
+	it('Esc on an open Provider dropdown closes it, keeps the provider, and never minimizes the panel', () => {
+		const outer = vi.fn();
+		document.body.addEventListener('keydown', outer);
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		dropdown(card, 'Provider').click();
+		key(popover(card, 'Provider'), 'ArrowDown');
+		key(popover(card, 'Provider'), 'Escape');
+		expect(dropdown(card, 'Provider').getAttribute('aria-expanded')).toBe('false');
+		expect(shown(card, 'Provider')).toBe('OpenAI');
+		expect(document.activeElement).toBe(dropdown(card, 'Provider'));
+		expect(outer).not.toHaveBeenCalledWith(expect.objectContaining({ key: 'Escape' }));
+		document.body.removeEventListener('keydown', outer);
+	});
+
+	it('a click outside closes an open dropdown', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		dropdown(card, 'Model').click();
+		document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		expect(dropdown(card, 'Model').getAttribute('aria-expanded')).toBe('false');
+		expect(popover(card, 'Model')).toBeNull();
+	});
+
+	it('opening a dropdown does not change the card’s structure', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		const fields = card.root.querySelector('.agent-connect__fields');
+		const before = [card.root.children.length, fields.children.length];
+		dropdown(card, 'Provider').click();
+		expect([card.root.children.length, fields.children.length]).toEqual(before);
+		// The list floats from inside its own field, never between the card's rows.
+		expect(
+			popover(card, 'Provider').parentElement.classList.contains('agent-dropdown__field')
+		).toBe(true);
+	});
+
+	it('locking the card while a dropdown is open closes it', async () => {
+		let resolve;
+		const card = createConnectCard({
+			onConnected: vi.fn(),
+			check: vi.fn(() => new Promise((r) => (resolve = r))),
+		});
+		document.body.append(card.root);
+		dropdown(card, 'Provider').click();
+		expect(popover(card, 'Provider')).not.toBeNull();
+		submitWith(card);
+		expect(popover(card, 'Provider')).toBeNull();
+		expect(dropdown(card, 'Provider').getAttribute('aria-expanded')).toBe('false');
+		resolve({ ok: false, outcome: 'wrong-key' });
+		await flush();
+	});
+
+	it('reset and clearKey close an open dropdown', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		dropdown(card, 'Model').click();
+		card.reset();
+		expect(popover(card, 'Model')).toBeNull();
+		dropdown(card, 'Provider').click();
+		card.clearKey();
+		expect(popover(card, 'Provider')).toBeNull();
+	});
+
+	it('focus() goes to the Model dropdown before connecting', () => {
+		const card = createConnectCard({ onConnected: vi.fn() });
+		document.body.append(card.root);
+		card.focus();
+		expect(document.activeElement).toBe(dropdown(card, 'Model'));
+	});
+
+	it('the live list and an open Provider dropdown are the same listbox in two places', async () => {
+		const card = createConnectCard({
+			onConnected: vi.fn(),
+			check: async () => ({ ok: true }),
+			loadModels: async () => ({
+				ok: true,
+				models: [{ id: 'gpt-5', tools: true, vision: null, price: null, released: null }],
+			}),
+		});
+		document.body.append(card.root);
+		submitWith(card);
+		await flush();
+		dropdown(card, 'Provider').click();
+		const lists = [...card.root.querySelectorAll('[role="listbox"]')];
+		expect(lists).toHaveLength(2);
+		expect(lists.every((list) => list.classList.contains('agent-models__list'))).toBe(true);
+		expect(lists.every((list) => list.querySelector('.agent-model__mark'))).toBe(true);
+		const ids = [...card.root.querySelectorAll('[role="option"]')].map((row) => row.id);
+		expect(new Set(ids).size).toBe(ids.length);
+		// Choosing a provider there still drops the list and goes back to the key step.
+		popover(card, 'Provider').querySelector('[data-id="anthropic"]').click();
+		expect(card.showsModels).toBe(false);
+		expect(shown(card, 'Model')).toBe('claude-sonnet-5-5');
 	});
 });
 
@@ -315,11 +627,6 @@ describe('live model list (#76)', () => {
 		model('beam-free', { price: { input: 0, output: 0 } }),
 		model('gpt-6-astra', { price: { input: 10, output: 50 } }),
 	];
-	const choose = (card, value) => {
-		const select = card.root.querySelector('select');
-		select.value = value;
-		select.dispatchEvent(new Event('change', { bubbles: true }));
-	};
 	const optionFor = (card, id) => card.root.querySelector(`[role="option"][data-id="${id}"]`);
 	const optionIds = (card) =>
 		[...card.root.querySelectorAll('[role="option"]')].map((o) => o.dataset.id ?? 'custom');
@@ -357,8 +664,8 @@ describe('live model list (#76)', () => {
 		const loadModels = vi.fn();
 		const card = createConnectCard({ onConnected: vi.fn(), loadModels });
 		document.body.append(card.root);
-		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('gpt-5');
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
+		expect(shown(card, 'Model')).toBe('gpt-5');
+		expect(modelDropdownRow(card).hidden).toBe(false);
 		expect(card.root.querySelector('[role="listbox"]')).toBeNull();
 		expect(card.showsModels).toBe(false);
 		expect(card.root.textContent).toContain('Connect a model');
@@ -371,13 +678,12 @@ describe('live model list (#76)', () => {
 		expect(loadModels.mock.calls[0][0]).toEqual({ provider: 'openai', apiKey: SECRET });
 		expect(card.showsModels).toBe(true);
 		expect(listbox(card)).not.toBeNull();
-		// The text field, the key field and Check connection are gone; the provider dropdown stays.
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(true);
+		// The Model dropdown, the key field and Check connection are gone; the Provider dropdown stays.
+		expect(modelDropdownRow(card).hidden).toBe(true);
 		expect(card.root.querySelector('.agent-connect__key').hidden).toBe(true);
 		expect(card.root.querySelector('.agent-connect__actions').hidden).toBe(true);
-		const select = card.root.querySelector('select');
-		expect(select.disabled).toBe(false);
-		expect(select.value).toBe('openai');
+		expect(dropdown(card, 'Provider').disabled).toBe(false);
+		expect(shown(card, 'Provider')).toBe('OpenAI');
 		expect(card.root.textContent).toContain('Choose a model');
 		expect(card.root.textContent).toContain('6 models');
 		expect(selectedId(card)).toBe('gpt-5');
@@ -498,7 +804,7 @@ describe('live model list (#76)', () => {
 			apiKey: SECRET,
 		});
 		expect(listbox(card).getAttribute('aria-busy')).toBe('true');
-		expect(card.root.querySelector('select').disabled).toBe(true);
+		expect(dropdown(card, 'Provider').disabled).toBe(true);
 		optionFor(card, 'o3').click();
 		expect(check).toHaveBeenCalledTimes(2);
 		expect(onConnected).not.toHaveBeenCalled();
@@ -704,7 +1010,7 @@ describe('live model list (#76)', () => {
 			expect(listbox(card)).toBeNull();
 			expect(onConnected).toHaveBeenCalledOnce();
 			expect(onConnected.mock.calls[0][0].model).toBe('gpt-5');
-			expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
+			expect(modelDropdownRow(card).hidden).toBe(false);
 			card.root.remove();
 		}
 	});
@@ -748,15 +1054,15 @@ describe('live model list (#76)', () => {
 		expect(listbox(card)).toBeNull();
 		// The rows themselves are gone, not just hidden.
 		expect(card.root.querySelectorAll('[role="option"]')).toHaveLength(0);
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
-		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('claude-sonnet-5-5');
+		expect(modelDropdownRow(card).hidden).toBe(false);
+		expect(shown(card, 'Model')).toBe('claude-sonnet-5-5');
 		expect(card.root.querySelector('.agent-connect__key').hidden).toBe(false);
 		expect(card.root.textContent).toContain('Connect a model');
 		// Back to the first provider: its list was dropped with the change, so it asks for the key again.
 		choose(card, 'openai');
 		expect(card.showsModels).toBe(false);
 		expect(listbox(card)).toBeNull();
-		expect(card.root.querySelector('input[aria-label="Model"]').value).toBe('gpt-5');
+		expect(shown(card, 'Model')).toBe('gpt-5');
 		expect(card.root.querySelector('input[aria-label="API key"]').value).toBe('');
 		card.root.requestSubmit();
 		await flush();
@@ -847,7 +1153,7 @@ describe('live model list (#76)', () => {
 		card.reset();
 		expect(card.showsModels).toBe(false);
 		expect(listbox(card)).toBeNull();
-		expect(card.root.querySelector('input[aria-label="Model"]').hidden).toBe(false);
+		expect(modelDropdownRow(card).hidden).toBe(false);
 		const again = await connected();
 		again.card.clearKey();
 		expect(again.card.showsModels).toBe(false);

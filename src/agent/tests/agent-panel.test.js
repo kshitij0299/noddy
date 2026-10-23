@@ -520,7 +520,10 @@ describe('controller wiring (#21)', () => {
 			expect(panel.controller.connected).toBe(false);
 			expect(card.hidden).toBe(false);
 			expect(card.querySelector('[role="listbox"]')).toBeNull();
-			expect(card.querySelector('input[aria-label="Model"]').hidden).toBe(false);
+			// The Model dropdown is back (it was replaced by the list).
+			const modelRow = card.querySelectorAll('.agent-dropdown')[1];
+			expect(modelRow.querySelector('label').textContent).toBe('Model');
+			expect(modelRow.hidden).toBe(false);
 			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
 		});
 

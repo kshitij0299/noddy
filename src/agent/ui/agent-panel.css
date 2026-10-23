@@ -337,13 +337,19 @@ button.agent-suggestion:focus-visible {
 	display: none;
 }
 
-/* Provider: one labelled dropdown. Label left, field fills the row, so the
-   card stays as short as it was with the old pill row. */
-.agent-connect__provider {
-	display: flex;
+/* Provider and Model: two labelled dropdown buttons in one two-column grid, so the
+   fields line up whatever the width of their labels (card gap: space-3). */
+.agent-connect__fields {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
 	align-items: center;
 	gap: var(--space-3);
 	min-width: 0;
+}
+
+/* "Custom…" shows its ID field under the Model dropdown, in the field column. */
+.agent-connect__fields > .agent-connect__model-id {
+	grid-column: 2;
 }
 
 /* Legacy `label:hover` (resets.css) turns labels black; pin the colour. */
@@ -354,66 +360,115 @@ label.agent-connect__label:hover {
 	color: var(--color-text-secondary);
 }
 
-.agent-connect__select-wrap {
-	position: relative;
-	flex: 1 1 auto;
+/* ---- Dropdown (#78): labelled button + in-page listbox ---- */
+/* The root only groups label and field; its children sit in the card's grid. */
+.agent-dropdown {
+	display: contents;
+}
+
+.agent-dropdown__field {
 	min-width: 0;
 }
 
-/* Same box as the Model and API key fields (36px, radius-md, 1px border). */
-select.agent-connect__select,
-select.agent-connect__select:hover,
-select.agent-connect__select:focus {
-	appearance: none;
+/* Same box as the Model-ID and API key fields (36px, radius-md, 1px border). Every state is
+   pinned above the legacy global `button` rules, so a state can only change paint. */
+button.agent-dropdown__button,
+button.agent-dropdown__button:hover,
+button.agent-dropdown__button:focus,
+button.agent-dropdown__button:active {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-2);
 	box-sizing: border-box;
-	display: block;
 	width: 100%;
 	height: 36px;
+	min-height: 0;
 	margin: 0;
-	padding: 0 calc(var(--space-3) + 20px) 0 var(--space-3);
+	padding: 0 var(--space-2) 0 var(--space-3);
 	border: 1px solid var(--color-border-default);
 	border-radius: var(--radius-md);
 	background: var(--color-bg-surface);
 	color: var(--color-text-primary);
 	box-shadow: none;
+	text-align: left;
 	cursor: pointer;
-	text-overflow: ellipsis;
 	transition: background-color 120ms ease;
 }
 
-/* Paint-only hover: only the fill changes, never the box. */
-select.agent-connect__select:hover:not(:disabled) {
+/* Paint-only hover and open state: only fill and border colour change, never the box. */
+button.agent-dropdown__button:hover:not(:disabled) {
 	background: var(--color-bg-subtle);
 }
 
-select.agent-connect__select:focus {
+button.agent-dropdown__button[aria-expanded='true'] {
+	border-color: var(--color-border-strong);
+}
+
+button.agent-dropdown__button:focus {
 	outline: none;
 }
 
-select.agent-connect__select:focus-visible {
+button.agent-dropdown__button:focus-visible {
 	outline: var(--focus-ring);
 	outline-offset: var(--focus-ring-offset);
 }
 
-select.agent-connect__select:disabled {
+button.agent-dropdown__button:disabled,
+button.agent-dropdown__button:disabled:hover {
 	cursor: default;
 	opacity: 0.5;
-}
-
-/* The native list inherits the surface so the dark theme stays readable. */
-select.agent-connect__select option {
 	background: var(--color-bg-surface);
 	color: var(--color-text-primary);
 }
 
-.agent-connect__select-wrap > .material-symbols-rounded {
-	position: absolute;
-	top: 50%;
-	right: var(--space-3);
-	transform: translateY(-50%);
+.agent-dropdown__value {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-dropdown__chevron {
 	font-size: 20px;
 	color: var(--color-text-secondary);
-	pointer-events: none;
+}
+
+button.agent-dropdown__button[aria-expanded='true'] .agent-dropdown__chevron {
+	transform: rotate(180deg);
+}
+
+/* The listbox is the popover: out of the card's flow (top layer where the browser has the
+   Popover API, otherwise fixed), so opening it never moves the card and no scroller clips
+   it. Left, top, width and max-height are set when it opens (placePopover). Rows, check mark
+   and fills are the live model list's. Same floating surface as the Export menu. */
+.agent-models__list.agent-dropdown__list {
+	position: fixed;
+	z-index: 2100;
+	inset: auto;
+	margin: 0;
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-surface-raised);
+	color: var(--color-text-primary);
+	box-shadow: var(--shadow-md);
+}
+
+.agent-connect .agent-models__list.agent-dropdown__list {
+	background: var(--color-bg-surface-raised);
+}
+
+.agent-models__list.agent-dropdown__list[hidden] {
+	display: none;
+}
+
+/* The active row carries the keyboard ring; a ring round the whole popover would only repeat it. */
+.agent-models__list.agent-dropdown__list:focus-visible {
+	outline: none;
+}
+
+.agent-dropdown__list .agent-dropdown__option {
+	align-items: center;
+	min-height: 32px;
 }
 
 input.agent-connect__input,

@@ -2,6 +2,10 @@
  * Model connect card (M4, issues #21, #69, #76). Built in the Plan-card shell
  * (flow-03: 352px, 1px border, radius-lg, space-4 padding, Meta eyebrow).
  *
+ * Provider and Model are Noddy's own dropdowns (agent-dropdown.js, #78), never a
+ * native <select> or <datalist>: the browser draws those popups outside the page.
+ * Model offers the provider's suggestions and "Custom…" (a text field for any ID).
+ *
  * Two steps in one card:
  *   1. Connect: Provider, Model (the provider's default), API key, "Check
  *      connection".
@@ -37,6 +41,7 @@ import {
 } from '../model-list.js';
 import { cardButton, cardHeader, el, icon, srOnly } from './cards/card-shell.js';
 import { createModelList } from './agent-model-list.js';
+import { createDropdown } from './agent-dropdown.js';
 
 /**
  * Suggestions only: any model ID the provider accepts can be typed. The first
@@ -47,6 +52,9 @@ export const MODEL_SUGGESTIONS = Object.freeze({
 	'opencode-zen': Object.freeze(['big-pickle', 'qwen3.8-max']),
 	anthropic: Object.freeze(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']),
 });
+
+/** The Model dropdown's last row: any ID the provider accepts, typed in a field. */
+const CUSTOM_MODEL = 'custom';
 
 /** Check outcome → one-line copy (status is icon + text, never colour alone). */
 export const CHECK_COPY = Object.freeze({
@@ -149,8 +157,6 @@ export async function fetchModels(config, fetchImpl = globalThis.fetch) {
 /** @param {number} n */
 const modelCount = (n) => `${n} ${n === 1 ? 'model' : 'models'}`;
 
-let cardCount = 0;
-
 /**
  * @param {Object} options
  * @param {(config: {provider: String, model: String, apiKey: String}) => void} options.onConnected
@@ -166,52 +172,70 @@ export function createConnectCard({
 	check = checkConnection,
 	loadModels = fetchModels,
 }) {
-	const uid = `agent-connect-${++cardCount}`;
 	const root = el('form', 'agent-card agent-connect');
 	root.setAttribute('aria-label', 'Connect a model');
 	root.noValidate = true;
 
-	// One compact dropdown instead of a button per provider. A native <select>
-	// gives arrow keys, type-ahead, Esc and a screen-reader name for free, and
-	// its list is drawn by the browser, so the panel never clips it.
-	const providerRow = el('div', 'agent-connect__provider');
-	const providerLabel = /** @type {HTMLLabelElement} */ (
-		el('label', 'agent-connect__label text-label', 'Provider')
-	);
-	const providerWrap = el('div', 'agent-connect__select-wrap');
-	const providerSelect = /** @type {HTMLSelectElement} */ (
-		el('select', 'agent-connect__select text-body')
-	);
-	providerSelect.id = `${uid}-provider`;
-	providerLabel.htmlFor = providerSelect.id;
-	Object.entries(PROVIDERS).forEach(([value, spec]) => {
-		const option = /** @type {HTMLOptionElement} */ (el('option', '', spec.label));
-		option.value = value;
-		providerSelect.append(option);
+	// Provider and Model are one dropdown component (labelled button + in-page listbox),
+	// the same listbox as the live model list. Their lists open in the top layer, so the
+	// panel never clips them, and they never shift the card.
+	const providerDropdown = createDropdown({
+		label: 'Provider',
+		items: Object.entries(PROVIDERS).map(([id, spec]) => ({ id, label: spec.label })),
+		value: 'openai',
+		onChange: () => {
+			// A list and the key copy kept for it belong to one provider: leaving it drops both.
+			dropSession();
+			closeCustom();
+			resetModel();
+			showResult(null);
+			showStep();
+		},
 	});
-	providerSelect.value = 'openai';
-	providerSelect.addEventListener('change', () => {
-		// A list and the key copy kept for it belong to one provider: leaving it drops both.
-		dropSession();
-		closeCustom();
-		fillSuggestions(true);
-		showResult(null);
-		showStep();
-	});
-	providerWrap.append(providerSelect, icon('expand_more'));
-	providerRow.append(providerLabel, providerWrap);
 
-	const model = /** @type {HTMLInputElement} */ (el('input', 'agent-connect__input text-mono'));
-	model.type = 'text';
-	model.autocomplete = 'off';
-	model.spellcheck = false;
-	model.maxLength = 160;
-	model.placeholder = 'Model';
-	model.value = MODEL_SUGGESTIONS.openai[0];
-	model.setAttribute('aria-label', 'Model');
-	const datalist = el('datalist');
-	datalist.id = `${uid}-models`;
-	model.setAttribute('list', datalist.id);
+	/** The provider's suggestions (its default first), then "Custom…". */
+	function modelItems() {
+		return [
+			...(MODEL_SUGGESTIONS[provider()] || []).map((id) => ({ id, label: id })),
+			{ id: CUSTOM_MODEL, label: 'Custom…', icon: 'edit' },
+		];
+	}
+
+	const modelDropdown = createDropdown({
+		label: 'Model',
+		mono: true,
+		items: modelItems(),
+		value: MODEL_SUGGESTIONS.openai[0],
+		onChange: (item) => {
+			showResult(null);
+			if (item.id === CUSTOM_MODEL) openModelField();
+			else closeModelField();
+		},
+	});
+
+	// Before connecting, "Custom…" asks for the ID in one field under the dropdown.
+	const modelField = /** @type {HTMLInputElement} */ (
+		el('input', 'agent-connect__input agent-connect__model-id text-mono')
+	);
+	modelField.type = 'text';
+	modelField.autocomplete = 'off';
+	modelField.spellcheck = false;
+	modelField.maxLength = 160;
+	modelField.placeholder = 'Model ID';
+	modelField.setAttribute('aria-label', 'Model ID');
+	modelField.hidden = true;
+	modelField.addEventListener('keydown', (event) => {
+		if (event.key !== 'Escape' || event.ctrlKey || event.metaKey || event.altKey) return;
+		// Esc gives up the typed ID and goes back to the provider's default model.
+		event.preventDefault();
+		event.stopPropagation();
+		showResult(null);
+		resetModel();
+		modelDropdown.focus();
+	});
+
+	const fields = el('div', 'agent-connect__fields');
+	fields.append(providerDropdown.root, modelDropdown.root, modelField);
 
 	const keyRow = el('div', 'agent-connect__key');
 	const key = /** @type {HTMLInputElement} */ (el('input', 'agent-connect__input'));
@@ -289,10 +313,31 @@ export function createConnectCard({
 	const count = /** @type {HTMLElement} */ (header.querySelector('.agent-card__meta'));
 	count.hidden = true;
 
-	root.append(header, providerRow, model, datalist, keyRow, actions, result);
+	root.append(header, fields, keyRow, actions, result);
 
 	function provider() {
-		return providerSelect.value || 'openai';
+		return providerDropdown.value || 'openai';
+	}
+
+	/** The model Check connection will try: the chosen suggestion, or the typed ID. */
+	function modelValue() {
+		return modelDropdown.value === CUSTOM_MODEL ? modelField.value.trim() : modelDropdown.value;
+	}
+
+	/** The provider's default model, with the typed ID forgotten. */
+	function resetModel() {
+		modelDropdown.setItems(modelItems(), (MODEL_SUGGESTIONS[provider()] || [])[0]);
+		closeModelField();
+	}
+
+	function openModelField() {
+		modelField.hidden = false;
+		modelField.focus();
+	}
+
+	function closeModelField() {
+		modelField.hidden = true;
+		modelField.value = '';
 	}
 
 	/**
@@ -309,7 +354,8 @@ export function createConnectCard({
 
 	function showStep() {
 		const models = inModelsStep();
-		model.hidden = models;
+		modelDropdown.root.hidden = models;
+		modelField.hidden = models || modelDropdown.value !== CUSTOM_MODEL;
 		keyRow.hidden = models;
 		actions.hidden = models;
 		if (models) {
@@ -323,30 +369,13 @@ export function createConnectCard({
 		else custom.hidden = true;
 	}
 
-	/**
-	 * @param {Boolean} [providerChanged] - a model ID belongs to one provider,
-	 *   so choosing another provider always resets the field to its default.
-	 */
-	function fillSuggestions(providerChanged = false) {
-		const list = MODEL_SUGGESTIONS[provider()] || [];
-		datalist.replaceChildren(
-			...list.map((id) => {
-				const option = /** @type {HTMLOptionElement} */ (el('option'));
-				option.value = id;
-				return option;
-			})
-		);
-		if (providerChanged || !model.value.trim() || !list.includes(model.value.trim())) {
-			model.value = list[0] || '';
-		}
-	}
-	fillSuggestions();
-
 	function setLocked(locked) {
-		root.querySelectorAll('input, select, button').forEach((node) => {
-			/** @type {HTMLInputElement | HTMLSelectElement | HTMLButtonElement} */ (node).disabled =
-				locked;
+		root.querySelectorAll('input, button').forEach((node) => {
+			/** @type {HTMLInputElement | HTMLButtonElement} */ (node).disabled = locked;
 		});
+		// A dropdown that was open closes when it is locked.
+		providerDropdown.setDisabled(locked);
+		modelDropdown.setDisabled(locked);
 		modelList.setBusy(locked);
 		root.toggleAttribute('aria-busy', locked);
 		checkButton.classList.toggle('is-checking', locked);
@@ -369,8 +398,7 @@ export function createConnectCard({
 			);
 			pick.addEventListener('click', () => {
 				if (inModelsStep()) return modelList.focus();
-				model.select();
-				model.focus();
+				modelDropdown.focus();
 			});
 			line.append(pick);
 		}
@@ -494,10 +522,10 @@ export function createConnectCard({
 		event.preventDefault();
 		if (busy) return;
 		if (inModelsStep()) return useCustom();
-		const config = { provider: provider(), model: model.value.trim(), apiKey: key.value.trim() };
+		const config = { provider: provider(), model: modelValue(), apiKey: key.value.trim() };
 		if (!config.model || !config.apiKey) {
 			showResult('invalid');
-			(config.model ? key : model).focus();
+			(config.model ? key : modelField.hidden ? modelDropdown.button : modelField).focus();
 			return;
 		}
 		busy = true;
@@ -573,6 +601,8 @@ export function createConnectCard({
 	});
 
 	function reset() {
+		providerDropdown.close({ restoreFocus: false });
+		modelDropdown.close({ restoreFocus: false });
 		dropSession();
 		closeCustom();
 		showResult(null);
@@ -587,7 +617,7 @@ export function createConnectCard({
 		},
 		focus() {
 			if (inModelsStep()) modelList.focus();
-			else model.focus();
+			else modelDropdown.focus();
 		},
 		/** Back to the first step, forgetting the list and its key (e.g. after a disconnect). */
 		reset,
