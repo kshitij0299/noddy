@@ -61,9 +61,11 @@ Claude Code ──MCP (HTTP)──▶ dev server /mcp ──bridge──▶ open
    and later calls get a readable tool error; turn it on again for a fresh command.
 
 Notes: one tab at a time (turning it on in another tab takes over). A native session lives as
-long as the MCP session; it is replaced when the project changes or it reaches its call or render
-limit, which drops unsubmitted drafts (the result says `sessionRestarted: true`). Sessions that
-Claude Code never closed keep the chip "connected" until the dev server restarts. Other clients
+long as the MCP session (32 renders, 256 calls); it is replaced when the project changes or it
+reaches a limit, which drops unsubmitted drafts (the result says `sessionRestarted: true` and its
+`notice` names the dropped drafts). A reload keeps Local agent on for that tab; after a dev-server
+restart the panel shows the new command. After Stop or closing the tab the chip says "waiting"
+until the coding agent calls again. Other clients
 (Codex, Cursor, OpenCode) use the same URL and `Authorization` header in their MCP config.
 
 ## Out of scope (next PRs)
