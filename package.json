@@ -61,7 +61,8 @@
 		"ai": "^7.0.127",
 		"bezier-boolean": "^1.0.6",
 		"eslint": "^10.8.0",
-		"font-flux-js": "^2.7.1"
+		"font-flux-js": "^2.7.1",
+		"paper": "0.12.18"
 	},
 	"engines": {
 		"node": ">=22"

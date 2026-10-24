@@ -11,7 +11,8 @@ const object = (properties) => ({
 });
 const handle = { ...object({ x: coordinate, y: coordinate }), type: ['object', 'null'] };
 const point = object({ x: coordinate, y: coordinate, h1: handle, h2: handle });
-// Optional arguments are required-but-nullable, so strict provider schemas work.
+// Optional arguments are listed as required-but-nullable, so strict provider schemas work.
+// validateToolInput also accepts them absent (treated as null): see normalizeToolInput.
 const nullable = (schema) => ({
 	...schema,
 	type: [schema.type, 'null'],
@@ -27,6 +28,10 @@ const pathIndices = {
 	maxItems: 32,
 	uniqueItems: true,
 };
+// Where scale, skew, rotate and flip pivot: the centre of the paths' combined bounds, or the
+// point on the baseline below that centre. An explicit origin point wins over both.
+export const TRANSFORM_PIVOTS = ['center', 'baseline-center'];
+export const BOOLEAN_OPERATIONS = ['union', 'subtract', 'intersect', 'exclude'];
 const scale = { type: 'number', minimum: 0.01, maximum: 100 };
 const skew = { type: 'number', minimum: -80, maximum: 80 };
 const contours = {
@@ -37,6 +42,18 @@ const contours = {
 		name: { type: 'string', minLength: 1, maxLength: 80 },
 		points: { type: 'array', items: point, minItems: 3, maxItems: 128 },
 	}),
+};
+const transformFields = {
+	dx: nullable(coordinate),
+	dy: nullable(coordinate),
+	scaleX: nullable(scale),
+	scaleY: nullable(scale),
+	skewX: nullable(skew),
+	skewY: nullable(skew),
+	rotate: nullable({ type: 'number', minimum: -360, maximum: 360 }),
+	flip: nullable({ type: 'string', enum: ['horizontal', 'vertical', 'both'] }),
+	pivot: nullable({ type: 'string', enum: TRANSFORM_PIVOTS }),
+	origin: { ...object({ x: coordinate, y: coordinate }), type: ['object', 'null'] },
 };
 // Rendered PNGs per request (one Send). The relay allows the same number per
 // conversation (LIMITS.toolImages); past it, render tools return RENDER_LIMIT.
@@ -59,7 +76,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'get_context',
 		description:
-			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), and the bound glyph's lock (null, yours or open). Direct edits (set_spacing, transform_paths, add_paths outside a job) apply only to the glyph selected when the user sent the request. Other glyphs in the set are drawn through glyph jobs: create_glyph or begin_glyph, edit the draft, then submit_glyph (one undo step per glyph). Font units use positive y upwards. No shell, navigation, glyph deletion, export, font-wide generation, or arbitrary property edits are available.",
+			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), and the bound glyph's lock (null, yours or open). Direct edits (set_spacing, transform_paths, add_paths outside a job) apply only to the glyph selected when the user sent the request. Other glyphs in the set are drawn through glyph jobs: create_glyph or begin_glyph, edit the draft, then submit_glyph (one undo step per glyph). Font units use positive y upwards. To carry a mark from one glyph to another (a slash, a serif), use copy_paths in the target's job and cut or merge it in with boolean_paths. No shell, navigation, glyph deletion, export, font-wide generation, or arbitrary property edits are available.",
 		inputSchema: object({}),
 	},
 	{
@@ -79,7 +96,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'render_glyphs',
 		description:
-			"Render up to 8 glyphs side by side as one PNG (longest side at most 1024 px) so you can look at them. guides draws ascender, cap height, x-height, baseline, descender and advance edges. Missing glyphs show as a dashed box. At most 8 renders per request (RENDER_LIMIT). layout gives each glyph's x and width in pixels. Use it after drawing to check shapes. Read-only; null height = 384, null guides = true.",
+			"Render up to 8 glyphs side by side as one PNG (longest side at most 1024 px) so you can look at them. guides draws ascender, cap height, x-height, baseline, descender and advance edges. Missing glyphs show as a dashed box. Renders per request are limited (RENDER_LIMIT). A glyph with an open job in this session renders as its draft (listed in drafts). layout gives each glyph's x and width in pixels. Use it after drawing to check shapes. Read-only; height and guides are optional (null or absent height = 384, guides = true).",
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
 			height: nullable(renderHeight),
@@ -89,7 +106,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'render_text',
 		description:
-			'Render a line of text (up to 64 characters) in this font as one PNG (longest side at most 1024 px), with no kerning. Characters not drawn yet, or outside the set (listed in outOfSet), show as a dashed ghost box. Use it to judge spacing and consistency across glyphs. Read-only; null height = 384, null guides = false.',
+			'Render a line of text (up to 64 characters) in this font as one PNG (longest side at most 1024 px), with no kerning. Characters not drawn yet, or outside the set (listed in outOfSet), show as a dashed ghost box. Glyphs with an open job render as their drafts. Use it to judge spacing and consistency across glyphs. Read-only; height and guides are optional (null or absent height = 384, guides = false).',
 		inputSchema: object({
 			text: {
 				type: 'string',
@@ -104,13 +121,13 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'check_outlines',
 		description:
-			"Check one glyph's outlines: winding per contour (and counters that run the same way as their container), self-intersections, duplicate points, specks, too-few-point contours, and extents against the ascender, descender, cap height and x-height. Returns clean (true when no issues) plus a list of issues with path indices. Read-only.",
+			"Check one glyph's outlines: winding per contour (and counters that run the same way as their container), self-intersections, duplicate points, specks, too-few-point contours, and extents against the ascender, descender, cap height and x-height. Returns clean (true when no issues) plus a list of issues with path indices, each with a short hint on how to fix it. With an open job in this session it checks the draft (source: 'draft'), marks issues the glyph already had before the job as preExisting, and says whether submit_glyph would pass (submitWouldPass). Read-only.",
 		inputSchema: object({ glyphId }),
 	},
 	{
 		name: 'get_mutation_log',
 		description:
-			'Read the log of your own writes in this project, oldest first: time, tool, glyph, summary and whether the edit is still in the undo history. glyphId null = all glyphs; limit null = 50. Read-only.',
+			'Read the log of your own writes in this project, oldest first: time, tool, glyph, summary and whether the edit is still in the undo history. glyphId null or absent = all glyphs; limit null or absent = 50. Read-only.',
 		inputSchema: object({
 			glyphId: nullable(glyphId),
 			limit: nullable({ type: 'integer', minimum: 1, maximum: 100 }),
@@ -119,7 +136,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'read_glyphs',
 		description:
-			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
+			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. A glyph with an open job in this session is read from its draft (source: draft). Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
 			includePaths: { type: 'boolean' },
@@ -139,20 +156,36 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'transform_paths',
 		description:
-			"Transform the specified path indices: scale, skew, rotate and flip about origin (null = the centre of those paths' combined bounds), then translate by dx, dy font units. Order: scale, skew, rotate, flip, translate. Null scale = 1, null skew/rotate = 0 degrees (rotate is counter-clockwise, skewX slants tops right), null flip = none. Flips keep contour direction correct. Read path indices and revision first. Positive y moves up. Advance width is unchanged. Inside a glyph job it edits the draft; otherwise it edits the bound glyph as one undo step. Refuses locked coordinates and Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).",
+			"Move, scale, skew, rotate or mirror the specified path indices. Scale, skew, rotate (degrees, counter-clockwise) and flip (mirror: horizontal, vertical or both) happen about a pivot: origin {x, y} if given, else pivot 'center' (the centre of those paths' combined bounds, the default) or 'baseline-center' (the point on the baseline below that centre). Then translate by dx, dy font units. Order: scale, skew, rotate, flip, translate. Every field except glyphId, expectedRevision and pathIndices is optional: null or absent scale = 1, skew/rotate = 0, flip = none, dx/dy = 0. skewX slants tops right. Flips keep contour direction correct. Read path indices and revision first. Positive y moves up. Advance width is unchanged. Inside a glyph job it edits the draft; otherwise it edits the bound glyph as one undo step. Refuses locked coordinates and Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN).",
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
 			pathIndices,
-			dx: coordinate,
-			dy: coordinate,
-			scaleX: nullable(scale),
-			scaleY: nullable(scale),
-			skewX: nullable(skew),
-			skewY: nullable(skew),
-			rotate: nullable({ type: 'number', minimum: -360, maximum: 360 }),
-			flip: nullable({ type: 'string', enum: ['horizontal', 'vertical', 'both'] }),
-			origin: { ...object({ x: coordinate, y: coordinate }), type: ['object', 'null'] },
+			...transformFields,
+		}),
+	},
+	{
+		name: 'copy_paths',
+		description:
+			"Inside a glyph job: copy contours from another glyph (sourceGlyphId; read only, never changed, its locks do not matter) and append them to the draft, optionally moved, scaled, rotated, skewed or mirrored on the way (same fields as transform_paths; the pivot is the copied paths' bounds). sourcePathIndices null = every contour of the source (at most 32). If the source glyph has an open job in this session, its draft is copied. Use it to carry a mark from one glyph to another (a slash, a serif, a dot) instead of retyping points, then cut or merge it into the letter with boolean_paths. The result lists the new path indices. Edits the draft only.",
+		inputSchema: object({
+			glyphId,
+			expectedRevision,
+			sourceGlyphId: glyphId,
+			sourcePathIndices: nullable(pathIndices),
+			...transformFields,
+		}),
+	},
+	{
+		name: 'boolean_paths',
+		description:
+			'Inside a glyph job: combine two sets of draft contours into clean closed cubic outlines that pass submit_glyph. union merges them, subtract cuts withPathIndices out of pathIndices, intersect keeps only the overlap, exclude keeps everything except the overlap (what an overlapping contour drawn in the opposite direction looks like). Self-crossing and wrongly wound input is resolved first, so a self-crossing slash cuts cleanly. withPathIndices null with union just untangles pathIndices (fixes SELF_INTERSECTION and winding). The results replace all listed contours, inserted at the lowest listed index; the result lists the new path indices. Use it after copy_paths to cut a mark into a letter, or to fix WINDING_SAME_AS_CONTAINER. Edits the draft only.',
+		inputSchema: object({
+			glyphId,
+			expectedRevision,
+			operation: { type: 'string', enum: BOOLEAN_OPERATIONS },
+			pathIndices,
+			withPathIndices: nullable(pathIndices),
 		}),
 	},
 	{
@@ -177,13 +210,13 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'begin_glyph',
 		description:
-			'Start a glyph job on an existing glyph in the set: a private draft copy you edit with replace_paths, delete_paths, add_paths, add_svg_path, transform_paths and set_spacing. The font does not change until submit_glyph. Calling it again on an open job starts over from the current glyph. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN) and glyphs with components or dependents.',
+			'Start a glyph job on an existing glyph in the set: a private draft copy you edit with replace_paths, delete_paths, add_paths, add_svg_path, copy_paths, boolean_paths, transform_paths and set_spacing. The font does not change until submit_glyph. Calling it again on an open job starts over from the current glyph. Refuses Yours or open glyphs (LOCKED_YOURS / LOCKED_OPEN) and glyphs with components or dependents.',
 		inputSchema: object({ glyphId, expectedRevision }),
 	},
 	{
 		name: 'submit_glyph',
 		description:
-			'Finish a glyph job. check_outlines runs on the draft; structural problems (too few points, duplicate points, self-intersections, specks, counters running the same way as their container) reject the submit with nothing written, and the job stays open so you can fix it. Extents past the ascender/descender come back as warnings. On success the whole job lands as one undo step named "Agent · <char>", the glyph is marked Draft, and note (null = none; say why it changed) goes in the mutation log. JOB_STALE means the glyph changed since the job began: begin again.',
+			'Finish a glyph job. check_outlines runs on the draft; new structural problems (too few points, duplicate points, self-intersections, specks, counters running the same way as their container) reject the submit with nothing written, and the job stays open so you can fix it; each issue carries a hint. Problems the glyph already had before the job (preExisting) and extents past the ascender/descender come back as warnings, never rejections. On success the whole job lands as one undo step named "Agent · <char>", the glyph is marked Draft, and note (optional; say why it changed) goes in the mutation log. JOB_STALE means the glyph changed since the job began: begin again.',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
@@ -210,7 +243,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'add_svg_path',
 		description:
-			'Inside a glyph job: append contours from SVG path data d (M, L, H, V, C, S, Q, T, A, Z; absolute or relative) in font units on the SVG y-down axis. y is flipped about baselineY (null = the ascender: SVG y 0 is the ascender line and SVG y = ascender is the baseline) and contour direction is fixed the way SVG paste fixes it. At most 16 contours. Edits the draft only; check the result with render_glyphs or check_outlines.',
+			'Inside a glyph job: append contours from SVG path data d (M, L, H, V, C, S, Q, T, A, Z; absolute or relative) in font units on the SVG y-down axis. y is flipped about baselineY (null or absent = the ascender: SVG y 0 is the ascender line and SVG y = ascender is the baseline) and contour direction is fixed the way SVG paste fixes it. At most 16 contours. Edits the draft only; check the result with render_glyphs or check_outlines.',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
@@ -225,7 +258,10 @@ export const TOOL_DEFINITIONS = [
 	},
 ];
 
-/** Validate the supported JSON Schema subset at both sides of the tool boundary. */
+/**
+ * Validate the supported JSON Schema subset at both sides of the tool boundary (the relay,
+ * the MCP endpoint and the tab). A nullable property may be absent: absent means null.
+ */
 export function validateToolInput(name, input) {
 	const definition = TOOL_DEFINITIONS.find((tool) => tool.name === name);
 	if (!definition) return { valid: false, error: `Unknown tool: ${name}` };
@@ -235,6 +271,49 @@ export function validateToolInput(name, input) {
 	} catch (error) {
 		return { valid: false, error: error.message };
 	}
+}
+
+const allowsNull = (schema) => Array.isArray(schema.type) && schema.type.includes('null');
+
+/**
+ * A copy of valid input with every absent nullable property set to null, at any depth, so
+ * executors see one shape. Input that is not a plain object is returned unchanged.
+ */
+export function normalizeToolInput(name, input) {
+	const definition = TOOL_DEFINITIONS.find((tool) => tool.name === name);
+	if (!definition) return input;
+	return fillNulls(definition.inputSchema, input);
+}
+
+function fillNulls(schema, value) {
+	if (Array.isArray(value) && schema.items)
+		return value.map((item) => fillNulls(schema.items, item));
+	if (!schema.properties || !value || typeof value !== 'object' || Array.isArray(value))
+		return value;
+	const result = { ...value };
+	for (const [key, child] of Object.entries(schema.properties)) {
+		if (!Object.hasOwn(result, key)) {
+			if (allowsNull(child)) result[key] = null;
+		} else result[key] = fillNulls(child, result[key]);
+	}
+	return result;
+}
+
+/**
+ * The schema an MCP client sees: nullable properties are not required (MCP has no strict
+ * mode), so a coding agent can leave them out. Never mutates the registry.
+ */
+export function optionalNullableSchema(schema) {
+	if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return schema;
+	const result = { ...schema };
+	if (schema.properties) {
+		result.properties = Object.fromEntries(
+			Object.entries(schema.properties).map(([key, child]) => [key, optionalNullableSchema(child)])
+		);
+		result.required = (schema.required || []).filter((key) => !allowsNull(schema.properties[key]));
+	}
+	if (schema.items) result.items = optionalNullableSchema(schema.items);
+	return result;
 }
 
 function checkSchema(schema, value, path) {
@@ -251,7 +330,11 @@ function checkSchema(schema, value, path) {
 			if (!Object.hasOwn(schema.properties, key)) fail(`unexpected property ${key}`);
 		}
 		for (const key of schema.required) {
-			if (!Object.hasOwn(value, key)) fail(`missing ${key}`);
+			if (!Object.hasOwn(value, key)) {
+				// Optional means optional: an absent nullable field is null.
+				if (allowsNull(schema.properties[key])) continue;
+				fail(`missing ${key}`);
+			}
 			checkSchema(schema.properties[key], value[key], `${path}.${key}`);
 		}
 	} else if (type === 'array') {

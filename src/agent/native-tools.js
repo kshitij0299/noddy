@@ -11,7 +11,7 @@ import {
 	latinKernelCoverage,
 	latinKernelEntry,
 } from '../project_editor/charset_latin_kernel.js';
-import { checkGlyphOutlines } from './outline-check.js';
+import { checkGlyphOutlines, markPreExisting } from './outline-check.js';
 import {
 	agentJobSignal,
 	assertAgentMayWrite,
@@ -26,8 +26,12 @@ import { fontMetrics, renderRow } from './render.js';
 import {
 	READ_ONLY_TOOLS,
 	RENDER_IMAGES_PER_REQUEST,
+	normalizeToolInput,
 	validateToolInput,
 } from './tool-definitions.js';
+
+// Tool calls per session. The local agent passes a larger limit (one session per MCP session).
+const SESSION_CALL_LIMIT = 64;
 
 let nextSession = 0;
 const activeTransactions = new WeakSet();
@@ -55,11 +59,14 @@ const JOB_TOOLS = [
 	'replace_paths',
 	'delete_paths',
 	'add_svg_path',
+	'copy_paths',
+	'boolean_paths',
 ];
 // Legacy write tools edit the job's draft when a job is open for their glyph.
 const DRAFT_TOOLS = ['set_spacing', 'transform_paths', 'add_paths'];
 const MAX_JOBS = 8;
-// check_outlines codes that make geometry invalid. Extents are warnings only.
+// check_outlines codes that make geometry invalid. Extents are warnings only, and so is any of
+// these that the glyph already had before the job (preExisting).
 const BLOCKING_ISSUES = [
 	'TOO_FEW_POINTS',
 	'DUPLICATE_POINTS',
@@ -88,6 +95,8 @@ export function createNativeToolSession({
 	makeCanvas,
 	jobScope,
 	grantOpen = true,
+	renderLimit = RENDER_IMAGES_PER_REQUEST,
+	callLimit = SESSION_CALL_LIMIT,
 } = {}) {
 	const editor = getEditor();
 	const project = editor?.project;
@@ -104,7 +113,9 @@ export function createNativeToolSession({
 	// later write of this session then fails (CANCELLED) at execution time.
 	const job = glyphId ? agentJobSignal(editor, glyphId) : undefined;
 	const boundJobSignal = job;
-	const renderBudget = { used: 0 };
+	const renderBudget = { used: 0, limit: renderLimit, external: !grantOpen };
+	// An external (local) agent has no Send button: its messages never say "Send".
+	const external = !grantOpen;
 	const sessionId = `agent-${++nextSession}`;
 	let revision = 0;
 	let lastState;
@@ -124,9 +135,20 @@ export function createNativeToolSession({
 	}
 
 	function assertActive() {
-		if (disposed) fail('SESSION_CLOSED', 'Send a new request to start a session.');
+		if (disposed)
+			fail(
+				'SESSION_CLOSED',
+				external
+					? 'This tool session ended. Call get_context to start a new one.'
+					: 'Send a new request to start a session.'
+			);
 		if (getEditor() !== editor || editor.project !== project) {
-			fail('PROJECT_CHANGED', 'The project changed. Send a new request for the current project.');
+			fail(
+				'PROJECT_CHANGED',
+				external
+					? 'The project changed. Call get_context and read the glyphs again.'
+					: 'The project changed. Send a new request for the current project.'
+			);
 		}
 	}
 
@@ -181,12 +203,42 @@ export function createNativeToolSession({
 		};
 	}
 
-	function execute(name, input, { callId, signal } = {}) {
+	/**
+	 * Runs one tool call. Returns the result, or a Promise of it for boolean_paths (its
+	 * geometry library loads on first use); callers await either.
+	 */
+	function execute(name, input, options = {}) {
+		if (name === 'boolean_paths') return executeBoolean(input, options);
+		return executeNow(name, input, options);
+	}
+
+	// The boolean runs on a snapshot of the draft before the synchronous tool path; the job
+	// tool then applies it only if the draft is still that snapshot.
+	async function executeBoolean(rawInput, options) {
+		let prepared;
+		try {
+			if (validateToolInput('boolean_paths', rawInput).valid) {
+				const input = normalizeToolInput('boolean_paths', rawInput);
+				const job = jobs.get(input.glyphId);
+				if (job) {
+					const candidate = job.candidate;
+					prepared = { candidate, contours: await computeBoolean(candidate, input) };
+				}
+			}
+		} catch (error) {
+			prepared = { candidate: jobs.get(rawInput?.glyphId)?.candidate, error };
+		}
+		return executeNow('boolean_paths', rawInput, { ...options, prepared });
+	}
+
+	function executeNow(name, rawInput, { callId, signal, prepared } = {}) {
 		try {
 			assertActive();
 			abortIfNeeded(signal);
-			const validation = validateToolInput(name, input);
+			const validation = validateToolInput(name, rawInput);
 			if (!validation.valid) fail('INVALID_ARGUMENTS', validation.error);
+			// Optional means optional: absent nullable fields become null.
+			const input = normalizeToolInput(name, rawInput);
 			const signature = JSON.stringify([name, input]);
 			if (callId !== undefined && (typeof callId !== 'string' || callId.length > 200)) {
 				fail('INVALID_CALL_ID', 'Call identity must be a short string.');
@@ -197,7 +249,7 @@ export function createNativeToolSession({
 					fail('CALL_ID_CONFLICT', 'A call ID was reused for a different request.');
 				return { ...copy(previous.result), duplicate: true };
 			}
-			if (completedCalls.size >= 64)
+			if (completedCalls.size >= callLimit)
 				fail('SESSION_LIMIT', 'This session reached its tool-call limit.');
 			const context = getContext();
 			let result;
@@ -206,30 +258,43 @@ export function createNativeToolSession({
 			} else if (name === 'read_glyphs') {
 				let remainingPoints = 512;
 				const glyphs = input.glyphIds.map((id) => {
-					const glyph = project.glyphs[id];
+					// A glyph with an open job in this session reads as its draft (#68).
+					const glyph = glyphFor(id);
 					if (!glyph) return { glyphId: id, exists: false };
 					const includePaths = input.includePaths && glyph.pointCount <= remainingPoints;
 					if (includePaths) remainingPoints -= glyph.pointCount;
-					return describeGlyph(glyph, includePaths, Math.floor(112000 / input.glyphIds.length));
+					return {
+						...describeGlyph(glyph, includePaths, Math.floor(112000 / input.glyphIds.length)),
+						source: jobs.has(id) ? 'draft' : 'font',
+					};
 				});
 				result = { ok: true, context, glyphs };
 			} else if (READ_ONLY_TOOLS.includes(name)) {
 				// The envelope's ok always wins: a payload field can never fail a step.
 				result = {
-					...readTool(name, input, { editor, project, makeCanvas, renderBudget }),
+					...readTool(name, input, {
+						editor,
+						project,
+						makeCanvas,
+						renderBudget,
+						glyphFor,
+						draftCheck,
+					}),
 					ok: true,
 				};
 			} else if (
 				JOB_TOOLS.includes(name) ||
 				(DRAFT_TOOLS.includes(name) && jobs.has(input.glyphId))
 			) {
-				result = runJobTool(name, input, context, signal);
+				result = runJobTool(name, input, context, signal, prepared);
 			} else {
 				assertInJobScope(input.glyphId);
 				if (!context.writable || input.glyphId !== glyphId) {
 					fail(
 						'OUT_OF_SCOPE',
-						'Edits are limited to the glyph selected when you sent this request. Select the intended character and send again.'
+						external
+							? 'Direct edits need the glyph selected in Noddy. Edit other glyphs through a glyph job: begin_glyph or create_glyph, then submit_glyph.'
+							: 'Edits are limited to the glyph selected when you sent this request. Select the intended character and send again.'
 					);
 				}
 				assertAgentMayWrite(editor, glyphId, { grant: requestGrant, job });
@@ -294,7 +359,34 @@ export function createNativeToolSession({
 	// Glyph jobs: a detached draft per glyph, one history entry per submit
 	// ----------------------------------------------------------
 
-	function runJobTool(name, input, context, signal) {
+	// The glyph tools read: the job's draft when this session has one open, else the font's.
+	function glyphFor(id) {
+		return jobs.get(id)?.candidate ?? project.glyphs[id] ?? null;
+	}
+
+	/**
+	 * The gate's view of a draft: every issue, marked preExisting when the glyph had it before
+	 * the job, and the issues that would reject submit_glyph.
+	 */
+	function draftCheck(id) {
+		const job = jobs.get(id);
+		if (!job) return null;
+		const metrics = fontMetrics(project);
+		const check = checkGlyphOutlines(job.candidate, metrics);
+		const base = job.create ? null : job.baseGlyph;
+		const issues = markPreExisting(
+			job.candidate,
+			check.issues,
+			base,
+			base ? checkGlyphOutlines(base, metrics).issues : []
+		);
+		const blocking = issues.filter(
+			(issue) => BLOCKING_ISSUES.includes(issue.code) && !issue.preExisting
+		);
+		return { check: { ...check, issues }, blocking };
+	}
+
+	function runJobTool(name, input, context, signal, prepared) {
 		if (input.expectedRevision !== context.revision) {
 			fail('STALE_REVISION', 'The font or selection changed. Read the glyph again before editing.');
 		}
@@ -312,11 +404,33 @@ export function createNativeToolSession({
 		if (name === 'submit_glyph') return submitJob(job, input, context, signal);
 		// Edit a copy so a failed command leaves the draft as it was.
 		const next = cloneGlyph(job.candidate);
-		applyDraftCommand(name, input, next, project);
+		const before = next.shapes.length;
+		let added;
+		if (name === 'copy_paths') {
+			if (input.sourceGlyphId === input.glyphId && !jobs.has(input.sourceGlyphId))
+				fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
+			assertInSet(project, [input.sourceGlyphId]);
+			added = copyPathsInto(next, glyphFor(input.sourceGlyphId), input);
+		} else if (name === 'boolean_paths') {
+			if (!prepared || prepared.candidate !== job.candidate)
+				fail('DRAFT_CHANGED', 'The draft changed while the boolean ran. Call boolean_paths again.');
+			if (prepared.error) throw prepared.error;
+			added = applyBoolean(next, input, prepared.contours);
+		} else applyDraftCommand(name, input, next, project);
 		assertGeometry(next);
 		abortIfNeeded(signal);
 		job.candidate = next;
-		return { ok: true, context, job: describeJob(job), glyph: describeGlyph(next, false) };
+		return {
+			ok: true,
+			context,
+			job: describeJob(job),
+			glyph: describeGlyph(next, false),
+			...(added
+				? { newPathIndices: added }
+				: name === 'add_paths' || name === 'add_svg_path'
+				? { newPathIndices: range(before, next.shapes.length) }
+				: {}),
+		};
 	}
 
 	// Read at execution time: a Take over or a newly opened glyph stops the job.
@@ -336,6 +450,8 @@ export function createNativeToolSession({
 			create,
 			candidate,
 			base: create ? null : JSON.stringify(project.glyphs[id].save()),
+			// The glyph as it was when the job began: the gate's reference for preExisting.
+			baseGlyph: create ? null : cloneGlyph(project.glyphs[id]),
 			// The bound glyph keeps the session's signal, so a Take over before
 			// begin_glyph still cancels; other glyphs get their current signal.
 			signal: id === glyphId ? boundJobSignal : agentJobSignal(editor, id),
@@ -396,13 +512,14 @@ export function createNativeToolSession({
 		if (current) assertNoDependents(project, current);
 		const candidate = job.candidate;
 		assertGeometry(candidate);
-		const check = checkGlyphOutlines(candidate, fontMetrics(project));
-		const blocking = check.issues.filter((issue) => BLOCKING_ISSUES.includes(issue.code));
-		const warnings = check.issues.filter((issue) => !BLOCKING_ISSUES.includes(issue.code));
+		// New structural problems reject; ones the glyph already had (the user's own outlines,
+		// e.g. a deliberately self-crossing slash) and extents are warnings.
+		const { check, blocking } = draftCheck(job.id);
+		const warnings = check.issues.filter((issue) => !blocking.includes(issue));
 		if (blocking.length) {
 			fail(
 				'INVALID_OUTLINES',
-				'The draft has outline problems, so nothing was written. Fix them and submit again.',
+				'The draft has new outline problems, so nothing was written. Each issue has a hint; fix them and submit again.',
 				{ issues: blocking.slice(0, 32) }
 			);
 		}
@@ -578,6 +695,10 @@ export function createNativeToolSession({
 		getContext,
 		execute,
 		undoLast,
+		/** Glyph IDs with an unsubmitted job (dropped by dispose). */
+		get openJobs() {
+			return [...jobs.keys()];
+		},
 		dispose: () => {
 			disposed = true;
 			completedCalls.clear();
@@ -630,15 +751,29 @@ function assertInSet(project, ids) {
 }
 
 function useRenderBudget(renderBudget) {
-	if (renderBudget.used >= RENDER_IMAGES_PER_REQUEST)
+	const limit = renderBudget.limit ?? RENDER_IMAGES_PER_REQUEST;
+	if (renderBudget.used >= limit)
 		fail(
 			'RENDER_LIMIT',
-			`This request already rendered ${RENDER_IMAGES_PER_REQUEST} images. Finish with what you have; the user can send a follow-up.`
+			renderBudget.external
+				? `This tool session already rendered ${limit} images.`
+				: `This request already rendered ${limit} images. Finish with what you have; the user can send a follow-up.`
 		);
 	renderBudget.used++;
 }
 
-function readTool(name, input, { editor, project, makeCanvas, renderBudget }) {
+function readTool(
+	name,
+	input,
+	{
+		editor,
+		project,
+		makeCanvas,
+		renderBudget,
+		glyphFor = (id) => project.glyphs[id] || null,
+		draftCheck = () => null,
+	}
+) {
 	if (name === 'get_font_spec') {
 		const font = project.settings.font;
 		return {
@@ -677,29 +812,37 @@ function readTool(name, input, { editor, project, makeCanvas, renderBudget }) {
 			}),
 		};
 	}
+	// Glyphs with an open job in this session are shown as their drafts (#68).
+	const draftsOf = (ids) => [...new Set(ids)].filter((id) => id && draftCheck(id));
 	if (name === 'render_glyphs') {
-		assertInSet(project, input.glyphIds);
-		const items = input.glyphIds.map((id) => ({ glyphId: id, glyph: project.glyphs[id] || null }));
-		useRenderBudget(renderBudget);
-		return renderRow({
+		assertInSet(
 			project,
-			items,
-			height: input.height ?? undefined,
-			guides: input.guides ?? true,
-			gap: Math.round(project.settings.font.upm * 0.1),
-			makeCanvas,
-		});
+			input.glyphIds.filter((id) => !draftCheck(id))
+		);
+		const items = input.glyphIds.map((id) => ({ glyphId: id, glyph: glyphFor(id) }));
+		useRenderBudget(renderBudget);
+		return {
+			...renderRow({
+				project,
+				items,
+				height: input.height ?? undefined,
+				guides: input.guides ?? true,
+				gap: Math.round(project.settings.font.upm * 0.1),
+				makeCanvas,
+			}),
+			drafts: draftsOf(input.glyphIds),
+		};
 	}
 	if (name === 'render_text') {
 		const ids = [...input.text].map((char) => codePointToGlyphID(char.codePointAt(0)));
 		// Like the specimen: characters outside the set render as ghost boxes
 		// and are listed, rather than failing the whole line.
 		const outside = [...input.text].filter(
-			(char, index) => !ids[index] || !isInSet(project, ids[index])
+			(char, index) => !ids[index] || (!isInSet(project, ids[index]) && !draftCheck(ids[index]))
 		);
 		const items = ids.map((id) => ({
 			glyphId: id || 'glyph-0x0',
-			glyph: (id && project.glyphs[id]) || null,
+			glyph: (id && glyphFor(id)) || null,
 		}));
 		useRenderBudget(renderBudget);
 		return {
@@ -712,9 +855,25 @@ function readTool(name, input, { editor, project, makeCanvas, renderBudget }) {
 				makeCanvas,
 			}),
 			outOfSet: [...new Set(outside)].slice(0, 32),
+			drafts: draftsOf(ids),
 		};
 	}
 	if (name === 'check_outlines') {
+		const draft = draftCheck(input.glyphId);
+		if (draft) {
+			const glyph = glyphFor(input.glyphId);
+			return {
+				glyphId: input.glyphId,
+				exists: true,
+				source: 'draft',
+				char: latinKernelEntry(input.glyphId)?.char ?? null,
+				componentCount: 0,
+				...draft.check,
+				pathCount: glyph.shapes.length,
+				// What submit_glyph would do now: only new structural problems reject.
+				submitWouldPass: draft.blocking.length === 0,
+			};
+		}
 		assertInSet(project, [input.glyphId]);
 		const glyph = project.glyphs[input.glyphId];
 		if (!glyph)
@@ -723,6 +882,7 @@ function readTool(name, input, { editor, project, makeCanvas, renderBudget }) {
 			glyphId: input.glyphId,
 			exists: true,
 			char: latinKernelEntry(input.glyphId)?.char ?? null,
+			source: 'font',
 			componentCount: glyph.shapes.filter((shape) => shape.objType !== 'Path').length,
 			...checkGlyphOutlines(glyph, fontMetrics(project)),
 		};
@@ -865,7 +1025,8 @@ function syncJobStatus(editor) {
  */
 export function commitReview(editor, { title, glyphs = {}, statuses = [] }) {
 	const project = editor?.project;
-	if (!project) return { ok: false, error: { code: 'NO_PROJECT', message: 'Open a project first.' } };
+	if (!project)
+		return { ok: false, error: { code: 'NO_PROJECT', message: 'Open a project first.' } };
 	if (activeTransactions.has(editor))
 		return {
 			ok: false,
@@ -943,7 +1104,10 @@ export function commitReview(editor, { title, glyphs = {}, statuses = [] }) {
 		for (const entry of detached) entry.itemState = project;
 		return {
 			ok: false,
-			error: { code: error.code || 'REVIEW_FAILED', message: error.message || 'The change failed.' },
+			error: {
+				code: error.code || 'REVIEW_FAILED',
+				message: error.message || 'The change failed.',
+			},
 		};
 	} finally {
 		activeTransactions.delete(editor);
@@ -1070,11 +1234,7 @@ function applyCommand(name, input, glyph) {
 			if (!shape) fail('MISSING_PATH', `Path ${index} no longer exists. Read the glyph again.`);
 			return shape;
 		});
-		applyLinearTransform(shapes, input);
-		for (const shape of shapes) {
-			assertMoveAllowed(shape, input.dx, input.dy);
-			shape.updateShapePosition(input.dx, input.dy);
-		}
+		applyTransform(shapes, input);
 	} else if (name === 'add_paths') {
 		for (const path of input.paths) glyph.addOneShape(contourShape(path));
 	} else fail('UNKNOWN_TOOL', 'This tool has no native implementation.');
@@ -1182,6 +1342,17 @@ function linearMatrix({ scaleX, scaleY, skewX, skewY, rotate, flip }) {
 	return multiply([fx, 0, 0, fy], m);
 }
 
+/** transform_paths / copy_paths: the linear part about the pivot, then the move. */
+function applyTransform(shapes, input) {
+	applyLinearTransform(shapes, input);
+	const dx = input.dx ?? 0;
+	const dy = input.dy ?? 0;
+	for (const shape of shapes) {
+		assertMoveAllowed(shape, dx, dy);
+		shape.updateShapePosition(dx, dy);
+	}
+}
+
 function applyLinearTransform(shapes, input) {
 	const m = linearMatrix(input);
 	if (m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1) return;
@@ -1195,7 +1366,8 @@ function applyLinearTransform(shapes, input) {
 		const xMax = Math.max(...bounds.map((b) => b.xMax));
 		const yMin = Math.min(...bounds.map((b) => b.yMin));
 		const yMax = Math.max(...bounds.map((b) => b.yMax));
-		origin = { x: (xMin + xMax) / 2, y: (yMin + yMax) / 2 };
+		// 'baseline-center' pivots on the baseline (y = 0) below the centre.
+		origin = { x: (xMin + xMax) / 2, y: input.pivot === 'baseline-center' ? 0 : (yMin + yMax) / 2 };
 	}
 	for (const shape of shapes) {
 		assertUnlocked(shape);
@@ -1212,6 +1384,109 @@ function applyLinearTransform(shapes, input) {
 		if (determinant < 0) shape.reverseWinding();
 		shape.changed();
 	}
+}
+
+const range = (start, end) => Array.from({ length: end - start }, (_, index) => start + index);
+const MAX_COPY_PATHS = 32;
+
+/**
+ * copy_paths: appends copies of the source's contours to the draft (locks cleared: the source
+ * is only read), transformed about the copies' own bounds. Returns the new path indices.
+ */
+function copyPathsInto(draft, source, input) {
+	if (!source) fail('GLYPH_MISSING', 'The source glyph has no outlines yet.');
+	const indices = input.sourcePathIndices ?? source.shapes.map((_, index) => index);
+	if (!indices.length) fail('MISSING_PATH', 'The source glyph has no paths to copy.');
+	if (indices.length > MAX_COPY_PATHS)
+		fail(
+			'GEOMETRY_LIMIT',
+			`Copy at most ${MAX_COPY_PATHS} paths per call; list sourcePathIndices in batches.`
+		);
+	const start = draft.shapes.length;
+	const copies = indices.map((index) => {
+		const shape = source.shapes[index];
+		if (!shape) fail('MISSING_PATH', `The source has no path ${index}. Read it again.`);
+		if (shape.objType !== 'Path')
+			fail('UNSUPPORTED_COMPONENT', 'Only ordinary paths can be copied, not component instances.');
+		const data = copy(shape.save());
+		for (const key of ['xLock', 'yLock', 'wLock', 'hLock']) delete data[key];
+		for (const point of data.pathPoints || []) {
+			for (const part of ['p', 'h1', 'h2']) {
+				if (point[part]) {
+					delete point[part].xLock;
+					delete point[part].yLock;
+				}
+			}
+		}
+		return draft.addOneShape(data);
+	});
+	applyTransform(copies, input);
+	return range(start, draft.shapes.length);
+}
+
+function booleanSides(glyph, input) {
+	const subject = input.pathIndices;
+	const clip = input.withPathIndices ?? [];
+	if (!clip.length && input.operation !== 'union')
+		fail(
+			'INVALID_ARGUMENTS',
+			`${input.operation} needs withPathIndices. Only union works on one set (it untangles it).`
+		);
+	if (subject.some((index) => clip.includes(index)))
+		fail('INVALID_ARGUMENTS', 'pathIndices and withPathIndices must not share a path.');
+	const shapes = (list) =>
+		list.map((index) => {
+			const shape = glyph.shapes[index];
+			if (!shape) fail('MISSING_PATH', `Path ${index} no longer exists. Read the glyph again.`);
+			assertUnlocked(shape);
+			if (shape.pathPoints.length < 2)
+				fail('TOO_FEW_POINTS', `Path ${index} has too few points to combine. Delete it first.`);
+			return shape;
+		});
+	return { subject: shapes(subject), clip: shapes(clip), indices: [...subject, ...clip] };
+}
+
+/** boolean_paths, the asynchronous half: paper.js runs on the draft as it is now. */
+async function computeBoolean(glyph, input) {
+	const { subject, clip } = booleanSides(glyph, input);
+	let booleanContours;
+	try {
+		({ booleanContours } = await import('./path-boolean.js'));
+	} catch {
+		fail('BOOLEAN_UNAVAILABLE', 'The boolean engine could not load. Try again.');
+	}
+	try {
+		return await booleanContours({ operation: input.operation, subject, clip });
+	} catch (error) {
+		if (error?.code) throw error;
+		fail('BOOLEAN_FAILED', 'These contours could not be combined. Check them with check_outlines.');
+	}
+}
+
+/**
+ * boolean_paths, the synchronous half: the result replaces every listed contour, inserted at
+ * the lowest listed index; outer contours run clockwise and counters the other way.
+ */
+function applyBoolean(glyph, input, contours) {
+	const { indices } = booleanSides(glyph, input);
+	const remove = new Set(indices);
+	const at = Math.min(...indices);
+	const before = glyph.shapes.filter((shape, index) => index < at && !remove.has(index));
+	const after = glyph.shapes.filter((shape, index) => index > at && !remove.has(index));
+	glyph._shapes = [];
+	const added = contours.map((contour, index) => {
+		const shape = glyph.addOneShape(
+			contourShape({ name: `${input.operation} ${index + 1}`, points: contour.points })
+		);
+		// Glyphr's findWinding: negative = clockwise (outer, y up).
+		const outer = contour.depth % 2 === 0;
+		const winding = shape.findWinding();
+		if ((outer && winding > 0) || (!outer && winding < 0)) shape.reverseWinding();
+		return shape;
+	});
+	glyph._shapes = [...before, ...added, ...after];
+	glyph.changed();
+	return range(before.length, before.length + added.length);
 }
 
 function glyphChar(id) {
