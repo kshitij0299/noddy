@@ -84,7 +84,11 @@ describe('local agent link', () => {
 		bridge.send('ready', { client: null });
 		bridge.send('call', { id: 'c1', session: 's1', name: 'get_context', input: {} });
 		await settle();
-		expect(createSession).toHaveBeenCalledWith({ grantOpen: false });
+		expect(createSession).toHaveBeenCalledWith({
+			grantOpen: false,
+			renderLimit: 32,
+			callLimit: 256,
+		});
 		expect(session.execute).toHaveBeenCalledWith(
 			'get_context',
 			{},
@@ -106,9 +110,12 @@ describe('local agent link', () => {
 
 	it('replaces a used-up session once and says so', async () => {
 		const bridge = fakeBridge();
-		const spent = sessionStub({
-			render_glyphs: { ok: false, error: { code: 'RENDER_LIMIT', message: 'limit' } },
-		});
+		const spent = {
+			...sessionStub({
+				render_glyphs: { ok: false, error: { code: 'RENDER_LIMIT', message: 'limit' } },
+			}),
+			openJobs: ['glyph-0x42'],
+		};
 		const fresh = sessionStub({ render_glyphs: { ok: true, width: 1 } });
 		const createSession = vi.fn().mockReturnValueOnce(spent).mockReturnValueOnce(fresh);
 		const link = createLocalAgentLink({ createSession, fetchImpl: bridge.fetch });
@@ -117,7 +124,15 @@ describe('local agent link', () => {
 		await settle();
 		expect(spent.dispose).toHaveBeenCalled();
 		const posted = bridge.posts.find((post) => post.body.type === 'result');
-		expect(posted.body.result).toEqual({ ok: true, width: 1, sessionRestarted: true });
+		expect(posted.body.result).toMatchObject({
+			ok: true,
+			width: 1,
+			sessionRestarted: true,
+			droppedDrafts: ['glyph-0x42'],
+		});
+		// Plainly: why, and that the draft is gone.
+		expect(posted.body.result.notice).toMatch(/new tool session because .*32 images/);
+		expect(posted.body.result.notice).toMatch(/drafts were dropped \(glyph-0x42\)/);
 		link.stop();
 	});
 
@@ -169,10 +184,12 @@ describe('agent panel: Local agent switch', () => {
 
 	beforeEach(() => {
 		document.body.innerHTML = '';
+		sessionStorage.clear();
 	});
 	afterEach(() => {
 		panel?.dispose();
 		document.body.innerHTML = '';
+		sessionStorage.clear();
 	});
 
 	it('shows no switch when the server does not offer Local agent', async () => {
@@ -251,5 +268,34 @@ describe('agent panel: Local agent switch', () => {
 		await settle();
 		expect(toggle().getAttribute('aria-pressed')).toBe('false');
 		expect(panel.thread.textContent).toContain('Local agent moved to another tab');
+	});
+
+	it('a reload keeps it on for this tab and re-attaches with the same token (bug 25)', async () => {
+		await mountPanel();
+		toggle().click();
+		await settle();
+		expect(sessionStorage.getItem('noddy.localAgent')).toBe('on');
+		// Reload: the stream closes, the panel is built again from scratch.
+		bridge.end();
+		await settle();
+		panel.dispose();
+		sessionStorage.setItem('noddy.localAgent', 'on'); // dispose is test teardown, not a reload
+		await mountPanel();
+		await settle();
+		expect(toggle().getAttribute('aria-pressed')).toBe('true');
+		expect(bridge.posts.filter((post) => post.body.type === 'enable')).toHaveLength(1);
+		const stream = bridge.fetch.mock.calls.find(([, init]) => init?.headers?.Accept);
+		expect(stream[1].headers.Authorization).toBe(`Bearer ${TOKEN}`);
+		expect(panel.thread.textContent).toContain('Local agent is still on after the reload');
+		expect(panel.thread.querySelector('.agent-local__command')).toBeNull();
+	});
+
+	it('Stop forgets it, so a reload leaves it off', async () => {
+		await mountPanel();
+		toggle().click();
+		await settle();
+		panel.composer.send.click();
+		await settle();
+		expect(sessionStorage.getItem('noddy.localAgent')).toBeNull();
 	});
 });

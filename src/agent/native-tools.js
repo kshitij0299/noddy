@@ -1307,7 +1307,7 @@ function applyDraftCommand(name, input, glyph, project) {
 		}
 		if (!imported?.shapes.length)
 			fail('INVALID_SVG', 'The SVG path data has no drawable contours.');
-		if (imported.shapes.length > 16) fail('GEOMETRY_LIMIT', 'Send at most 16 contours per call.');
+		if (imported.shapes.length > 16) fail('GEOMETRY_LIMIT', 'Use at most 16 contours per call.');
 		// SVG is y-down. Mirror about baselineY / 2 (y -> baselineY - y) and fix
 		// contour direction, exactly as SVG paste does (events_drag_drop_paste.js).
 		const baseline = input.baselineY ?? project.settings.font.ascent;
