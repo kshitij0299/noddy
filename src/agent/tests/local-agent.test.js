@@ -274,12 +274,14 @@ describe('agent panel: Local agent switch', () => {
 		await mountPanel();
 		toggle().click();
 		await settle();
-		expect(sessionStorage.getItem('noddy.localAgent')).toBe('on');
+		const kept = sessionStorage.getItem('noddy.localAgent');
+		expect(kept).toMatch(/^on:/);
+		expect(kept).not.toContain(TOKEN);
 		// Reload: the stream closes, the panel is built again from scratch.
 		bridge.end();
 		await settle();
 		panel.dispose();
-		sessionStorage.setItem('noddy.localAgent', 'on'); // dispose is test teardown, not a reload
+		sessionStorage.setItem('noddy.localAgent', kept); // dispose is test teardown, not a reload
 		await mountPanel();
 		await settle();
 		expect(toggle().getAttribute('aria-pressed')).toBe('true');
@@ -288,6 +290,14 @@ describe('agent panel: Local agent switch', () => {
 		expect(stream[1].headers.Authorization).toBe(`Bearer ${TOKEN}`);
 		expect(panel.thread.textContent).toContain('Local agent is still on after the reload');
 		expect(panel.thread.querySelector('.agent-local__command')).toBeNull();
+	});
+
+	it('after a dev server restart (new token) the reload shows the new command', async () => {
+		sessionStorage.setItem('noddy.localAgent', 'on:another-token-fingerprint');
+		await mountPanel();
+		await settle();
+		expect(toggle().getAttribute('aria-pressed')).toBe('true');
+		expect(panel.thread.querySelector('.agent-local__command').textContent).toContain(TOKEN);
 	});
 
 	it('Stop forgets it, so a reload leaves it off', async () => {

@@ -136,10 +136,10 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'read_glyphs',
 		description:
-			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. A glyph with an open job in this session is read from its draft (source: draft). Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
+			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths (optional; null or absent = false) returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. A glyph with an open job in this session is read from its draft (source: draft). Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
-			includePaths: { type: 'boolean' },
+			includePaths: nullable({ type: 'boolean' }),
 		}),
 	},
 	{

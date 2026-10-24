@@ -19,17 +19,32 @@ import './local-agent.css';
 // Per tab: sessionStorage survives a reload of this tab only.
 export const LOCAL_AGENT_STORAGE_KEY = 'noddy.localAgent';
 
+/**
+ * What is kept: 'on:<fingerprint>' of the command, never the token itself. A different
+ * fingerprint after a reload means the dev server restarted (new token): show the command.
+ * @param {String} command
+ */
+function fingerprint(command) {
+	let hash = 0;
+	for (const char of command) hash = (Math.imul(hash, 31) + char.codePointAt(0)) | 0;
+	return (hash >>> 0).toString(36);
+}
+
+/** @returns {String | null} the stored fingerprint, '' for an old plain 'on', null when off */
 function remembered() {
 	try {
-		return sessionStorage.getItem(LOCAL_AGENT_STORAGE_KEY) === 'on';
+		const value = sessionStorage.getItem(LOCAL_AGENT_STORAGE_KEY);
+		if (value === 'on') return '';
+		return value?.startsWith('on:') ? value.slice(3) : null;
 	} catch {
-		return false;
+		return null;
 	}
 }
 
-function remember(on) {
+/** @param {String | false} command - the command now on, or false: off */
+function remember(command) {
 	try {
-		if (on) sessionStorage.setItem(LOCAL_AGENT_STORAGE_KEY, 'on');
+		if (command) sessionStorage.setItem(LOCAL_AGENT_STORAGE_KEY, `on:${fingerprint(command)}`);
 		else sessionStorage.removeItem(LOCAL_AGENT_STORAGE_KEY);
 	} catch {
 		// Storage blocked: Local agent still works, it just does not survive a reload.
@@ -179,8 +194,10 @@ export function mountLocalAgent(panel) {
 		button.disabled = true;
 		try {
 			const { command } = await link.enable();
-			remember(true);
-			if (resumed) panel.addStep('info', 'Local agent is still on after the reload');
+			const before = remembered();
+			remember(command);
+			if (resumed && before === fingerprint(command))
+				panel.addStep('info', 'Local agent is still on after the reload');
 			else showCommand(command);
 		} catch (error) {
 			remember(false);
@@ -197,7 +214,7 @@ export function mountLocalAgent(panel) {
 		else link.stop();
 	});
 
-	if (remembered()) turnOn({ resumed: true });
+	if (remembered() !== null) turnOn({ resumed: true });
 
 	return {
 		button,

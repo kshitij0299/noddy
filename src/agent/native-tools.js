@@ -261,7 +261,7 @@ export function createNativeToolSession({
 					// A glyph with an open job in this session reads as its draft (#68).
 					const glyph = glyphFor(id);
 					if (!glyph) return { glyphId: id, exists: false };
-					const includePaths = input.includePaths && glyph.pointCount <= remainingPoints;
+					const includePaths = input.includePaths === true && glyph.pointCount <= remainingPoints;
 					if (includePaths) remainingPoints -= glyph.pointCount;
 					return {
 						...describeGlyph(glyph, includePaths, Math.floor(112000 / input.glyphIds.length)),

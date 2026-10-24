@@ -114,6 +114,7 @@ describe('optional means optional (bug 26)', () => {
 	it('runs tools in the tab with the optional fields left out', () => {
 		expect(session.execute('render_glyphs', { glyphIds: [A] }).ok).toBe(true);
 		expect(session.execute('get_mutation_log', {}).ok).toBe(true);
+		expect(session.execute('read_glyphs', { glyphIds: [A] }).glyphs[0].pathsIncluded).toBe(false);
 		expect(run('begin_glyph', { glyphId: B }).ok).toBe(true);
 		expect(run('transform_paths', { glyphId: B, pathIndices: [0], dx: 10 }).ok).toBe(true);
 		expect(glyph(B).shapes[0].maxes.xMin).toBe(50); // a draft: the font is unchanged
