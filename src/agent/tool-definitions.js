@@ -300,6 +300,58 @@ function fillNulls(schema, value) {
 }
 
 /**
+ * The built-in agent's one repair of a malformed call (the AI SDK's repairToolCall): a
+ * tool name in the wrong case or with dashes, input sent as a JSON string, numbers or
+ * booleans sent as strings, "null" strings, and unknown properties dropped. Deterministic and
+ * free (no second model call). Returns the repaired {name, input}, or null when it is still
+ * not valid; the caller then feeds the validation error back to the model.
+ * @param {String} name
+ * @param {unknown} input
+ * @returns {{name: String, input: Object} | null}
+ */
+export function repairToolCall(name, input) {
+	const wanted = String(name ?? '')
+		.trim()
+		.toLowerCase()
+		.replace(/[-\s]+/g, '_');
+	const definition = TOOL_DEFINITIONS.find((tool) => tool.name === wanted);
+	if (!definition) return null;
+	let value = input;
+	for (let depth = 0; typeof value === 'string' && depth < 2; depth++) {
+		try {
+			value = JSON.parse(value || '{}');
+		} catch {
+			return null;
+		}
+	}
+	const repaired = repairValue(definition.inputSchema, value);
+	return validateToolInput(definition.name, repaired).valid
+		? { name: definition.name, input: repaired }
+		: null;
+}
+
+function repairValue(schema, value) {
+	const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+	if (value === 'null' && types.includes('null')) return null;
+	if (value === undefined || value === null) return value;
+	if (types.includes('object') && value && typeof value === 'object' && !Array.isArray(value)) {
+		const result = {};
+		for (const [key, child] of Object.entries(schema.properties || {})) {
+			if (Object.hasOwn(value, key)) result[key] = repairValue(child, value[key]);
+		}
+		return result;
+	}
+	if (types.includes('array') && Array.isArray(value) && schema.items)
+		return value.map((item) => repairValue(schema.items, item));
+	if ((types.includes('number') || types.includes('integer')) && typeof value === 'string') {
+		const number = Number(value.trim());
+		return value.trim() && Number.isFinite(number) ? number : value;
+	}
+	if (types.includes('boolean') && (value === 'true' || value === 'false')) return value === 'true';
+	return value;
+}
+
+/**
  * The schema an MCP client sees: nullable properties are not required (MCP has no strict
  * mode), so a coding agent can leave them out. Never mutates the registry.
  */

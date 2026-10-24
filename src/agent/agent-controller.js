@@ -90,12 +90,34 @@ export async function requestAgentStep(payload, signal) {
 	return result;
 }
 
+// Tool calls per chat request (#73: 8 was too few for "do it for every glyph"). A run job
+// passes its own smaller limit per glyph.
+export const DEFAULT_TOOL_LIMIT = 40;
+// How often the model may send invalid input for the same tool in one request before the
+// run stops (bug 8): the first try plus two corrected retries.
+export const INVALID_CALL_RETRIES = 2;
+
+/**
+ * The tool result the model gets for a call the relay refused (invalid input, unknown tool,
+ * past the per-step cap): the tool, the reason and a hint, so it can fix the call.
+ */
+function rejectedOutput(call) {
+	return {
+		ok: false,
+		error: {
+			code: call.code || 'INVALID_ARGUMENTS',
+			message: `${call.toolName}: ${call.reason || 'invalid input'}`,
+			hint: call.hint || 'Fix the input and call the tool again.',
+		},
+	};
+}
+
 /** Provider credentials, conversation, and images exist in memory only. */
 export function createAgentController({
 	createSession,
 	transport = requestAgentStep,
 	onEvent = () => {},
-	maxTools = 8,
+	maxTools = DEFAULT_TOOL_LIMIT,
 	// Per model step, just above the relay's 5-minute limit: slow free models write long paths.
 	timeoutMs = 310_000,
 }) {
@@ -251,6 +273,7 @@ export function createAgentController({
 			];
 			send('start', { prompt: userText, attachments, context });
 			let calls = 0;
+			const invalidCounts = new Map();
 			let finalText = '';
 			let completed = false;
 			let changed = false;
@@ -258,7 +281,9 @@ export function createAgentController({
 			const submitted = [];
 			const usage = [];
 			try {
-				for (let step = 0; step <= toolLimit; step++) {
+				// Steps: one per call at most, plus room for corrected retries.
+				const stepLimit = toolLimit + 2 * INVALID_CALL_RETRIES + 1;
+				for (let step = 0; step < stepLimit; step++) {
 					abort.signal.throwIfAborted();
 					clearTimeout(timer);
 					timer = setTimeout(() => abort.abort('timeout'), timeoutMs);
@@ -276,17 +301,53 @@ export function createAgentController({
 						);
 					if (result.finishReason === 'content-filter')
 						throw new Error('The provider filtered this response. No further edits were made.');
-					if (!result.toolCalls.length) {
+					const rejected = Array.isArray(result.rejectedCalls) ? result.rejectedCalls : [];
+					if (!result.toolCalls.length && !rejected.length) {
 						completed = true;
 						break;
 					}
-					if (calls + result.toolCalls.length > toolLimit)
-						throw new Error(
-							'This request reached its tool limit. Completed edits are kept; send a follow-up to continue.'
-						);
-					const outputs = [];
+					// Invalid calls go back to the model as tool errors; the run stops only when
+					// the same tool keeps failing (bug 8).
+					let giveUp = null;
+					for (const call of rejected) {
+						send('tool', { name: call.toolName, state: 'error', result: rejectedOutput(call) });
+						if (call.code === 'STEP_CALL_LIMIT') continue;
+						const count = (invalidCounts.get(call.toolName) || 0) + 1;
+						invalidCounts.set(call.toolName, count);
+						if (count > INVALID_CALL_RETRIES && !giveUp) giveUp = call;
+					}
+					const outputs = rejected
+						.filter((call) => call.inHistory !== false)
+						.map((call) => ({
+							type: 'tool-result',
+							toolCallId: call.toolCallId,
+							toolName: call.toolName,
+							output: { type: 'json', value: rejectedOutput(call) },
+						}));
+					const unknown = rejected.filter((call) => call.inHistory === false);
+					let limitReached = false;
 					for (const call of result.toolCalls) {
 						abort.signal.throwIfAborted();
+						if (giveUp || calls >= toolLimit) {
+							// Not run: answer it so the conversation stays well formed.
+							limitReached = limitReached || !giveUp;
+							outputs.push({
+								type: 'tool-result',
+								toolCallId: call.toolCallId,
+								toolName: call.toolName,
+								output: {
+									type: 'json',
+									value: {
+										ok: false,
+										error: {
+											code: giveUp ? 'NOT_RUN' : 'TOOL_LIMIT',
+											message: 'Not run: this request stopped first.',
+										},
+									},
+								},
+							});
+							continue;
+						}
 						calls++;
 						send('tool', { name: call.toolName, state: 'running' });
 						const value = await session.execute(call.toolName, call.input, {
@@ -316,10 +377,28 @@ export function createAgentController({
 							output: toolOutput(value),
 						});
 					}
-					messages.push({ role: 'tool', content: outputs });
+					if (outputs.length) messages.push({ role: 'tool', content: outputs });
+					if (unknown.length)
+						messages.push({
+							role: 'user',
+							content: unknown
+								.map((call) => `Tool error: ${rejectedOutput(call).error.message}. ${call.hint}`)
+								.join('\n'),
+						});
+					if (giveUp)
+						throw agentError(
+							`The model kept sending invalid input for ${giveUp.toolName}: ${giveUp.reason} Completed edits are kept; try again or pick another model.`,
+							'INVALID_TOOL_CALL'
+						);
+					if (limitReached)
+						throw new Error(
+							`This request reached its tool limit (${toolLimit} tool calls). Completed edits are kept; send a follow-up to continue.`
+						);
 				}
 				if (!completed)
-					throw new Error('This request reached its step limit. Send a follow-up to continue.');
+					throw new Error(
+						`This request reached its step limit (${stepLimit} model steps). Send a follow-up to continue.`
+					);
 				if (!finalText) {
 					finalText = changed
 						? 'The tool edits were applied. The model returned no explanation.'

@@ -353,3 +353,106 @@ describe('agent runner', () => {
 		expect(controller.undo().ok).toBe(false);
 	});
 });
+
+// PR A: the built-in agent recovers from invalid tool calls (bug 8) and the cap (#73).
+const invalid = (id = 'bad-1', toolName = 'render_glyphs', code = 'INVALID_ARGUMENTS') => ({
+	text: '',
+	messages: [
+		{
+			role: 'assistant',
+			content: [{ type: 'tool-call', toolCallId: id, toolName, input: {} }],
+		},
+	],
+	toolCalls: [],
+	rejectedCalls: [
+		{
+			toolCallId: id,
+			toolName,
+			code,
+			reason: 'input: missing glyphIds',
+			hint: 'Fix the input and call the tool again.',
+			inHistory: code !== 'UNKNOWN_TOOL',
+		},
+	],
+});
+
+describe('agent runner recovery', () => {
+	it('feeds an invalid call back to the model as a tool error and keeps going', async () => {
+		const transport = vi
+			.fn()
+			.mockResolvedValueOnce(invalid())
+			.mockResolvedValueOnce(tool('call-2'))
+			.mockResolvedValueOnce(reply('Fixed it.'));
+		const { controller, session, events } = setup(transport);
+		await controller.run('Render A');
+		expect(events.some((event) => event.type === 'error')).toBe(false);
+		expect(session.execute).toHaveBeenCalledTimes(1);
+		// The same array grows during the run: find the feedback by its call.
+		const second = transport.mock.calls[1][0].messages;
+		const feedback = second.find(
+			(message) => message.role === 'tool' && message.content[0].toolCallId === 'bad-1'
+		);
+		expect(feedback.content[0]).toMatchObject({ toolCallId: 'bad-1', toolName: 'render_glyphs' });
+		expect(feedback.content[0].output.value.error).toMatchObject({
+			code: 'INVALID_ARGUMENTS',
+			message: 'render_glyphs: input: missing glyphIds',
+		});
+		expect(feedback.content[0].output.value.error.hint).toMatch(/Fix the input/);
+		expect(events.find((event) => event.type === 'tool' && event.state === 'error').name).toBe(
+			'render_glyphs'
+		);
+	});
+
+	it('tells the model about a tool that does not exist in a note, not a dangling result', async () => {
+		const transport = vi
+			.fn()
+			.mockResolvedValueOnce({ ...invalid('x', 'eval', 'UNKNOWN_TOOL'), messages: [] })
+			.mockResolvedValueOnce(reply('OK.'));
+		const { controller } = setup(transport);
+		await controller.run('Do it');
+		const sent = transport.mock.calls[1][0].messages;
+		const note = sent.find(
+			(message) => message.role === 'user' && String(message.content).startsWith('Tool error')
+		);
+		expect(note.content).toMatch(/Tool error: eval/);
+		expect(sent.some((message) => message.role === 'tool')).toBe(false);
+	});
+
+	it('stops after two corrected retries of the same tool and names the tool and reason', async () => {
+		const transport = vi.fn().mockImplementation(async () => invalid(`bad-${Math.random()}`));
+		const { controller, events } = setup(transport);
+		await controller.run('Render A');
+		expect(transport).toHaveBeenCalledTimes(3);
+		const error = events.find((event) => event.type === 'error');
+		expect(error.code).toBe('INVALID_TOOL_CALL');
+		expect(error.message).toMatch(/render_glyphs: input: missing glyphIds/);
+	});
+
+	it('runs what fits under the tool limit, answers the rest, and says the limit', async () => {
+		const many = {
+			...tool('call-1'),
+			toolCalls: ['a', 'b', 'c'].map((id) => ({
+				toolCallId: id,
+				toolName: 'set_spacing',
+				input: {},
+			})),
+		};
+		const transport = vi.fn().mockResolvedValue(many);
+		const { controller, session, events } = setup(transport, { maxTools: 2 });
+		await controller.run('All glyphs');
+		expect(session.execute).toHaveBeenCalledTimes(2);
+		expect(events.find((event) => event.type === 'error').message).toMatch(
+			/tool limit \(2 tool calls\)/
+		);
+	});
+
+	it('allows 40 tool calls per chat request by default', async () => {
+		const transport = vi.fn();
+		for (let i = 0; i < 12; i++) transport.mockResolvedValueOnce(tool(`call-${i}`));
+		transport.mockResolvedValueOnce(reply('Done with 12 glyphs.'));
+		const { controller, session, events } = setup(transport);
+		await controller.run('Do it for every glyph');
+		expect(session.execute).toHaveBeenCalledTimes(12);
+		expect(events.some((event) => event.type === 'error')).toBe(false);
+	});
+});

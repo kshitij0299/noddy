@@ -18,6 +18,8 @@ const EXPECTED_TOOLS = [
 	'read_glyphs',
 	'set_spacing',
 	'transform_paths',
+	'copy_paths',
+	'boolean_paths',
 	'add_paths',
 	'create_glyph',
 	'begin_glyph',
@@ -102,7 +104,12 @@ test('relay validator accepts nulls for optional read-tool arguments and rejects
 	ok('get_set_status', { group: null });
 	ok('get_set_status', { group: 'lowercase' });
 	bad('get_set_status', { group: 'emoji' });
-	bad('get_set_status', {});
+	// Optional means optional (bug 26): an absent nullable field is null.
+	ok('get_set_status', {});
+	ok('render_glyphs', { glyphIds: ['glyph-0x6E'] });
+	ok('submit_glyph', { glyphId: 'glyph-0x6E', expectedRevision: 'r1' });
+	bad('render_glyphs', { height: null });
+	bad('submit_glyph', { glyphId: 'glyph-0x6E' });
 	ok('render_glyphs', { glyphIds: ['glyph-0x6E'], height: null, guides: null });
 	ok('render_glyphs', { glyphIds: ['glyph-0x6E', 'glyph-0x6F'], height: 1024, guides: false });
 	bad('render_glyphs', { glyphIds: ['glyph-0x6E'], height: 2048, guides: null });
