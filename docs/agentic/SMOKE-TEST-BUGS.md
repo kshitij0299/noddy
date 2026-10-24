@@ -120,3 +120,23 @@ Status: open unless marked. Existing issues are linked where they match.
 
 - Font loaded: DotGothic16 Regular, from `github.com/google/fonts` (OFL), 116/116 characters.
 - Models probed with one "Reply with OK." check each through `/api/agent/step`.
+
+## Local agent (Claude Code over MCP), first live run (2026-10-24)
+
+It worked: Claude connected over MCP, read A, drafted B with A's slash and submitted it as a
+Draft. Found on the way:
+
+25. **A page reload switches the local agent off without saying so.** The connect command still
+    shows the same token, but the agent's calls fail until the user clicks the switch again.
+26. **Optional tool fields are required.** `render_glyphs` without `height` and `guides` fails with
+    "missing height"; agents must send `null`. Make optional fields truly optional.
+27. **The outline gate's errors don't say how to fix them.** `WINDING_SAME_AS_CONTAINER` should say
+    "reverse this contour's point order to cut out, or keep it outside the letter". The user's own
+    A (a self-crossing slash) would also be rejected (bug 22); the agent had to split it into two
+    triangles and reverse one.
+28. ~~"Save project file" does nothing in the built-in browser~~ Not a bug: the Claude app shows a
+    save prompt that the owner hadn't answered. Minor: the "Saved Noddy Project File" toast appears
+    before the user has actually saved.
+29. **Run log (C–F):** with the split slash (upper as drawn, lower reversed), C, D, E and F each
+    passed the gate first try in one MCP session: 14 tool calls for 4 glyphs. The workaround is
+    reusable, but an agent only finds it after reading the gate's codes (bug 27).
