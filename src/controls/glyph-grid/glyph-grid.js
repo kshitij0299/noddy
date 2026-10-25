@@ -14,6 +14,7 @@ import {
 	revertGlyph,
 } from '../../agent/run/review.js';
 import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
+import { getPicks, onControlsChange, setPicks, togglePick } from '../../agent/agent-controls.js';
 import './glyph-grid.css';
 import { GlyphGridTile } from './glyph-tile.js';
 import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
@@ -33,7 +34,9 @@ import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
  *
  * Keyboard (roving tabindex, listbox semantics): arrows move the selection
  * in reading order and wrap at row ends, Home / End jump, Enter / Space opens
- * the glyph through `openGlyph(id)`. Key events handled here never reach the
+ * the glyph through `openGlyph(id)`. Picking for the agent's Target (PR B): Cmd/Ctrl-click
+ * or Shift+Enter / Shift+Space toggles one glyph, Shift-click adds the range from the last
+ * pick; a plain click opens the glyph and clears the picks. Key events handled here never reach the
  * document-level canvas shortcuts (ARCHITECTURE.md §4 "Keyboard").
  */
 
@@ -117,12 +120,47 @@ export class GlyphGrid extends HTMLElement {
 			this._built = true;
 		}
 		this._subscribe();
+		this._offPicks?.();
+		this._offPicks = onControlsChange((event) => {
+			if (event.detail?.reason === 'picks') this._applyPicks();
+		});
 		this.refreshAll();
+		this._applyPicks();
 	}
 
 	disconnectedCallback() {
 		this._unsubscribe();
+		this._offPicks?.();
+		this._offPicks = null;
 		this._redraw.cancel();
+	}
+
+	/** Paints the agent Target picks on the tiles. */
+	_applyPicks() {
+		const picks = new Set(getPicks());
+		this.tiles.forEach((tile, id) => (tile.picked = picks.has(id)));
+	}
+
+	/**
+	 * Toggles a pick (Cmd/Ctrl) or adds the range from the last pick (Shift).
+	 * @param {String} id
+	 * @param {Boolean} range
+	 */
+	pick(id, range = false) {
+		const picks = getPicks();
+		const anchor = picks.at(-1);
+		if (range && anchor && anchor !== id) {
+			const ids = this.visibleIDs;
+			const from = ids.indexOf(anchor);
+			const to = ids.indexOf(id);
+			if (from >= 0 && to >= 0) {
+				const span = ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+				// The clicked end goes last, so the next Shift-click ranges from it.
+				setPicks([...picks, ...span.filter((item) => item !== id), id]);
+				return;
+			}
+		}
+		togglePick(id);
 	}
 
 	_build() {
@@ -415,6 +453,11 @@ export class GlyphGrid extends HTMLElement {
 			return;
 		}
 		this.select(tile.glyphID, { focus: true });
+		if (event.metaKey || event.ctrlKey || event.shiftKey) {
+			this.pick(tile.glyphID, event.shiftKey && !event.metaKey && !event.ctrlKey);
+			return;
+		}
+		setPicks([]);
 		this.openGlyph(tile.glyphID);
 	}
 
@@ -481,6 +524,10 @@ export class GlyphGrid extends HTMLElement {
 			case 'Enter':
 			case ' ':
 				event.preventDefault();
+				if (event.shiftKey) {
+					this.pick(tiles[index].glyphID);
+					return;
+				}
 				this.openGlyph(tiles[index].glyphID);
 				return;
 			default:

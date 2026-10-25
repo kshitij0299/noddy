@@ -6,6 +6,7 @@ import { Glyph } from '../../project_data/glyph.js';
 import { GlyphrStudioProject } from '../../project_data/glyphr_studio_project.js';
 import { latinKernelAll } from '../../project_editor/charset_latin_kernel.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
+import { getPicks, resetAgentControlsForTests } from '../../agent/agent-controls.js';
 import { GlyphGrid, openGlyph } from './glyph-grid.js';
 import { FAILED_TOOLTIP, GlyphGridTile, tileLabelFor } from './glyph-tile.js';
 import { STATUS_LABELS, STATUS_SHAPES, makeStatusMark } from './status-mark.js';
@@ -62,6 +63,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	resetAgentControlsForTests();
 	grid.remove();
 	vi.restoreAllMocks();
 	getGlyphrStudioApp().projectEditors = [];
@@ -422,5 +424,47 @@ describe('GlyphGrid: review actions on tiles (M7 #29)', () => {
 		document.removeEventListener('noddy-retry-glyphs', seen);
 		expect(seen).toHaveBeenCalledTimes(1);
 		expect(seen.mock.calls[0][0].detail).toEqual({ ids: [a] });
+	});
+});
+
+describe('GlyphGrid: picks for the agent Target (PR B)', () => {
+	const click = (id, init) =>
+		grid.tiles.get(id).dispatchEvent(new MouseEvent('click', { bubbles: true, ...init }));
+
+	it('Cmd/Ctrl-click toggles a pick without opening; a plain click opens and clears picks', () => {
+		grid.openGlyph = vi.fn();
+		click(A, { metaKey: true });
+		click(N, { ctrlKey: true });
+		expect(getPicks()).toEqual([A, N]);
+		expect(grid.openGlyph).not.toHaveBeenCalled();
+		expect(grid.tiles.get(A).hasAttribute('data-picked')).toBe(true);
+		expect(grid.tiles.get(A).getAttribute('aria-label')).toMatch(/· Picked$/);
+		click(A, { metaKey: true });
+		expect(getPicks()).toEqual([N]);
+		expect(grid.tiles.get(A).hasAttribute('data-picked')).toBe(false);
+		click(a);
+		expect(getPicks()).toEqual([]);
+		expect(grid.openGlyph).toHaveBeenCalledWith(a);
+	});
+
+	it('Shift-click adds the range from the last pick, in reading order', () => {
+		grid.openGlyph = vi.fn();
+		const ids = grid.visibleIDs;
+		click(ids[2], { metaKey: true });
+		click(ids[5], { shiftKey: true });
+		expect(getPicks()).toEqual(ids.slice(2, 6));
+		expect(grid.openGlyph).not.toHaveBeenCalled();
+	});
+
+	it('Shift+Enter and Shift+Space pick from the keyboard; Enter still opens', () => {
+		grid.openGlyph = vi.fn();
+		grid.select(a, { focus: true });
+		key(grid.tiles.get(a), 'Enter', { shiftKey: true });
+		expect(getPicks()).toEqual([a]);
+		key(grid.tiles.get(a), ' ', { shiftKey: true });
+		expect(getPicks()).toEqual([]);
+		expect(grid.openGlyph).not.toHaveBeenCalled();
+		key(grid.tiles.get(a), 'Enter');
+		expect(grid.openGlyph).toHaveBeenCalledWith(a);
 	});
 });

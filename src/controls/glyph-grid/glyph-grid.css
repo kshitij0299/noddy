@@ -336,3 +336,30 @@ glyph-grid-tile[data-status='empty'] .glyph-grid-tile__mark {
 .glyph-status-mark[data-status='failed'] {
 	color: var(--color-status-failed);
 }
+
+/* Picked for the agent's Target (PR B): a check badge plus an accent ring, never colour
+   alone. The ring sits inside the tile, like the selected one. */
+.glyph-grid-tile__pick {
+	position: absolute;
+	top: var(--space-1);
+	left: var(--space-1);
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+	font-size: 14px;
+	pointer-events: none;
+}
+
+glyph-grid-tile[data-picked] .glyph-grid-tile__pick {
+	display: inline-flex;
+}
+
+glyph-grid-tile[data-picked],
+glyph-grid-tile[data-picked][aria-selected='true'] {
+	box-shadow: inset 0 0 0 2px var(--color-border-accent);
+}
