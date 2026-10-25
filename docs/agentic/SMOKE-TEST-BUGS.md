@@ -141,3 +141,8 @@ Draft. Found on the way:
 29. **Run log (C–F):** with the split slash (upper as drawn, lower reversed), C, D, E and F each
     passed the gate first try in one MCP session: 14 tool calls for 4 glyphs. The workaround is
     reusable, but an agent only finds it after reading the gate's codes (bug 27).
+30. **With "Claude Code · connected", the panel's chat box still goes to the built-in model**
+    (or nowhere), so the owner can't talk to Claude from inside Noddy. Wanted (PR B): when a local
+    agent is connected, the composer routes messages to it; add an MCP tool like
+    `wait_for_user_message` (long-poll) that returns what the user typed in the panel, and show the
+    agent's replies in the thread.

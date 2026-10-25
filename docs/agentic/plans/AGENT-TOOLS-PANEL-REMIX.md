@@ -4,6 +4,22 @@ Owner-approved direction (2026-10-24). Three PRs, run one at a time (WORKFLOW.md
 discipline). Sources: `SMOKE-TEST-BUGS.md` (bugs 1–29), `research/remix-mode.md`, and the first live
 Claude-over-MCP run (A's slash copied to B–F).
 
+## Owner decision (2026-10-24): the panel gets two tabs
+
+The agent panel stops being only an agent window. It gets **two tabs**:
+
+1. **Agent**: the chat (built-in model or a connected local agent), with the composer controls in
+   PR B.
+2. **Chaos tools**: algorithmic effects that run directly, no AI needed: pick a tool (slash cut,
+   glitch bands, warp, drips, grid snap, Pixel Life, shatter…; see `research/remix-mode.md`), set
+   its knobs (chaos, seed, angle…), apply to the target glyphs, re-roll. Each tool is tuned to
+   Noddy's use case (outlines stay valid, letters stay readable, results land as Drafts with one
+   undo). The agent can call the same tools, so Remix mode and the Chaos tab share one engine.
+
+**Own PR (owner, 2026-10-24):** the Chaos tools tab is a separate PR (PR C below). PR B only adds the
+tab shell (Agent | Chaos) so PR C can drop in. Order: A tools fix → B panel controls → C Chaos
+tools tab → D Remix mode.
+
 ## PR A: agent tools fix (tier 3: agent tools + relay)
 
 Goal: a strong agent (Claude over MCP) and a weak one (free OpenRouter model) can both make real
@@ -41,6 +57,8 @@ Every control earns its place; no new screens; no full-width slabs (owner's UI r
   (bugs 1, 14). Shows "Claude Code · connected" when the local agent is on.
 - **Mode chip:** Exact / Remix / Wild. A small chaos dial appears only in Remix/Wild.
 - **Target chip:** this glyph / selected glyphs / whole set, set from the grid selection.
+- **Talk to the local agent from the panel** (bug 30): when Claude Code is connected, the composer
+  sends to it (MCP `wait_for_user_message` long-poll + a reply tool), replies appear in the thread.
 - **New chat** in the panel header (bug 20), next to the Local agent switch.
 - **Per-glyph results** in the thread with Keep / Re-roll / Undo on each.
 - Empty state on a loaded font suggests edits, not "What are we drawing?" (bug 16).
@@ -48,7 +66,18 @@ Every control earns its place; no new screens; no full-width slabs (owner's UI r
   Claude Code behaves the same.
 - Browser check at 1440 and 1024, keyboard and focus, screenshots in the PR.
 
-## PR C: Remix mode v1 (tier 2)
+## PR C: Chaos tools tab (tier 2/3)
+
+- The second tab of the panel: a list of algorithmic tools, each with a few knobs (chaos 0–100,
+  seed, plus its own e.g. angle/width/count), a live preview on the target glyphs, Apply (Drafts,
+  one undo) and Re-roll.
+- First tools, picked from `research/remix-mode.md` for cheap + strong: slash cut, glitch bands,
+  warp (arc / bulge / wave / twist), grid snap, Pixel Life (dot fonts). Each is a seedable op on
+  outlines using PR A's engine, tuned so outlines stay valid and letters stay readable
+  (legibility guard).
+- The same ops are exposed as agent tools, so Remix mode (PR D) and the Chaos tab share one engine.
+
+## PR D: Remix mode v1 (tier 2)
 
 From `research/remix-mode.md`, cheapest and most "cracked" first:
 
