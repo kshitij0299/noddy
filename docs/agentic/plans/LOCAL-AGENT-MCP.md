@@ -68,6 +68,26 @@ restart the panel shows the new command. After Stop or closing the tab the chip 
 until the coding agent calls again. Other clients
 (Codex, Cursor, OpenCode) use the same URL and `Authorization` header in their MCP config.
 
+## Talk to it from the panel (PR B, bug 30)
+
+While Local agent is on, the composer sends to the coding agent instead of the built-in model.
+Tell Claude Code once, for example: "Use the noddy tools: call wait_for_user_message, do what
+I ask with the Noddy tools, answer with reply_to_user, and loop." Then type in the panel:
+
+- `wait_for_user_message` (MCP only) long-polls up to `timeoutSeconds` (default 45, at most 60)
+  and returns `{message: {id, text, attachments: [{name, kind, size}], target: {scope, glyphIds},
+  mode, chaos}}`, or `{message: null, timedOut: true}` (call it again). Messages typed while the
+  agent is busy wait in a queue (20 at most) and come one per call, in order.
+- `reply_to_user {text}` shows the text in the thread as the agent's message.
+- The thread says "Queued for Claude Code" (it is not listening yet) or "Sent", then "Claude Code
+  read it" and "Claude Code is working…" until it replies or waits again. While it works, Send
+  is Stop, which turns Local agent off (pending calls and a waiting call fail with
+  LOCAL_AGENT_OFF, the queue is dropped).
+- Same rules as the other bridge routes: the panel's POST carries the token and the page's
+  Origin, loopback only; without a tab connected both tools return NO_TAB.
+- `get_context` reports the panel's `mode`, `chaos` and `target` too. Attachments are metadata
+  only (the files stay in the tab).
+
 ## Out of scope (next PRs)
 
 - Better tools (copy shape from another glyph, move/mirror/scale, primitives), error feedback and
