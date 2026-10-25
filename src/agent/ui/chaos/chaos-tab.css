@@ -1,0 +1,437 @@
+/* --------------------------------------------------------------
+	Chaos tab (PR C): tool row, preview strip, knobs, results, footer.
+	Tokens only (src/common/colors.css). Type via the .text-* roles.
+	Every button state is pinned at 0,2,1 or more so the legacy global
+	`button:hover/focus/[disabled]` rules (resets.css) only change paint.
+-------------------------------------------------------------- */
+
+.chaos-tab {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* ---- Tool row: compact pills that wrap ---- */
+.chaos-tab__tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-1);
+}
+
+button.chaos-tab__pick,
+button.chaos-tab__pick:hover,
+button.chaos-tab__pick:focus,
+button.chaos-tab__pick:active {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	box-sizing: border-box;
+	height: 32px;
+	min-height: 0;
+	margin: 0;
+	padding: 0 var(--space-3) 0 var(--space-2);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.chaos-tab__pick:hover {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+button.chaos-tab__pick[aria-checked='true'],
+button.chaos-tab__pick[aria-checked='true']:hover {
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+button.chaos-tab__pick:focus {
+	outline: none;
+}
+
+button.chaos-tab__pick:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.chaos-tab__pick-icon {
+	font-size: 18px;
+}
+
+/* ---- The chosen tool: scrolling content, fixed footer ---- */
+.chaos-tab__tool {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	position: relative;
+}
+
+.chaos-tool__scroll {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	/* Room for focus rings at the edges of the scroller. */
+	padding: 2px;
+	margin: -2px;
+}
+
+.chaos-tool__hint {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+/* ---- Preview strip: the font is the hero ---- */
+.chaos-preview {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-3);
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-subtle);
+}
+
+.chaos-preview__strip {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2) var(--space-3);
+	min-height: 120px;
+	align-items: flex-end;
+}
+
+.chaos-preview__cell {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	margin: 0;
+	color: var(--color-glyph-ink);
+	transition: opacity 120ms ease;
+}
+
+.chaos-preview__cell[data-state='working'] {
+	opacity: 0.35;
+}
+
+.chaos-preview__cell[data-state='failed'] {
+	color: var(--color-status-failed);
+	opacity: 0.6;
+}
+
+.chaos-preview__char {
+	color: var(--color-text-secondary);
+}
+
+.chaos-preview__cell[data-state='failed'] .chaos-preview__char {
+	color: var(--color-status-failed);
+}
+
+.chaos-preview__note {
+	margin: 0;
+	min-height: 1.5em;
+	color: var(--color-text-secondary);
+}
+
+.chaos-preview__note:empty {
+	display: none;
+}
+
+.chaos-preview[data-state='blocked'] .chaos-preview__strip,
+.chaos-preview[data-state='empty'] .chaos-preview__strip {
+	display: none;
+}
+
+.chaos-preview[data-state='blocked'] .chaos-preview__note,
+.chaos-preview[data-state='empty'] .chaos-preview__note {
+	display: block;
+	color: var(--color-text-primary);
+}
+
+.chaos-art {
+	display: inline-flex;
+	align-items: flex-end;
+}
+
+.chaos-art svg {
+	display: block;
+}
+
+.chaos-art__ghost {
+	display: block;
+	border-radius: var(--radius-sm);
+	box-shadow: inset 0 0 0 1.5px var(--color-glyph-ghost);
+}
+
+/* ---- Knobs ---- */
+.chaos-knobs {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.chaos-knob {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+.chaos-knob[hidden] {
+	display: none;
+}
+
+.chaos-knob--inline {
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.chaos-knob__head {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+}
+
+.chaos-knob__value {
+	color: var(--color-text-secondary);
+}
+
+input.chaos-knob__slider {
+	width: 100%;
+	margin: 0;
+	accent-color: var(--color-bg-accent);
+}
+
+input.chaos-knob__slider:focus {
+	outline: none;
+}
+
+input.chaos-knob__slider:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+input.chaos-seed,
+input.chaos-seed:hover,
+input.chaos-seed:focus {
+	box-sizing: border-box;
+	width: 96px;
+	height: 28px;
+	margin: 0;
+	padding: 0 var(--space-2);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	text-align: right;
+}
+
+input.chaos-seed:focus {
+	outline: none;
+	border-color: var(--color-border-accent);
+}
+
+input.chaos-seed:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 1px;
+}
+
+/* Segmented radio group (enum params). */
+.chaos-segmented {
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+}
+
+button.chaos-segmented__option,
+button.chaos-segmented__option:hover,
+button.chaos-segmented__option:focus,
+button.chaos-segmented__option:active {
+	flex: 1 1 0;
+	min-width: 0;
+	height: 28px;
+	min-height: 0;
+	margin: 0;
+	padding: 0 var(--space-2);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-secondary);
+	box-shadow: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.chaos-segmented__option:hover {
+	color: var(--color-text-primary);
+}
+
+button.chaos-segmented__option[aria-checked='true'] {
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+button.chaos-segmented__option:focus {
+	outline: none;
+}
+
+button.chaos-segmented__option:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 1px;
+}
+
+/* Switch (protect stems, break rules). */
+button.chaos-switch,
+button.chaos-switch:hover,
+button.chaos-switch:focus,
+button.chaos-switch:active {
+	position: relative;
+	flex: none;
+	box-sizing: border-box;
+	width: 36px;
+	height: 20px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-track);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.chaos-switch[aria-checked='true'] {
+	background-color: var(--color-bg-accent);
+}
+
+.chaos-switch__thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-surface);
+	transition: transform 120ms ease;
+}
+
+button.chaos-switch[aria-checked='true'] .chaos-switch__thumb {
+	transform: translateX(16px);
+}
+
+button.chaos-switch:focus {
+	outline: none;
+}
+
+button.chaos-switch:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+/* ---- Results ---- */
+.chaos-results {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.chaos-results[hidden] {
+	display: none;
+}
+
+.chaos-results__head {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.chaos-results__status {
+	flex: 1 1 auto;
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+.chaos-results__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.chaos-result {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 40px;
+	padding: 0 var(--space-1) 0 var(--space-2);
+	border-radius: var(--radius-md);
+	color: var(--color-glyph-ink);
+}
+
+.chaos-result:hover {
+	background: var(--color-bg-subtle);
+}
+
+.chaos-result__char {
+	flex: none;
+	min-width: 1em;
+	color: var(--color-text-primary);
+}
+
+.chaos-result__status {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--color-text-secondary);
+}
+
+.chaos-result[data-state='failed'] .chaos-result__status {
+	color: var(--color-status-failed);
+}
+
+.chaos-result__actions {
+	display: flex;
+	flex: none;
+}
+
+.chaos-result__actions button.agent-card__button,
+.chaos-result__actions button.agent-card__button:hover,
+.chaos-result__actions button.agent-card__button:focus,
+.chaos-result__actions button.agent-card__button:active,
+.chaos-result__actions button.agent-card__button:disabled {
+	height: 28px;
+	padding: 0 var(--space-2);
+}
+
+/* ---- Footer: Target · Re-roll · Apply ---- */
+.chaos-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding-top: var(--space-3);
+}
+
+.chaos-actions__spacer {
+	flex: 1 1 auto;
+}

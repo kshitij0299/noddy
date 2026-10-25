@@ -43,6 +43,9 @@ export function guardResult(before, after, { metrics, legibility = true, limits 
 		reasons.push({ code: 'EMPTY', message: 'Nothing of the letter was left.' });
 		return { ok: false, reasons, issues: [] };
 	}
+	// Legibility first: it is cheap, and a take it rejects never needs the (slower) outline check.
+	if (legibility) reasons.push(...legibilityReasons(before, after, metrics, limits));
+	if (reasons.length) return { ok: false, reasons, issues: [] };
 	const issues = gateIssues(before, after, metrics);
 	if (issues.length)
 		reasons.push({
@@ -51,7 +54,6 @@ export function guardResult(before, after, { metrics, legibility = true, limits 
 				...new Set(issues.map((i) => i.code)),
 			].join(', ')}).`,
 		});
-	if (legibility) reasons.push(...legibilityReasons(before, after, metrics, limits));
 	return { ok: reasons.length === 0, reasons, issues };
 }
 

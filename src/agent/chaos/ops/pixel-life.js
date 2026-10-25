@@ -4,8 +4,8 @@ import { cellsOf, traceCells } from '../pixel-grid.js';
 
 /** Birth / survival neighbour counts per rule. */
 export const LIFE_RULES = {
-	mould: { label: 'Mould (grows)', birth: [3, 6], survive: [1, 2, 3, 4, 5, 6, 7, 8] },
-	life: { label: 'Life (B3/S23)', birth: [3], survive: [2, 3] },
+	mould: { label: 'Mould', birth: [3], survive: [1, 2, 3, 4, 5, 6, 7, 8] },
+	life: { label: 'Life', birth: [3], survive: [2, 3] },
 	coral: { label: 'Coral', birth: [3], survive: [4, 5, 6, 7, 8] },
 	erode: { label: 'Erode', birth: [], survive: [2, 3, 4, 5, 6, 7, 8] },
 };
@@ -31,7 +31,7 @@ export default {
 	],
 	needsGrid: true,
 	// Growing ink is the point of mould and coral.
-	guard: { maxInk: 2.4 },
+	guard: { maxInk: 2 },
 	unavailable: ({ grid }) => (grid ? null : NOT_GRID_NOTE),
 	async run(contours, { rng, chaos, params, grid }) {
 		if (!grid) throw Object.assign(new Error(NOT_GRID_NOTE), { code: 'NOT_PIXEL_FONT' });

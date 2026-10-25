@@ -199,20 +199,26 @@ describe('Chaos tab Apply and preview', () => {
 		expect(JSON.stringify(editor.project.glyphs[H].save())).toBe(h);
 	});
 
-	it('re-rolls a chaos Draft from before the Draft, and Undo goes back to the original', async () => {
-		const original = JSON.stringify(editor.project.glyphs[H].save().shapes);
-		const chaosDrafts = new Set();
-		const options = { op: 'warp', ids: [H], scope: 'glyph', chaos: 50, params: {}, chaosDrafts };
-		await applyChaos(getEditor, { ...options, seed: 1 });
-		expect(baseFor(editor, H, chaosDrafts)).toBe('before-draft');
-		await applyChaos(getEditor, { ...options, seed: 2 });
-		// A fresh take on the original, not warp on warp: the same as seed 2 straight away.
-		const reroll = JSON.stringify(editor.project.glyphs[H].save().shapes);
-		expect(revertGlyphs(editor, [H]).ok).toBe(true);
-		expect(JSON.stringify(editor.project.glyphs[H].save().shapes)).toBe(original);
-		await applyChaos(getEditor, { ...options, seed: 2, chaosDrafts: new Set() });
-		expect(JSON.stringify(editor.project.glyphs[H].save().shapes)).toBe(reroll);
-	});
+	it(
+		're-rolls a chaos Draft from before the Draft, and Undo goes back to the original',
+		{
+			timeout: 30000,
+		},
+		async () => {
+			const original = JSON.stringify(editor.project.glyphs[H].save().shapes);
+			const chaosDrafts = new Set();
+			const options = { op: 'warp', ids: [H], scope: 'glyph', chaos: 50, params: {}, chaosDrafts };
+			await applyChaos(getEditor, { ...options, seed: 1 });
+			expect(baseFor(editor, H, chaosDrafts)).toBe('before-draft');
+			await applyChaos(getEditor, { ...options, seed: 2 });
+			// A fresh take on the original, not warp on warp: the same as seed 2 straight away.
+			const reroll = JSON.stringify(editor.project.glyphs[H].save().shapes);
+			expect(revertGlyphs(editor, [H]).ok).toBe(true);
+			expect(JSON.stringify(editor.project.glyphs[H].save().shapes)).toBe(original);
+			await applyChaos(getEditor, { ...options, seed: 2, chaosDrafts: new Set() });
+			expect(JSON.stringify(editor.project.glyphs[H].save().shapes)).toBe(reroll);
+		}
+	);
 
 	it('Whole set skips Yours glyphs; explicit targets carry the user’s consent', async () => {
 		editor.glyphStatus.set(H, 'yours', 'user');

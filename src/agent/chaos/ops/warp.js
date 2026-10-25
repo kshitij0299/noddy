@@ -37,7 +37,7 @@ export default {
 			phase: rng.range(0, Math.PI * 2),
 			frequency: 1 + rng.int(0, Math.round(chaos * 2)) * 0.5,
 		});
-		const step = metrics.upm * 0.2;
+		const step = metrics.upm * 0.25;
 		const warped = contours.map((contour) => warpContour(contour, warp, step));
 		// A strong warp can fold an outline over itself: untangle it with the nonzero fill.
 		return boolean('union', warped);
@@ -122,7 +122,7 @@ function warpContour(contour, warp, step) {
 		const c1 = point.h2 || lerp(point, next, 1 / 3);
 		const c2 = next.h1 || lerp(point, next, 2 / 3);
 		const length = Math.hypot(next.x - point.x, next.y - point.y);
-		const n = Math.max(2, Math.min(4, Math.ceil(length / step)));
+		const n = Math.max(2, Math.min(3, Math.ceil(length / step)));
 		segments.push(...splitCubic(point, c1, c2, next, n));
 	});
 	// Each anchor with its handles, moved by the warp; handles follow the local Jacobian.

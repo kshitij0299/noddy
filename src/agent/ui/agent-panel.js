@@ -60,6 +60,7 @@ import { createAgentPill, derivePillPhase } from './agent-pill.js';
 import { createModeChip, createModelChip, createTargetChip } from './agent-composer-chips.js';
 import { closeAllPopovers, createPopover } from './agent-popover.js';
 import { createPanelTabs, listChaosTools, onChaosToolsChange } from './agent-panel-tabs.js';
+import { createChaosTab, registerChaosTools } from './chaos/chaos-tab.js';
 import './agent-panel.css';
 
 export const PANEL_ID = 'agent-panel';
@@ -943,7 +944,9 @@ export function createAgentPanel({
 					);
 				else if (event.reason === 'error')
 					addError({
-						message: `${event.message || 'The provider did not answer'} · run paused, Resume to try again`,
+						message: `${
+							event.message || 'The provider did not answer'
+						} · run paused, Resume to try again`,
 					});
 				else addStep('info', `Paused · ${run.done}/${run.total}`);
 				break;
@@ -1128,7 +1131,9 @@ export function createAgentPanel({
 		if (detail.action === 'edit-by-hand') {
 			reopenGate(card, {
 				tone: 'yours',
-				text: detail.char ? `Editing ${detail.char} by hand · Approve when ready` : 'Editing by hand',
+				text: detail.char
+					? `Editing ${detail.char} by hand · Approve when ready`
+					: 'Editing by hand',
 			});
 			if (detail.glyphId) openGlyph(detail.glyphId);
 			return;
@@ -1325,29 +1330,16 @@ export function createAgentPanel({
 		onSelect: () => closeAllPopovers(),
 	});
 	header.insertBefore(tabs.root, title);
-	/** @type {Array<Function>} */
-	let chaosDisposers = [];
+	// The tool list and the chosen tool's block (PR C, ui/chaos/chaos-tab.js).
+	const chaos = createChaosTab({ getEditor });
+	chaosTab.append(chaos.root);
 	function renderChaosTab() {
 		const list = listChaosTools();
 		const shown = list.length > 0;
 		tabs.root.hidden = !shown;
 		title.hidden = shown;
 		if (!shown && tabs.current !== 'agent') tabs.select('agent');
-		chaosDisposers.forEach((dispose) => dispose());
-		chaosDisposers = [];
-		chaosTab.replaceChildren();
-		for (const tool of list) {
-			const block = el('section', 'agent-chaos-tool');
-			block.dataset.tool = tool.id;
-			block.setAttribute('aria-label', tool.label);
-			chaosTab.append(block);
-			try {
-				const dispose = tool.mount(block, { getEditor });
-				if (typeof dispose === 'function') chaosDisposers.push(dispose);
-			} catch {
-				block.remove();
-			}
-		}
+		chaos.render(list);
 	}
 	const offChaos = onChaosToolsChange(() => renderChaosTab());
 	renderChaosTab();
@@ -1410,7 +1402,7 @@ export function createAgentPanel({
 			closeAllPopovers();
 			offChaos();
 			offControls();
-			chaosDisposers.forEach((dispose) => dispose());
+			chaos.dispose();
 			modeChip.dispose();
 			targetChip.dispose();
 			localAgent?.dispose();
@@ -1440,6 +1432,8 @@ export function getAgentPanel() {
  * @returns {ReturnType<typeof createAgentPanel>}
  */
 export function ensureAgentPanel(options) {
+	// The Chaos tab's tools (PR C): registering them shows the Agent | Chaos tabs.
+	registerChaosTools();
 	if (!singleton) singleton = createAgentPanel(options);
 	// Never replace something else already mounted in the slot.
 	if (!isAgentPanelMounted()) mountAgentPanel(singleton.host);
