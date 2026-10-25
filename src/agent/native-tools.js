@@ -30,6 +30,7 @@ import {
 } from './ownership.js';
 import { fontMetrics, renderRow } from './render.js';
 import { readAgentControls } from './agent-controls.js';
+import { getChaosOp, runChaos } from './chaos/engine.js';
 import { glyphContours, projectCellGrid } from './chaos/project-bridge.js';
 import {
 	READ_ONLY_TOOLS,
@@ -252,7 +253,6 @@ export function createNativeToolSession({
 	}
 
 	async function prepareChaos(input) {
-		const { runChaos, getChaosOp } = await loadChaosEngine();
 		const op = getChaosOp(input.op);
 		const metrics = fontMetrics(project);
 		const controls = readAgentControls(editor);
@@ -1649,16 +1649,6 @@ function applyBoolean(glyph, input, contours) {
 	glyph._shapes = [...before, ...added, ...after];
 	glyph.changed();
 	return range(before.length, before.length + added.length);
-}
-
-let chaosEngine;
-/** The chaos engine, loaded on the first apply_chaos (it pulls in paper.js lazily itself). */
-function loadChaosEngine() {
-	chaosEngine ??= import('./chaos/engine.js').catch((error) => {
-		chaosEngine = undefined;
-		throw error;
-	});
-	return chaosEngine;
 }
 
 const round2 = (value) => Math.round(value * 100) / 100;
