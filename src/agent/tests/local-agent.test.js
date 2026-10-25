@@ -17,6 +17,8 @@ function fakeBridge() {
 	const bridge = {
 		posts,
 		streamAborted: false,
+		/** The agent is in wait_for_user_message: a message is taken right away. */
+		takesNow: false,
 		send(type, data) {
 			streamController.enqueue(encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`));
 		},
@@ -32,6 +34,11 @@ function fakeBridge() {
 				posts.push({ body, auth: init.headers?.Authorization });
 				if (body.type === 'enable')
 					return new Response(JSON.stringify({ token: TOKEN, url: URL_ }), { status: 200 });
+				if (body.type === 'message')
+					return new Response(
+						JSON.stringify({ ok: true, id: `m${posts.length}`, delivered: bridge.takesNow }),
+						{ status: 200 }
+					);
 				return new Response('{"ok":true}', { status: 200 });
 			}
 			const body = new ReadableStream({
@@ -181,6 +188,14 @@ describe('agent panel: Local agent switch', () => {
 
 	const toggle = () => panel.panel.querySelector('button[aria-label="Local agent"]');
 	const chip = () => panel.panel.querySelector('.agent-panel__model');
+	const label = () => chip().querySelector('.agent-chip-button__label').textContent;
+	const steps = () =>
+		[...panel.thread.querySelectorAll('agent-step-line')].map((line) => line.textContent.trim());
+	const type = async (text) => {
+		panel.composer.setValue(text);
+		panel.composer.root.requestSubmit();
+		await settle();
+	};
 
 	beforeEach(() => {
 		document.body.innerHTML = '';
@@ -203,11 +218,11 @@ describe('agent panel: Local agent switch', () => {
 		expect(panel.panel.querySelector('button[aria-label="Local agent"]')).toBeNull();
 	});
 
-	it('is off by default; turning it on shows the command and makes Send a Stop', async () => {
+	it('is off by default; turning it on shows the command and keeps Send for the agent', async () => {
 		await mountPanel();
 		expect(toggle()).not.toBeNull();
 		expect(toggle().getAttribute('aria-pressed')).toBe('false');
-		expect(chip().textContent).toBe('No model');
+		expect(label()).toBe('No model');
 		toggle().click();
 		await settle();
 		expect(toggle().getAttribute('aria-pressed')).toBe('true');
@@ -216,8 +231,10 @@ describe('agent panel: Local agent switch', () => {
 		expect(command.textContent).toContain(`Bearer ${TOKEN}`);
 		// Keyboard: focus lands on Copy command.
 		expect(document.activeElement.textContent).toBe('Copy command');
-		expect(chip().textContent).toBe('Local agent · waiting');
-		expect(panel.composer.send.getAttribute('aria-label')).toBe('Stop the agent');
+		expect(label()).toBe('Local agent · waiting');
+		// Send stays: the composer now talks to the local agent (bug 30).
+		expect(panel.composer.send.getAttribute('aria-label')).toBe('Send');
+		expect(panel.composer.input.placeholder).toBe('Message your local agent');
 	});
 
 	it('connected: the chip names the client, tool calls show as steps and a receipt', async () => {
@@ -227,7 +244,8 @@ describe('agent panel: Local agent switch', () => {
 		bridge.send('client', { name: 'claude-code' });
 		bridge.send('client', { name: 'claude-code' });
 		await settle();
-		expect(chip().textContent).toBe('Claude Code · connected');
+		expect(label()).toBe('Claude Code · connected');
+		expect(panel.composer.input.placeholder).toBe('Message Claude Code');
 		expect(panel.thread.textContent.split('Claude Code connected').length - 1).toBe(1);
 		bridge.send('call', {
 			id: 'c1',
@@ -249,13 +267,16 @@ describe('agent panel: Local agent switch', () => {
 		toggle().click();
 		await settle();
 		bridge.send('client', { name: 'Claude Code' });
+		bridge.send('delivered', { id: 'm1' });
 		await settle();
+		// While the agent works on a message, Send is Stop.
+		expect(panel.composer.send.getAttribute('aria-label')).toBe('Stop the agent');
 		panel.composer.send.click();
 		await settle();
 		expect(bridge.posts.some((post) => post.body.type === 'stop')).toBe(true);
 		expect(bridge.streamAborted).toBe(true);
 		expect(toggle().getAttribute('aria-pressed')).toBe('false');
-		expect(chip().textContent).toBe('No model');
+		expect(label()).toBe('No model');
 		expect(panel.thread.querySelector('.agent-local__command')).toBeNull();
 		expect(panel.composer.send.getAttribute('aria-label')).toBe('Send');
 	});
@@ -304,8 +325,74 @@ describe('agent panel: Local agent switch', () => {
 		await mountPanel();
 		toggle().click();
 		await settle();
+		bridge.send('delivered', { id: 'm1' });
+		await settle();
 		panel.composer.send.click();
 		await settle();
 		expect(sessionStorage.getItem('noddy.localAgent')).toBeNull();
+	});
+	it('the composer talks to the local agent: queued, read, working, reply (bug 30)', async () => {
+		await mountPanel();
+		toggle().click();
+		await settle();
+		bridge.send('client', { name: 'claude-code' });
+		await settle();
+		await type('Make the A bolder');
+		const message = bridge.posts.find((post) => post.body.type === 'message');
+		expect(message.auth).toBe(`Bearer ${TOKEN}`);
+		expect(message.body.message).toMatchObject({
+			text: 'Make the A bolder',
+			attachments: [],
+			mode: 'exact',
+			chaos: 50,
+			target: { scope: 'set' },
+		});
+		expect(message.body.message.target.glyphIds.length).toBeGreaterThan(60);
+		// Not to the built-in model, and the composer is clear.
+		expect(panel.thread.querySelector('.agent-bubble--user').textContent).toContain(
+			'Make the A bolder'
+		);
+		expect(panel.composer.input.value).toBe('');
+		expect(steps().some((text) => text.includes('Queued for Claude Code'))).toBe(true);
+		bridge.send('delivered', { id: 'm2' });
+		await settle();
+		expect(steps().some((text) => text.includes('Claude Code read it'))).toBe(true);
+		expect(steps().some((text) => text.includes('Claude Code is working'))).toBe(true);
+		expect(panel.composer.send.getAttribute('aria-label')).toBe('Stop the agent');
+		bridge.send('reply', { text: 'Made the A bolder.' });
+		await settle();
+		const replies = [...panel.thread.querySelectorAll('.agent-bubble--agent')].map(
+			(b) => b.textContent
+		);
+		expect(replies.some((text) => text.includes('Made the A bolder.'))).toBe(true);
+		expect(steps().some((text) => text.includes('is working'))).toBe(false);
+		expect(panel.composer.send.getAttribute('aria-label')).toBe('Send');
+	});
+
+	it('a listening agent takes the message at once: "Sent", then working', async () => {
+		await mountPanel();
+		toggle().click();
+		await settle();
+		bridge.send('client', { name: 'claude-code' });
+		bridge.send('listening', { on: true });
+		await settle();
+		bridge.takesNow = true;
+		await type('hi');
+		expect(steps().some((text) => text.includes('is working'))).toBe(true);
+		expect(steps().some((text) => text.includes('Queued'))).toBe(false);
+		// The agent waiting again means it is done with that message.
+		bridge.send('listening', { on: true });
+		await settle();
+		expect(panel.composer.send.getAttribute('aria-label')).toBe('Send');
+	});
+
+	it('the model chip reads "<client> · connected" and opens no model list while it is on', async () => {
+		await mountPanel();
+		toggle().click();
+		await settle();
+		bridge.send('client', { name: 'claude-code' });
+		await settle();
+		chip().click();
+		expect(panel.panel.querySelector('.agent-popover--model').hidden).toBe(true);
 	});
 });

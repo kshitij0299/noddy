@@ -8,6 +8,12 @@
  * submit_glyph adds the usual receipt. The composer's Stop button turns it off (as does the
  * switch, or closing the tab); built-in sends wait until then.
  *
+ * Talk to it from the panel (bug 30): while it is on, the composer sends to the coding agent
+ * (`send`), not the built-in model. The message waits on the dev server until the agent calls
+ * wait_for_user_message; the thread says "Sent to <client>" (or "Queued" while it is not
+ * listening), then "<client> is working…" once it took the message, and its reply_to_user text
+ * is an agent bubble. While it works the composer shows Stop, which turns Local agent off.
+ *
  * A reload keeps it on for this tab (bug 25): the switch state is kept in sessionStorage and
  * the panel turns it back on at mount. The dev server's token is the same until it restarts,
  * so the coding agent's existing `claude mcp add` entry keeps working.
@@ -70,6 +76,8 @@ export function clientLabel(name) {
  * @param {HTMLElement} panel.before - the header node the switch goes in front of
  * @param {(label: String | null) => void} panel.setChip - null: the model chip again
  * @param {(busy: Boolean) => void} panel.setBusy - the composer's Send ⇄ Stop
+ * @param {(text: String, who?: String, attachments?: Array) => Node} [panel.addBubble]
+ * @param {(on: Boolean) => void} [panel.setRouting] - the composer talks to the local agent
  * @param {(node: Node) => Node} panel.append - adds to the thread
  * @param {(tone: String, text: String) => void} panel.addStep
  * @param {(error: Object) => void} panel.addError
@@ -95,6 +103,25 @@ export function mountLocalAgent(panel) {
 	let starting = false;
 	/** The client the thread last announced, so a repeated event adds no second line. */
 	let announced = null;
+	/** The agent is waiting in wait_for_user_message. */
+	let listening = false;
+	/** Message id → its step line, until the agent takes it. */
+	/** @type {Map<String, any>} */
+	const sentLines = new Map();
+	/** The agent took a message and has not answered yet. */
+	let working = false;
+	let workingLine = null;
+
+	const who = () => (link.client ? clientLabel(link.client) : 'Local agent');
+
+	function setWorking(on) {
+		working = on;
+		if (!on && workingLine) {
+			workingLine.remove();
+			workingLine = null;
+		}
+		panel.setBusy(on);
+	}
 
 	const link = createLocalAgentLink({
 		createSession: panel.createSession,
@@ -102,6 +129,9 @@ export function mountLocalAgent(panel) {
 		onEvent(event) {
 			if (event.type === 'state') onState(event);
 			else if (event.type === 'tool') onTool(event);
+			else if (event.type === 'listening') onListening(event.on);
+			else if (event.type === 'delivered') onDelivered(event.id);
+			else if (event.type === 'reply') onReply(event.text);
 		},
 	});
 
@@ -109,7 +139,12 @@ export function mountLocalAgent(panel) {
 		const client = clientLabel(name);
 		const on = state !== 'off';
 		button.setAttribute('aria-pressed', String(on));
-		panel.setBusy(on);
+		panel.setRouting?.(on);
+		if (!on) {
+			listening = false;
+			sentLines.clear();
+			setWorking(false);
+		}
 		if (state === 'connected') {
 			panel.setChip(`${client} · connected`);
 			if (announced !== client) panel.addStep('kept', `${client} connected`);
@@ -130,6 +165,66 @@ export function mountLocalAgent(panel) {
 				closed: 'Local agent disconnected',
 			}[reason];
 			if (copy) panel.addStep('info', copy);
+		}
+	}
+
+	function onListening(on) {
+		listening = on;
+		// Waiting again means the agent is done with the last message.
+		if (on && working) setWorking(false);
+	}
+
+	/** Taken before the POST answered (the stream can be faster). */
+	const taken = new Set();
+
+	function onDelivered(id) {
+		taken.add(id);
+		const line = sentLines.get(id);
+		sentLines.delete(id);
+		line?.render({ tone: 'kept', text: `${who()} read it` });
+		if (!workingLine) workingLine = panel.addStep('info', `${who()} is working…`);
+		setWorking(true);
+	}
+
+	function onReply(text) {
+		if (workingLine) {
+			workingLine.remove();
+			workingLine = null;
+		}
+		panel.addBubble?.(text, 'agent');
+		setWorking(false);
+	}
+
+	/**
+	 * The composer's message, to the coding agent.
+	 * @param {{prompt: String, attachments?: Array, controls?: {mode: String, chaos: Number, target: Object}}} draft
+	 * @returns {Promise<Boolean>} sent
+	 */
+	async function send({ prompt, attachments = [], controls = {} }) {
+		const text = prompt.trim();
+		const files = attachments.map((file) => ({
+			name: file.name,
+			kind: file.kind === 'font' ? 'font' : 'image',
+			...(Number.isFinite(file.size) ? { size: file.size } : {}),
+		}));
+		// The bubble first: the agent may take the message before the POST answers.
+		const bubble = /** @type {any} */ (
+			panel.addBubble?.(text || 'Attached files', 'user', attachments)
+		);
+		try {
+			const { id, delivered } = await link.send({ text, attachments: files, ...controls });
+			if (delivered) onDelivered(id);
+			else if (!taken.has(id)) {
+				const copy = listening
+					? `Sent to ${who()}`
+					: `Queued for ${who()} · it reads it when it calls wait_for_user_message`;
+				sentLines.set(id, panel.addStep('info', copy));
+			}
+			return true;
+		} catch (error) {
+			bubble?.remove?.();
+			panel.addError({ message: error.message });
+			return false;
 		}
 	}
 
@@ -225,6 +320,13 @@ export function mountLocalAgent(panel) {
 			return link.state;
 		},
 		stop: () => link.stop(),
+		send,
+		get working() {
+			return working;
+		},
+		get label() {
+			return who();
+		},
 		dispose() {
 			link.stop();
 			button.remove();
