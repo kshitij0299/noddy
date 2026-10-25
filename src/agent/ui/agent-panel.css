@@ -101,21 +101,14 @@
 	display: none;
 }
 
-.agent-panel__model {
-	display: inline-flex;
-	align-items: center;
-	height: 24px;
-	padding: 0 var(--space-2);
-	border-radius: var(--radius-full);
-	background: var(--color-bg-subtle);
-	color: var(--color-text-primary);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 160px;
-	/* Pushes minimize to the right edge. Spacing lives on the chip, not the
-	   button, so no hover/focus state can move the button. */
-	margin-right: auto;
+/* Pushes the header buttons to the right edge. Spacing lives here, never on a button, so no
+   hover or focus state can move one. */
+.agent-panel__header-spacer {
+	flex: 1 1 auto;
+}
+
+.agent-panel__title[hidden] {
+	display: none;
 }
 
 /* ---- Icon buttons (36px, paint-only hover) ---- */
@@ -1461,4 +1454,396 @@ button.agent-pill:focus-visible {
 /* A key prefix such as "sk-or-" in an error never breaks across two lines. */
 .agent-nowrap {
 	white-space: nowrap;
+}
+
+/* ---- PR B: tabs, composer chips, popovers, per-glyph receipts ----
+   Tokens only. Every button state is pinned so the legacy `button` reset can change paint,
+   never geometry. */
+
+/* Tab panels: the Agent tab holds the thread, the run bar and the composer. */
+.agent-panel__tab {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.agent-panel__tab[hidden] {
+	display: none;
+}
+
+.agent-panel__tab--chaos {
+	overflow-y: auto;
+}
+
+/* Agent | Chaos: a pill track like the grid's segmented switch. */
+.agent-tabs {
+	display: inline-flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-subtle);
+}
+
+.agent-tabs[hidden] {
+	display: none;
+}
+
+button.agent-tab,
+button.agent-tab:hover,
+button.agent-tab:focus,
+button.agent-tab:active {
+	display: inline-flex;
+	align-items: center;
+	height: 28px;
+	min-height: 0;
+	margin: 0;
+	padding: 0 var(--space-3);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: transparent;
+	color: var(--color-text-secondary);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-tab[aria-selected='true'] {
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+button.agent-tab:focus {
+	outline: none;
+}
+
+button.agent-tab:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+/* Composer: the input on top, the tool row under it. */
+.agent-composer__tool-row {
+	display: flex;
+	align-items: flex-end;
+	gap: var(--space-1);
+	min-width: 0;
+}
+
+.agent-composer__tools {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Chips: 28px pills, label weight, paint-only hover. The model chip gives up width first. */
+button.agent-chip-button,
+button.agent-chip-button:hover,
+button.agent-chip-button:focus,
+button.agent-chip-button:active,
+button.agent-chip-button:disabled {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	flex: none;
+	box-sizing: border-box;
+	height: 28px;
+	min-height: 0;
+	min-width: 0;
+	max-width: 100%;
+	margin: 0;
+	padding: 0 var(--space-2);
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-chip-button:hover:not(:disabled),
+button.agent-chip-button[aria-expanded='true'] {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+button.agent-chip-button:focus {
+	outline: none;
+}
+
+button.agent-chip-button:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+button.agent-chip-button.agent-panel__model {
+	flex: 0 1 auto;
+	min-width: 48px;
+}
+
+/* With a local agent on, its chip says "<client> · connected" in full: the chips may take a
+   second line rather than cut it. */
+.agent-composer__tools:has(> .agent-panel__model[data-local]) {
+	flex-wrap: wrap;
+	row-gap: var(--space-1);
+}
+
+button.agent-chip-button.agent-panel__model[data-local] {
+	flex: none;
+}
+
+/* With a local agent on the model chip is a status, not a menu. */
+button.agent-chip-button.agent-panel__model[data-local],
+button.agent-chip-button.agent-panel__model[data-local]:hover {
+	background-color: var(--color-status-kept-subtle);
+	cursor: default;
+}
+
+.agent-chip-button__label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-chip-button__icon,
+.agent-chip-button__badge-icon {
+	flex: none;
+	font-size: 16px;
+}
+
+.agent-chip-button__badge {
+	display: inline-flex;
+	flex: none;
+	color: var(--color-text-secondary);
+}
+
+.agent-chip-button__badge[hidden] {
+	display: none;
+}
+
+.agent-chip-button__badge[data-badge='free'] {
+	color: var(--color-status-kept);
+}
+
+/* Popovers float above the composer, inside the panel (never over the font). */
+.agent-popover {
+	position: absolute;
+	z-index: 3;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-2);
+	border-radius: var(--radius-lg);
+	background: var(--color-bg-surface);
+	box-shadow: var(--shadow-float);
+	color: var(--color-text-primary);
+}
+
+.agent-popover[hidden] {
+	display: none;
+}
+
+.agent-popover--auto {
+	width: 264px;
+}
+
+.agent-popover--wide {
+	left: var(--space-4);
+	right: var(--space-4);
+}
+
+.agent-popover__body {
+	max-height: var(--popover-max, 520px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.agent-popover__head {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-1) var(--space-2) 0;
+}
+
+.agent-popover__title {
+	flex: 1 1 auto;
+}
+
+.agent-popover__links {
+	display: flex;
+	gap: var(--space-3);
+}
+
+/* The connect card inside the model popover: no second card frame, no step count on the list. */
+.agent-popover--model .agent-connect-host {
+	padding: 0;
+}
+
+.agent-popover--model form.agent-connect {
+	box-shadow: none;
+	border: 0;
+	padding: var(--space-2);
+}
+
+.agent-popover--model form.agent-connect[data-step='3'] .agent-connect__header,
+.agent-popover--model form.agent-connect[data-step='3'] .agent-connect__back {
+	display: none;
+}
+
+.agent-popover--model .agent-connect__actions {
+	bottom: calc(var(--space-2) * -1);
+	margin: 0 calc(var(--space-2) * -1) calc(var(--space-2) * -1);
+	padding: var(--space-2);
+}
+
+/* Radio rows (Mode, Target): the whole row is the target, 44px tall. */
+.agent-radio-group {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.agent-radio {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 44px;
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+.agent-radio:hover:not([aria-disabled='true']) {
+	background-color: var(--color-bg-subtle);
+}
+
+.agent-radio[aria-checked='true'] {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+.agent-radio:focus {
+	outline: none;
+}
+
+.agent-radio:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: -2px;
+}
+
+.agent-radio[aria-disabled='true'],
+.agent-radio[aria-disabled='true']:hover {
+	background-color: transparent;
+	cursor: default;
+	color: var(--color-text-secondary);
+}
+
+.agent-radio__mark {
+	flex: none;
+	font-size: 20px;
+	color: var(--color-text-secondary);
+}
+
+.agent-radio[aria-checked='true'] .agent-radio__mark {
+	color: var(--color-text-primary);
+}
+
+.agent-radio__text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.agent-radio__title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--space-2);
+}
+
+.agent-radio__meta,
+.agent-radio__hint {
+	color: var(--color-text-secondary);
+}
+
+/* Chaos: label and value on one line, the slider under it. */
+.agent-chaos {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	padding: var(--space-2) var(--space-2) var(--space-1);
+}
+
+.agent-chaos[hidden] {
+	display: none;
+}
+
+.agent-chaos__head {
+	display: flex;
+	justify-content: space-between;
+}
+
+input.agent-chaos__slider {
+	width: 100%;
+	margin: 0;
+	accent-color: var(--color-bg-accent);
+}
+
+input.agent-chaos__slider:focus {
+	outline: none;
+}
+
+input.agent-chaos__slider:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+/* Per-glyph receipts: each glyph in a multi-glyph strip is a button. */
+button.agent-glyph-pick,
+button.agent-glyph-pick:hover,
+button.agent-glyph-pick:focus,
+button.agent-glyph-pick:active {
+	display: inline-flex;
+	align-items: flex-end;
+	min-height: 0;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	border-radius: var(--radius-sm);
+	background-color: transparent;
+	color: inherit;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+button.agent-glyph-pick:hover {
+	background-color: var(--color-bg-subtle);
+}
+
+button.agent-glyph-pick[aria-pressed='true'] {
+	box-shadow: inset 0 0 0 2px var(--color-border-accent);
+}
+
+button.agent-glyph-pick:focus {
+	outline: none;
+}
+
+button.agent-glyph-pick:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 1px;
+}
+
+.agent-receipt__glyph-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.agent-receipt__glyph-label {
+	flex: 1 1 auto;
 }
