@@ -10,7 +10,7 @@ import {
 	resolveParams,
 	runChaos,
 } from '../engine.js';
-import { contourArea, flattenContour, signedArea } from '../geometry.js';
+import { contourArea, flattenContour, rectContour as rect, signedArea } from '../geometry.js';
 import { countCounters, gateIssues, guardResult, measure } from '../guard.js';
 import { cellsOf, detectCellGrid, traceCells } from '../pixel-grid.js';
 import { mulberry32, rngFor } from '../rng.js';
@@ -164,6 +164,13 @@ describe('the legibility guard', () => {
 		expect(codes).toEqual(expect.arrayContaining(['INK_DRIFT', 'BOUNDS_DRIFT']));
 	});
 
+	it('rejects a lost part: an H without its crossbar', () => {
+		const stems = [rect(60, 0, 160, 700), rect(440, 0, 540, 700)];
+		const codes = guardResult(SANS_H, stems, { metrics: METRICS }).reasons.map((r) => r.code);
+		expect(codes).toContain('PART_LOST');
+		expect(measure(SANS_H, SANS_H).partKept).toBe(1);
+	});
+
 	it('Break rules turns the legibility rules off but never the gate', () => {
 		expect(guardResult(CURVY_O, [CURVY_O[0]], { metrics: METRICS, legibility: false }).ok).toBe(
 			true
@@ -251,7 +258,8 @@ describe('Pixel Life and the pixel grid', () => {
 		for (const contour of a.contours)
 			for (const point of contour.points) {
 				expect(point.h1).toBeNull();
-				expect(Math.abs(((point.x - grid.ox) / grid.pitch) % 1)).toBeLessThan(0.02);
+				const cells = (point.x - grid.ox) / grid.pitch;
+				expect(Math.abs(cells - Math.round(cells))).toBeLessThan(0.02);
 			}
 		expect(gateIssues(PIXEL_H, a.contours, METRICS)).toEqual([]);
 	});

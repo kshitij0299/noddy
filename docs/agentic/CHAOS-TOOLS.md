@@ -36,7 +36,8 @@ and glyphs that are Yours. The whole set skips Yours and open glyphs.
 Every take goes through `src/agent/chaos/guard.js`:
 
 1. **Legibility** (on by default): no counter may close up or break open (counted on a 64×64 raster),
-   ink area must stay within ×0.5–1.8 of the original, ink overlap (IoU) at least 0.35, bounds within
+   ink area must stay within ×0.5–1.8 of the original, each third of the letter (3×3 over its bounds)
+   must keep at least 30% of its ink (a lost bar or stem), ink overlap (IoU) at least 0.35, bounds within
    ×0.65–1.7 per side, centre shift at most 0.22 em. An op can loosen a limit (`guard` on the op: Grid
    snap allows overlap 0.3, Pixel Life ink ×2).
 2. **The outline gate** (always on): the result must pass `check_outlines` the way `submit_glyph` does

@@ -19,6 +19,8 @@ export const GUARD_LIMITS = Object.freeze({
 	maxInk: 1.8,
 	/** Overlap of the ink after with the ink before (intersection over union). */
 	minOverlap: 0.35,
+	/** Each third of the letter (3×3) keeps at least this share of its ink. */
+	minPart: 0.3,
 	/** Bounds width and height, after / before. */
 	minSize: 0.65,
 	maxSize: 1.7,
@@ -88,11 +90,33 @@ export function measure(before, after) {
 	let inkA = 0;
 	let inkB = 0;
 	let both = 0;
+	// Ink per part of the letter (3×3 over its original bounds): a lost bar or stem shows here.
+	const partsA = new Array(9).fill(0);
+	const partsB = new Array(9).fill(0);
+	const cw = (box.xMax - box.xMin) / RESOLUTION;
+	const ch = (box.yMax - box.yMin) / RESOLUTION;
+	const part = (index) => {
+		const col = index % RESOLUTION;
+		const row = (index - col) / RESOLUTION;
+		const x = (box.xMin + (col + 0.5) * cw - a.xMin) / (a.width || 1);
+		const y = (box.yMin + (row + 0.5) * ch - a.yMin) / (a.height || 1);
+		const third = (v) => Math.min(2, Math.max(0, Math.floor(v * 3)));
+		return third(y) * 3 + third(x);
+	};
 	for (let index = 0; index < ra.cells.length; index++) {
 		inkA += ra.cells[index];
 		inkB += rb.cells[index];
 		both += ra.cells[index] & rb.cells[index];
+		if (ra.cells[index] || rb.cells[index]) {
+			const at = part(index);
+			partsA[at] += ra.cells[index];
+			partsB[at] += rb.cells[index];
+		}
 	}
+	// The worst-kept part that held a real share (5%) of the ink.
+	const kept = partsA
+		.map((value, index) => (value >= inkA * 0.05 ? partsB[index] / value : Infinity))
+		.reduce((min, value) => Math.min(min, value), Infinity);
 	return {
 		ink: inkA ? inkB / inkA : 1,
 		overlap: inkA + inkB - both ? both / (inkA + inkB - both) : 1,
@@ -102,6 +126,7 @@ export function measure(before, after) {
 			(b.xMin + b.xMax - a.xMin - a.xMax) / 2,
 			(b.yMin + b.yMax - a.yMin - a.yMax) / 2
 		),
+		partKept: Number.isFinite(kept) ? kept : 1,
 		countersBefore: countCounters(ra),
 		countersAfter: countCounters(rb),
 	};
@@ -116,6 +141,11 @@ function legibilityReasons(before, after, metrics, overrides = {}) {
 		reasons.push({ code: 'LOST_COUNTER', message: 'A counter closed up or broke open.' });
 	if (m.ink < limits.minInk || m.ink > limits.maxInk)
 		reasons.push({ code: 'INK_DRIFT', message: 'Too much ink was lost or added.' });
+	if (m.partKept < limits.minPart)
+		reasons.push({
+			code: 'PART_LOST',
+			message: 'A part of the letter (a bar, a stem) went missing.',
+		});
 	if (m.overlap < limits.minOverlap)
 		reasons.push({ code: 'SHAPE_DRIFT', message: 'The letter moved too far from its shape.' });
 	if (

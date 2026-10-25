@@ -148,18 +148,11 @@ describe('apply_chaos (agent tool)', () => {
 	});
 
 	it('honours breakRules only in Wild mode', async () => {
-		const closeCounter = {
-			glyphIds: [O],
-			op: 'grid-snap',
-			seed: 1,
-			chaos: 100,
-			params: { cols: 3, rows: 3 },
-		};
-		const guarded = await run('apply_chaos', { ...closeCounter, breakRules: true });
+		const input = { glyphIds: [H], op: 'slash-cut', seed: 1, breakRules: true };
+		expect((await run('apply_chaos', input)).guard).toBe('on');
 		setMode(editor, 'wild');
-		const wild = await run('apply_chaos', { ...closeCounter, breakRules: true });
-		expect(guarded.ok ? guarded.guard : 'on').toBe('on');
-		if (wild.ok) expect(wild.guard).toBe('off');
+		expect((await run('apply_chaos', input)).guard).toBe('off');
+		expect((await run('apply_chaos', { ...input, breakRules: false })).guard).toBe('on');
 	});
 
 	it('rejects a stale revision like every job tool', async () => {

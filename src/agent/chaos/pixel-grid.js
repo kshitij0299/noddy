@@ -101,7 +101,7 @@ export function detectCellGrid(contourSets, metrics) {
 	if (xs.length < 4 || ys.length < 4) return null;
 	const upm = metrics.upm || 1000;
 	const candidates = [];
-	for (let pitch = upm / 40; pitch <= upm / 8; pitch += upm / 2000) {
+	for (let pitch = upm / 30; pitch <= upm / 8; pitch += upm / 2000) {
 		const ox = phaseOf(xs, pitch);
 		const oy = phaseOf(ys, pitch);
 		const ax = alignment(xs, pitch, ox);
@@ -118,7 +118,7 @@ export function detectCellGrid(contourSets, metrics) {
 	const shortlist = candidates
 		.filter((candidate) => candidate.score >= 0.5)
 		.sort((a, b) => b.score - a.score || a.residual - b.residual)
-		.slice(0, 12)
+		.slice(0, 16)
 		.sort((a, b) => b.pitch - a.pitch);
 	const passing = [];
 	for (const candidate of shortlist) {
@@ -134,9 +134,12 @@ export function detectCellGrid(contourSets, metrics) {
 		if (purity >= MIN_PURITY && tall >= 5) passing.push({ ...candidate, purity });
 	}
 	if (!passing.length) return null;
-	// The largest clean pitch (half of it is clean too), refined to the best-aligned one near it.
-	const largest = Math.max(...passing.map((candidate) => candidate.pitch));
-	const best = passing
+	// The cleanest grid; near-ties go to the larger pitch (half the true pitch is clean too).
+	const purest = Math.max(...passing.map((candidate) => candidate.purity));
+	const clean = passing.filter((candidate) => candidate.purity >= purest - 0.03);
+	const largest = Math.max(...clean.map((candidate) => candidate.pitch));
+	// Then, near that pitch, the one whose lines the vertices sit closest to.
+	const best = clean
 		.filter((candidate) => candidate.pitch >= largest * 0.9)
 		.sort((a, b) => a.residual - b.residual)[0];
 	return {
