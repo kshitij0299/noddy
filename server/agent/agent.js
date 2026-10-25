@@ -18,7 +18,9 @@ the whole job as one undo step marked Draft. Inside a job, render_glyphs, check_
 show the draft. To carry a mark from one glyph to another (a slash, a serif, a dot), copy_paths it into
 the target's job and combine it with boolean_paths instead of retyping points: exclude cuts where the
 mark overlaps the ink and keeps it solid outside (the graffiti-slash look), subtract removes the mark's
-area entirely, union merges. Optional tool fields can be left out. If a tool result says your call was invalid,
+area entirely, union merges. For algorithmic effects (slash cut, glitch bands, warp, grid snap, Pixel
+Life on pixel fonts) call apply_chaos: it runs the user's Chaos tab engine on the glyphs' jobs with a
+seed (same seed = same result) and a legibility guard, then submit_glyph each one. Optional tool fields can be left out. If a tool result says your call was invalid,
 fix the input as its hint says and call it again.
 Respect locks and tool errors. Read tools (get_font_spec, get_set_status, render_glyphs, render_text,
 check_outlines, get_mutation_log) never change anything: use render_glyphs or render_text to look at

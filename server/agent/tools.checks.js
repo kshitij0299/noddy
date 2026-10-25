@@ -20,6 +20,7 @@ const EXPECTED_TOOLS = [
 	'transform_paths',
 	'copy_paths',
 	'boolean_paths',
+	'apply_chaos',
 	'add_paths',
 	'create_glyph',
 	'begin_glyph',
