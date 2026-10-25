@@ -23,6 +23,7 @@ import {
 	readMutationLog,
 } from './ownership.js';
 import { fontMetrics, renderRow } from './render.js';
+import { readAgentControls } from './agent-controls.js';
 import {
 	READ_ONLY_TOOLS,
 	RENDER_IMAGES_PER_REQUEST,
@@ -182,6 +183,8 @@ export function createNativeToolSession({
 			spec: compactSpec(project),
 			set: setSummary(editor, project),
 			lock: glyphId ? ownershipOf(editor, glyphId, { grant: requestGrant }).locked : null,
+			// The panel's Mode, Chaos and Target chips (PR B): the same for MCP clients.
+			...readAgentControls(editor),
 		};
 	}
 

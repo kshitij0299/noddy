@@ -6,11 +6,12 @@ availability changes daily, so anything below that depends on "which models work
 checked live by the app, not hard-coded.
 
 Status: open unless marked. PR A (agent tools fix) fixed 8, 9, 22, 23, 25, 26, 27 and the
-"compact tools" part of 17 (copy_paths, boolean_paths, transform pivots). Existing issues are linked where they match.
+"compact tools" part of 17 (copy_paths, boolean_paths, transform pivots). PR B (agent panel
+controls) fixed 1, 13, 14, 16, 20 and 30. Existing issues are linked where they match.
 
 ## Connection and models
 
-1. **No model switcher once a chat has started.** "Change" exists only on the empty state and
+1. **No model switcher once a chat has started.** **Fixed in PR B (the model chip in the composer opens the model list; switching keeps the chat).** "Change" exists only on the empty state and
    inside some error bubbles. Every AI app shows the current model in the composer and lets you
    switch anytime. Wanted: a model chip in the composer that opens the existing model list;
    switching keeps the chat.
@@ -40,11 +41,11 @@ Status: open unless marked. PR A (agent tools fix) fixed 8, 9, 22, 23, 25, 26, 2
 7. **Dev only (done on branch `agent/dev-env-key`, not merged):** typing `env` as the key uses
    `OPENROUTER_API_KEY` from `.env.local` on the dev server, free models only. Not for hosted users.
 
-13. **"Use this model" sat on "Testing…" for about 60 s** (Nemotron 3.5 Super VL) with no
+13. **"Use this model" sat on "Testing…" for about 60 s** **Fixed in PR B (Cancel while testing; the test gives up after 45 s and says so). Why the in-app check is slower was not investigated.** (Nemotron 3.5 Super VL) with no
     progress, time estimate or cancel. The same check took a few seconds through the relay directly.
     Wanted: a cancel button, a timeout with a clear message, and investigate why the in-app check is
     slower than a direct relay call.
-14. **"Change model" inside an error bubble says "This starts a new chat."** Switching models
+14. **"Change model" inside an error bubble says "This starts a new chat."** **Fixed in PR B (it opens the model chip's list; the chat stays).** Switching models
     should keep the conversation.
 
 ## Agent runs
@@ -81,7 +82,7 @@ Status: open unless marked. PR A (agent tools fix) fixed 8, 9, 22, 23, 25, 26, 2
 19. **The agent panel covers the glyph being edited.** With A open at about 1440 px wide, the panel
     sits over the right half of the canvas, so you can't see the edit happen.
 
-20. **No "New chat" button.** The only way to start fresh is "Change model", which is hidden
+20. **No "New chat" button.** **Fixed in PR B (New chat in the panel header).** The only way to start fresh is "Change model", which is hidden
     inside an error bubble or the empty state.
 
 21. **A page reload loses unsaved work with no warning and no backup.** A dev-server restart
@@ -113,7 +114,7 @@ Status: open unless marked. PR A (agent tools fix) fixed 8, 9, 22, 23, 25, 26, 2
 15. **At about 800 px wide the agent panel covers the whole screen** and the font is not visible at
     all; it looks like an empty project. Wanted: the font stays reachable at narrow widths (agent
     as a drawer/sheet, or a toggle between font and agent).
-16. **The agent's empty state says "What are we drawing?" with "Clean simple sans / Geometric"
+16. **Fixed in PR B (a loaded font gets "What should we change?" with Make it bolder, Restyle from A, Fix spacing).** **The agent's empty state says "What are we drawing?" with "Clean simple sans / Geometric"
     chips even when a full font is already loaded.** Wanted: on a loaded font, suggest edits
     ("Make it bolder", "Restyle from A", "Fix spacing") instead of starting from scratch.
 
@@ -141,7 +142,7 @@ Draft. Found on the way:
 29. **Run log (C–F):** with the split slash (upper as drawn, lower reversed), C, D, E and F each
     passed the gate first try in one MCP session: 14 tool calls for 4 glyphs. The workaround is
     reusable, but an agent only finds it after reading the gate's codes (bug 27).
-30. **With "Claude Code · connected", the panel's chat box still goes to the built-in model**
+30. **Fixed in PR B (the composer sends to the local agent; MCP `wait_for_user_message` and `reply_to_user`).** **With "Claude Code · connected", the panel's chat box still goes to the built-in model**
     (or nowhere), so the owner can't talk to Claude from inside Noddy. Wanted (PR B): when a local
     agent is connected, the composer routes messages to it; add an MCP tool like
     `wait_for_user_message` (long-poll) that returns what the user typed in the panel, and show the

@@ -315,6 +315,7 @@ const RELAY_CODES = new Set([
  * @property {string} [detail]  the provider's cleaned message (connect checks only)
  * @property {string} [message]
  * @property {boolean} [offline]  the relay could not be reached
+ * @property {number} [timeoutSeconds]  the model test got no answer within this many seconds
  */
 
 /**
@@ -339,6 +340,13 @@ export function describeError(error = {}, { provider = '', key = '' } = {}) {
 	const label = spec?.label ?? 'Your provider';
 	if (error.offline) {
 		return view('offline', RELAY_OFF_COPY, { focus: 'key' });
+	}
+	if (Number.isInteger(error.timeoutSeconds)) {
+		// The test message got no answer in time (bug 13): say so, never "isn't responding · 408".
+		return view(
+			'timeout',
+			`No answer from this model in ${error.timeoutSeconds} s — it may be busy. Try again, or pick another model.`
+		);
 	}
 	const code = error.code ?? '';
 	if (RELAY_CODES.has(code)) return relayRefusal(error, code);

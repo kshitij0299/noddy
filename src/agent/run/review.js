@@ -113,6 +113,29 @@ export function revertGlyph(editor, id) {
 }
 
 /**
+ * Undo several Drafts from a receipt: back to their pre-draft outlines in ONE history entry.
+ * Glyphs that are not Drafts (kept, Yours, failed) are skipped.
+ * @param {Object} editor
+ * @param {Array<String>} ids
+ * @returns {{ok: Boolean, reverted: Array<String>, error?: Object}}
+ */
+export function revertGlyphs(editor, ids = []) {
+	const glyphs = {};
+	const statuses = [];
+	const reverted = [];
+	for (const id of [...new Set(ids)]) {
+		const preDraft = preDraftOf(editor, id);
+		if (!preDraft) continue;
+		reverted.push(id);
+		glyphs[id] = preDraft.glyph;
+		statuses.push({ id, record: settledRecord(preDraft.glyph) });
+	}
+	if (!reverted.length) return { ok: true, reverted };
+	const result = commitReview(editor, { title: titleFor('Undo', reverted), glyphs, statuses });
+	return result.ok ? { ok: true, reverted } : { ok: false, reverted: [], error: result.error };
+}
+
+/**
  * Revert run: back to the "Before run" checkpoint for every glyph the run
  * drew, in one entry. Yours glyphs and glyphs edited after the run drew them
  * are kept as they are.

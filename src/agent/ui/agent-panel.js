@@ -4,9 +4,10 @@
  * One module-level panel lives in the persistent slot
  * (src/app/agent_panel_slot.js), so a run survives page navigation.
  *
- *   header   mark · "Agent" · status dot · model chip · minimize (no close)
+ *   header   mark · "Agent" (or the Agent | Chaos tabs once a chaos tool exists) · status dot ·
+ *            [Local agent] · New chat · minimize (no close)
  *   thread   anchored at the bottom: bubbles, step lines, message cards
- *   composer attach · "Ask the agent" · send
+ *   composer "Ask the agent", then attach · Model · Mode · Target chips · send (PR B)
  *   pill     the minimized form (agent-pill.js)
  *
  * Minimizing, Esc and focus mode never stop a run: nothing here calls
@@ -18,6 +19,12 @@
  * then the queue drafts one glyph job at a time (src/agent/run/). A message
  * that names one glyph ("fix the g") stays a small ask: no plan, no gate,
  * a receipt only. Receipts offer Keep N (Keep all for the group) and Retry.
+ *
+ * PR B: the Model chip opens the model list in a popover (switching keeps the chat, bugs 1 and
+ * 14); Mode (Exact / Remix / Wild + chaos) and Target (this glyph / selected / whole set) reach
+ * get_context and the built-in agent's instructions; New chat clears the thread (bug 20); a
+ * loaded font gets edit suggestions (bug 16); with a local agent on, the composer talks to it
+ * (bug 30).
  *
  * Plumbing kept from before M4: agent-controller.js (runs, keys in memory),
  * native-tools.js (edits through history), attachments.js.
@@ -33,7 +40,8 @@ import { createAgentController } from '../agent-controller.js';
 import { createNativeToolSession } from '../native-tools.js';
 import { createGlyphDrafter } from '../run/glyph-job.js';
 import { classifyAsk } from '../run/intent.js';
-import { RETRY_GLYPHS_EVENT, charOf, keepGlyphs, revertRun } from '../run/review.js';
+import { RETRY_GLYPHS_EVENT, charOf, keepGlyphs, revertGlyphs, revertRun } from '../run/review.js';
+import { onControlsChange, readAgentControls } from '../agent-controls.js';
 import { createRunController } from '../run/run-controller.js';
 import { formatDollars } from '../run/spend.js';
 import { createCheckpointLine, createRunBar } from './agent-run-bar.js';
@@ -49,6 +57,9 @@ import {
 import { describeRunError } from '../connect-flow.js';
 import { createPanelComposer } from './agent-panel-composer.js';
 import { createAgentPill, derivePillPhase } from './agent-pill.js';
+import { createModeChip, createModelChip, createTargetChip } from './agent-composer-chips.js';
+import { closeAllPopovers, createPopover } from './agent-popover.js';
+import { createPanelTabs, listChaosTools, onChaosToolsChange } from './agent-panel-tabs.js';
 import './agent-panel.css';
 
 export const PANEL_ID = 'agent-panel';
@@ -56,6 +67,22 @@ export const NARROW_QUERY = '(max-width: 1199px)';
 export const PHONE_QUERY = '(max-width: 759px)';
 
 export const SUGGESTIONS = Object.freeze(['Clean simple sans', 'Geometric']);
+/** On a font that already has glyphs: edits, not a fresh start (bug 16). */
+export const EDIT_SUGGESTIONS = Object.freeze(['Make it bolder', 'Restyle from A', 'Fix spacing']);
+
+/**
+ * Does the open project already have drawn glyphs?
+ * @param {any} editor
+ * @returns {Boolean}
+ */
+export function fontHasGlyphs(editor) {
+	try {
+		const glyphs = editor?.project?.glyphs || {};
+		return Object.values(glyphs).some((glyph) => glyph?.shapes?.length > 0);
+	} catch {
+		return false;
+	}
+}
 
 /** Error code → one-line thread copy. Unknown codes show the message. */
 export const ERROR_COPY = Object.freeze({
@@ -202,7 +229,14 @@ export function createAgentPanel({
 	const dot = el('span', 'agent-panel__dot');
 	dot.append(srOnly('Running'));
 	dot.hidden = true;
-	const chip = el('span', 'agent-panel__model text-mono-small', 'No model');
+	const newChatButton = /** @type {HTMLButtonElement} */ (
+		el('button', 'agent-icon-button agent-panel__new-chat')
+	);
+	newChatButton.type = 'button';
+	newChatButton.title = 'New chat';
+	newChatButton.setAttribute('aria-label', 'New chat');
+	newChatButton.append(icon('edit_square'));
+	newChatButton.addEventListener('click', () => newChat());
 	const minimizeButton = /** @type {HTMLButtonElement} */ (
 		el('button', 'agent-icon-button agent-panel__minimize')
 	);
@@ -211,7 +245,9 @@ export function createAgentPanel({
 	minimizeButton.setAttribute('aria-controls', PANEL_ID);
 	minimizeButton.append(icon('remove'));
 	minimizeButton.addEventListener('click', () => minimize());
-	header.append(mark, title, dot, chip, minimizeButton);
+	// Pushes the header buttons to the right edge (spacing lives here, never on a button).
+	const headerSpacer = el('span', 'agent-panel__header-spacer');
+	header.append(mark, title, dot, headerSpacer, newChatButton, minimizeButton);
 
 	// ---- Thread ----
 	const thread = el('div', 'agent-panel__thread');
@@ -236,6 +272,8 @@ export function createAgentPanel({
 	let localChip = null;
 	/** @type {{on: Boolean, state: String, stop: Function, dispose: Function} | null} */
 	let localAgent = null;
+	/** The local agent took a message and has not answered yet. */
+	let localBusy = false;
 	let disposed = false;
 	/** @type {Map<String, HTMLElement>} */
 	const toolLines = new Map();
@@ -276,6 +314,68 @@ export function createAgentPanel({
 		onAttachError: (message) => addError({ message }),
 	});
 
+	// ---- Composer chips: Model · Mode · Target (PR B) ----
+	const modelChip = createModelChip();
+	const modeChip = createModeChip({ getEditor });
+	const targetChip = createTargetChip({ getEditor });
+	composer.tools.append(modelChip.button, modeChip.button, targetChip.button);
+	const modelPopover = createPopover({
+		anchor: modelChip.button,
+		label: 'Model',
+		width: 'wide',
+		className: 'agent-popover--model',
+		onOpen: () => openModelMenu(),
+		onClose: () => returnConnectCard(),
+		focus: () => connect.focus(),
+	});
+	// Its own head: what this list is, and the two ways out of it.
+	const modelHead = el('div', 'agent-popover__head');
+	const changeProvider = /** @type {HTMLButtonElement} */ (
+		el('button', 'agent-link-button', 'Change provider')
+	);
+	changeProvider.type = 'button';
+	changeProvider.addEventListener('click', () => {
+		connect.open('provider');
+		connect.focus();
+	});
+	const reenterKey = /** @type {HTMLButtonElement} */ (
+		el('button', 'agent-link-button', 'Re-enter key')
+	);
+	reenterKey.type = 'button';
+	reenterKey.addEventListener('click', () => {
+		connect.open('key');
+		connect.focus();
+	});
+	const modelHeadLinks = el('div', 'agent-popover__links text-body-small');
+	modelHeadLinks.append(changeProvider, reenterKey);
+	modelHead.append(el('span', 'agent-popover__title text-label', 'Model'), modelHeadLinks);
+	modelPopover.root.prepend(modelHead);
+	// With a local agent on the chip is its status; the model waits until it is off.
+	// The card is already on screen in the empty state: the chip takes you to it instead.
+	modelChip.button.addEventListener(
+		'click',
+		(event) => {
+			const cardShowing = empty.isConnected && connect.showsCard && !modelPopover.isOpen;
+			if (!localChip && !cardShowing) return;
+			event.stopImmediatePropagation();
+			if (cardShowing && !localChip) connect.focus();
+		},
+		true
+	);
+
+	function renderModelChip() {
+		if (localChip) {
+			modelChip.render({ label: localChip, local: true });
+			return;
+		}
+		const tier = connect.connected?.tier;
+		modelChip.render({
+			// The variant (":free") is the badge; the chip keeps the name.
+			label: modelId ? modelLabel(modelId).replace(/:free$/, '') : 'No model',
+			...(modelId && tier ? { tier } : {}),
+		});
+	}
+
 	// ---- Connect card + empty state ----
 	const connect = createConnectCard({
 		check,
@@ -293,36 +393,75 @@ export function createAgentPanel({
 		},
 	});
 
+	/** Puts the connect card in the model popover (the chat stays where it is). */
+	function openModelMenu() {
+		modelPopover.body.append(connect.root);
+		connect.open(connect.connected ? 'model' : 'key');
+	}
+
+	/** The card goes back to the empty state when the popover closes. */
+	function returnConnectCard() {
+		if (connect.root.parentElement !== empty) empty.append(connect.root);
+		renderEmptyState();
+	}
+
+	/** Model chip: the empty state's card while it shows, else the popover. */
+	function showModelChoice(where = 'model') {
+		if (localChip) return;
+		if (empty.isConnected && connect.showsCard && !modelPopover.isOpen) {
+			connect.open(where);
+			connect.focus();
+			return;
+		}
+		if (!modelPopover.isOpen) modelPopover.open();
+		if (where !== 'model') {
+			connect.open(where);
+			connect.focus();
+		}
+	}
+
 	const empty = el('div', 'agent-panel__empty');
 	const emptyMark = el('span', 'agent-mark agent-mark--48');
 	emptyMark.setAttribute('aria-hidden', 'true');
 	const emptyTitle = el('h2', 'agent-panel__empty-title text-heading', 'What are we drawing?');
 	const chips = el('div', 'agent-panel__chips');
-	SUGGESTIONS.forEach((text) => {
-		const button = /** @type {HTMLButtonElement} */ (
-			el('button', 'agent-suggestion text-label', text)
-		);
-		button.type = 'button';
-		button.addEventListener('click', () => {
-			composer.setValue(text);
-			composer.input.focus();
+	/** 'new' (an empty font) or 'edit' (a loaded font): which suggestions are drawn. */
+	let emptyKind = '';
+	function drawSuggestions(kind) {
+		emptyKind = kind;
+		emptyTitle.textContent = kind === 'edit' ? 'What should we change?' : 'What are we drawing?';
+		const buttons = (kind === 'edit' ? EDIT_SUGGESTIONS : SUGGESTIONS).map((text) => {
+			const button = /** @type {HTMLButtonElement} */ (
+				el('button', 'agent-suggestion text-label', text)
+			);
+			button.type = 'button';
+			button.addEventListener('click', () => {
+				composer.setValue(text);
+				composer.input.focus();
+			});
+			return button;
 		});
-		chips.append(button);
-	});
-	const sketch = /** @type {HTMLButtonElement} */ (el('button', 'agent-suggestion text-label'));
-	sketch.type = 'button';
-	sketch.append(icon('image'), el('span', '', 'Add a sketch'));
-	sketch.addEventListener('click', () => composer.openChooser());
-	chips.append(sketch);
+		const sketch = /** @type {HTMLButtonElement} */ (el('button', 'agent-suggestion text-label'));
+		sketch.type = 'button';
+		sketch.append(icon('image'), el('span', '', 'Add a sketch'));
+		sketch.addEventListener('click', () => composer.openChooser());
+		chips.replaceChildren(...buttons, sketch);
+	}
+	drawSuggestions('new');
 	empty.append(emptyMark, emptyTitle, chips, connect.root);
 
 	function renderEmptyState() {
-		const connected = controller.connected;
+		const kind = fontHasGlyphs(getEditor()) ? 'edit' : 'new';
+		if (kind !== emptyKind) drawSuggestions(kind);
+		// A local agent needs no model: its suggestions show while it is on.
+		const ready = controller.connected || !!localAgent?.on;
+		const cardHere = connect.root.parentElement === empty && connect.showsCard;
 		// The suggestions come once a model is connected and the card has stepped aside as the
 		// Connected row. While the card shows, the block anchors to the top so it never moves
 		// between steps.
-		chips.hidden = !(connected && !connect.showsCard);
-		empty.toggleAttribute('data-connecting', connect.showsCard);
+		chips.hidden = !(ready && !cardHere);
+		empty.toggleAttribute('data-connecting', cardHere && !localAgent?.on);
+		connect.root.hidden = !!localAgent?.on && connect.root.parentElement === empty;
 	}
 
 	function showEmpty() {
@@ -365,8 +504,8 @@ export function createAgentPanel({
 
 	/**
 	 * The fixes a provider failure offers in the thread: a link to the provider's page where it
-	 * has one, "Change model" and, for a refused key, "Re-enter key". Changing the model starts
-	 * a new chat, because opaque continuation data from one model must not reach another.
+	 * has one, "Change model" and, for a refused key, "Re-enter key". Both open the model chip's
+	 * list; the chat stays (bugs 1, 14): the conversation the controller keeps is text only.
 	 * @param {ReturnType<typeof describeRunError>} view
 	 */
 	function errorActions(view) {
@@ -392,20 +531,13 @@ export function createAgentPanel({
 			again.addEventListener('click', () => changeModel('key'));
 			row.append(again);
 		}
-		row.append(el('span', 'agent-bubble__note', 'This starts a new chat.'));
 		return row;
 	}
 
-	/** Back to the connect card (a new chat), on its key or model step. */
+	/** The model chip's list, on its model or key step. The chat stays. */
 	function changeModel(where) {
-		if (controller.running || runs.active) return;
-		try {
-			controller.clear?.();
-		} catch {
-			return;
-		}
-		connect.open(where);
-		connect.focus();
+		if (controller.running) return;
+		showModelChoice(where);
 	}
 
 	/** A provider failure whose fixes wait for the request to end (the buttons need an idle agent). */
@@ -467,7 +599,10 @@ export function createAgentPanel({
 	/** A chat request or a run's glyph job is in flight. */
 	function working() {
 		return (
-			status.running || !!controller.running || ['controls', 'drafting'].includes(runs.state)
+			status.running ||
+			!!controller.running ||
+			localBusy ||
+			['controls', 'drafting'].includes(runs.state)
 		);
 	}
 
@@ -503,6 +638,7 @@ export function createAgentPanel({
 			compact: matches(PHONE_QUERY),
 		});
 		runBar.render(run);
+		newChatButton.disabled = !canStartNewChat();
 		checkpointLine?.setEnabled((run.drawn || []).length > 0);
 		refreshReceipts();
 	}
@@ -593,6 +729,7 @@ export function createAgentPanel({
 	function onEvent(event) {
 		switch (event.type) {
 			case 'clear':
+				resetThread();
 				showEmpty();
 				break;
 			case 'start':
@@ -649,7 +786,8 @@ export function createAgentPanel({
 			case 'connection':
 				modelId = event.connected ? event.model : '';
 				providerId = event.connected ? event.provider : '';
-				if (!localChip) chip.textContent = event.connected ? modelLabel(event.model) : 'No model';
+				renderModelChip();
+				if (event.connected) modelPopover.close({ restoreFocus: false });
 				// A disconnect also drops the list (and the key copy kept for it).
 				if (!event.connected) connect.reset();
 				renderEmptyState();
@@ -664,6 +802,17 @@ export function createAgentPanel({
 
 	// ---- Send ----
 	async function submit({ prompt, attachments }) {
+		// A local agent on: the message goes to it, not the built-in model (bug 30).
+		if (localAgent?.on) {
+			empty.remove();
+			const sent = await localAgent.send({
+				prompt,
+				attachments,
+				controls: readAgentControls(getEditor()),
+			});
+			if (sent) composer.clear();
+			return;
+		}
 		if (!controller.connected) {
 			const online = await probe();
 			addError({ code: online ? 'NO_MODEL' : 'RELAY_OFFLINE' });
@@ -887,10 +1036,74 @@ export function createAgentPanel({
 		return true;
 	}
 
+	/**
+	 * Undo Drafts from a receipt: back to what they were before, one history entry.
+	 * @param {any} card
+	 * @param {Array<String>} ids
+	 */
+	function undoGlyphs(card, ids) {
+		const result = revertGlyphs(getEditor(), ids);
+		const n = result.reverted.length;
+		const line = {
+			tone: result.ok ? 'info' : 'failed',
+			text: result.ok
+				? n
+					? `Undid ${result.reverted.map(charOf).join(' ')}`
+					: 'Nothing to undo'
+				: result.error?.message || 'Not undone',
+		};
+		if (!reopenReceipt(card, line)) {
+			const own = card?.lastElementChild;
+			if (own?.tagName === 'AGENT-STEP-LINE') own.render(line);
+			else addStep(line.tone, line.text);
+		}
+		renderStatus();
+	}
+
+	/**
+	 * Retry on a Draft: ask whoever is drawing (the local agent or the model) for another take.
+	 * The Draft stays until the new one lands, so a failed retry loses nothing.
+	 * @param {any} card
+	 * @param {Array<String>} ids
+	 */
+	function redoGlyphs(card, ids) {
+		const chars = ids.map(charOf).join(' ');
+		const prompt = `Redraw ${chars}: try a different take, same style.`;
+		reopenReceipt(card, null);
+		if (localAgent?.on) {
+			localAgent.send({ prompt, attachments: [], controls: readAgentControls(getEditor()) });
+			return;
+		}
+		if (!controller.connected) {
+			addError({ code: 'NO_MODEL' });
+			return;
+		}
+		if (controller.running || runs.active) {
+			addStep('info', 'The agent is busy · retry when it finishes');
+			return;
+		}
+		controller.run(prompt, [], { requireGlyph: false }).catch((error) => addError(error));
+	}
+
 	host.addEventListener(CARD_ACTION_EVENT, (event) => {
 		const detail = /** @type {CustomEvent} */ (event).detail || {};
 		const card = /** @type {any} */ (event.target);
 		const cardId = String(detail.cardId || '');
+		// Per-glyph receipt actions (PR B) are the receipt's own, for one glyph.
+		const glyphAction = String(detail.action || '').endsWith('-one');
+		if (glyphAction) detail.action = String(detail.action).slice(0, -4);
+		if (detail.action === 'undo') {
+			undoGlyphs(card, detail.glyphIds || []);
+			return;
+		}
+		if (detail.action === 'retry') {
+			const store = getEditor()?.glyphStatus;
+			const drafts = (detail.glyphIds || []).filter((id) => store?.getStatus(id) === 'draft');
+			if (drafts.length) {
+				redoGlyphs(card, drafts);
+				return;
+			}
+		}
 		if (detail.action === 'start') {
 			runAction(() => runs.start());
 			return;
@@ -964,6 +1177,41 @@ export function createAgentPanel({
 		}
 	});
 
+	// ---- New chat (bug 20) ----
+	/** Forget what the thread tracks; the cards themselves go with the thread. */
+	function resetThread() {
+		closeAllPopovers();
+		liveReceipts.clear();
+		toolLines.clear();
+		approvalCard = null;
+		checkpointLine = null;
+		adjusting = false;
+		lastPrompt = '';
+		pendingFixes = null;
+	}
+
+	/** Something to clear, and nothing working that the thread would lose track of. */
+	function canStartNewChat() {
+		return empty.parentElement !== log && !working() && !runs.active && !localBusy;
+	}
+
+	function newChat() {
+		if (!canStartNewChat()) return;
+		try {
+			// The controller forgets the conversation and emits 'clear' (the empty state).
+			controller.clear();
+		} catch (error) {
+			addError(error);
+			return;
+		}
+		if (empty.parentElement !== log) {
+			resetThread();
+			showEmpty();
+		}
+		renderStatus();
+		composer.input.focus();
+	}
+
 	// ---- Minimize / restore ----
 	function applyMode() {
 		setAgentPanelMode(mode);
@@ -977,6 +1225,7 @@ export function createAgentPanel({
 
 	function minimize() {
 		if (mode === 'minimized') return;
+		closeAllPopovers();
 		const hadFocus = panel.contains(document.activeElement);
 		savedScroll = thread.scrollTop;
 		mode = 'minimized';
@@ -1027,17 +1276,26 @@ export function createAgentPanel({
 				if (!module || disposed) return;
 				localAgent = module.mountLocalAgent({
 					header,
-					before: minimizeButton,
+					before: newChatButton,
 					setChip(label) {
 						localChip = label;
-						chip.textContent = label ?? (modelId ? modelLabel(modelId) : 'No model');
-						chip.toggleAttribute('data-local', !!label);
+						if (label) modelPopover.close({ restoreFocus: false });
+						renderModelChip();
+						const client = label?.endsWith(' · connected') ? label.slice(0, -12) : '';
+						composer.setPlaceholder(
+							client ? `Message ${client}` : label ? 'Message your local agent' : 'Ask the agent'
+						);
 					},
 					setBusy(busy) {
-						if (busy) empty.remove();
+						localBusy = busy;
 						composer.setBusy(busy || !!controller.running);
 						renderStatus();
 					},
+					setRouting() {
+						renderEmptyState();
+						renderStatus();
+					},
+					addBubble,
 					append,
 					addStep,
 					addError,
@@ -1051,7 +1309,52 @@ export function createAgentPanel({
 				/* No Local agent: the panel works as before. */
 			});
 	}
-	panel.append(header, thread, runBar.root, composer.root);
+	// ---- Tabs: Agent | Chaos (the Chaos tab shows once a chaos tool is registered, PR C) ----
+	const agentTab = el('div', 'agent-panel__tab agent-panel__tab--agent');
+	agentTab.append(
+		thread,
+		runBar.root,
+		composer.root,
+		modelPopover.root,
+		modeChip.popover.root,
+		targetChip.popover.root
+	);
+	const chaosTab = el('div', 'agent-panel__tab agent-panel__tab--chaos');
+	const tabs = createPanelTabs({
+		panels: { agent: agentTab, chaos: chaosTab },
+		onSelect: () => closeAllPopovers(),
+	});
+	header.insertBefore(tabs.root, title);
+	/** @type {Array<Function>} */
+	let chaosDisposers = [];
+	function renderChaosTab() {
+		const list = listChaosTools();
+		const shown = list.length > 0;
+		tabs.root.hidden = !shown;
+		title.hidden = shown;
+		if (!shown && tabs.current !== 'agent') tabs.select('agent');
+		chaosDisposers.forEach((dispose) => dispose());
+		chaosDisposers = [];
+		chaosTab.replaceChildren();
+		for (const tool of list) {
+			const block = el('section', 'agent-chaos-tool');
+			block.dataset.tool = tool.id;
+			block.setAttribute('aria-label', tool.label);
+			chaosTab.append(block);
+			try {
+				const dispose = tool.mount(block, { getEditor });
+				if (typeof dispose === 'function') chaosDisposers.push(dispose);
+			} catch {
+				block.remove();
+			}
+		}
+	}
+	const offChaos = onChaosToolsChange(() => renderChaosTab());
+	renderChaosTab();
+	// The target follows the grid selection and the open glyph.
+	const offControls = onControlsChange(() => renderStatus());
+
+	panel.append(header, agentTab, chaosTab);
 	host.append(scrim, panel, pill.root);
 	showEmpty();
 	applyMode();
@@ -1078,8 +1381,18 @@ export function createAgentPanel({
 		},
 		minimize,
 		restore,
-		/** Re-read counts (review store) and redraw the pill and dot. */
-		refreshStatus: renderStatus,
+		/** Re-read counts (review store), the chips and the empty state; redraw the pill and dot. */
+		refreshStatus() {
+			modeChip.render();
+			targetChip.render();
+			if (empty.isConnected) renderEmptyState();
+			renderStatus();
+		},
+		modelChip,
+		modeChip,
+		targetChip,
+		tabs,
+		newChatButton,
 		/**
 		 * Run progress for the pill until M7's queue reports it.
 		 * @param {{glyph?: String, done?: Number, total?: Number, paused?: Boolean}} partial
@@ -1094,6 +1407,12 @@ export function createAgentPanel({
 		},
 		dispose() {
 			disposed = true;
+			closeAllPopovers();
+			offChaos();
+			offControls();
+			chaosDisposers.forEach((dispose) => dispose());
+			modeChip.dispose();
+			targetChip.dispose();
 			localAgent?.dispose();
 			document.removeEventListener('keydown', onDocumentKey);
 			document.removeEventListener(RETRY_GLYPHS_EVENT, onRetryGlyphs);
@@ -1129,6 +1448,12 @@ export function ensureAgentPanel(options) {
 	try {
 		editor?.subscribe?.({
 			topic: GLYPH_STATUS_TOPIC,
+			subscriberID: 'agentPanel',
+			callback: () => singleton?.refreshStatus(),
+		});
+		// The Target chip follows the glyph open in the editor (stepping prev / next too).
+		editor?.subscribe?.({
+			topic: 'whichGlyphIsSelected',
 			subscriberID: 'agentPanel',
 			callback: () => singleton?.refreshStatus(),
 		});

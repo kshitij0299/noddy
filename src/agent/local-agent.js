@@ -15,6 +15,10 @@
  * images); the retried result says `sessionRestarted: true` with a plain `notice` naming the
  * dropped drafts, its revision is new and any unsubmitted draft of the old session is gone.
  * Turning the link off disposes every session.
+ *
+ * Chat (bug 30): `send(message)` queues what the user typed in the panel for the agent's
+ * `wait_for_user_message`; the stream reports `listening` (the agent is waiting), `delivered`
+ * (it took a message) and `reply` (its `reply_to_user` text).
  */
 
 // Errors that mean "this session is used up or stale", not "this call is wrong".
@@ -160,8 +164,15 @@ export function createLocalAgentLink({
 	}
 
 	function dispatch(type, data, owner) {
-		if (type === 'ready') setClient(data?.client);
-		else if (type === 'client') setClient(data?.name);
+		if (type === 'ready') {
+			setClient(data?.client);
+			onEvent({ type: 'listening', on: data?.listening === true });
+		} else if (type === 'client') setClient(data?.name);
+		else if (type === 'listening') onEvent({ type: 'listening', on: data?.on === true });
+		else if (type === 'delivered' && typeof data?.id === 'string')
+			onEvent({ type: 'delivered', id: data.id });
+		else if (type === 'reply' && typeof data?.text === 'string')
+			onEvent({ type: 'reply', text: data.text.slice(0, 8000) });
 		else if (type === 'call') handleCall(data, owner);
 		else if (type === 'cancel') running.get(data?.id)?.abort();
 		else if (type === 'replaced') turnOff('replaced', { notify: false });
@@ -274,6 +285,35 @@ export function createLocalAgentLink({
 				url: paired.url,
 				command: `claude mcp add --transport http noddy ${paired.url} --header "Authorization: Bearer ${token}"`,
 			};
+		},
+		/**
+		 * A message from the panel's composer for the coding agent (bug 30). It waits in the dev
+		 * server's queue until the agent calls wait_for_user_message.
+		 * @param {{text: String, attachments?: Array<{name: String, kind: String, size?: Number}>,
+		 *   target?: Object, mode?: String, chaos?: Number}} message
+		 * @returns {Promise<{id: String, delivered: Boolean}>}
+		 */
+		async send(message) {
+			if (state === 'off' || !token) throw new Error('Turn on Local agent first.');
+			let response;
+			try {
+				response = await fetchImpl(ENDPOINT, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', ...authHeaders() },
+					body: JSON.stringify({ type: 'message', message }),
+				});
+			} catch {
+				throw new Error('The dev server did not answer. Your message is still in the box.');
+			}
+			let body = null;
+			try {
+				body = await response.json();
+			} catch {
+				/* Not the bridge's JSON. */
+			}
+			if (!response.ok || typeof body?.id !== 'string')
+				throw new Error(body?.error?.message || 'The message was not sent. Try again.');
+			return { id: body.id, delivered: body.delivered === true };
 		},
 		/** Stop or the switch: rejects pending and later calls on the server. */
 		stop() {

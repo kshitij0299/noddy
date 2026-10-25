@@ -81,12 +81,16 @@ describe('agent panel shell (#19)', () => {
 		expect(getAgentPanelSlot().querySelectorAll('#agent-panel')).toHaveLength(1);
 	});
 
-	it('header has a minimize button and no close control', () => {
+	it('header has New chat and minimize, no close control, and no tabs without chaos tools', () => {
 		const panel = panelFixture({ controller: fakeController() });
-		const buttons = [...panel.panel.querySelectorAll('header button')];
-		expect(buttons).toHaveLength(1);
-		expect(buttons[0].getAttribute('aria-label')).toBe('Minimize agent');
-		expect(buttons[0].textContent).toBe('remove');
+		const buttons = [...panel.panel.querySelectorAll('header button')].filter(
+			(button) => !button.closest('[hidden]')
+		);
+		expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+			'New chat',
+			'Minimize agent',
+		]);
+		expect(buttons[1].textContent).toBe('remove');
 		const labels = [...panel.host.querySelectorAll('button')].map((b) =>
 			`${b.getAttribute('aria-label')} ${b.textContent}`.toLowerCase()
 		);
@@ -292,7 +296,9 @@ describe('controller wiring (#21)', () => {
 		});
 		panel = panelFixture({ controller });
 		controller.connect({ provider: 'openai', model: 'gpt-5', apiKey: 'sk-secret-123' });
-		expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('GPT-5');
+		expect(
+			panel.panel.querySelector('.agent-panel__model .agent-chip-button__label').textContent
+		).toBe('GPT-5');
 		panel.composer.setValue('Tighten a');
 		panel.composer.root.requestSubmit();
 		await vi.waitFor(() => expect(controller.running).toBe(false));
@@ -507,7 +513,9 @@ describe('controller wiring (#21)', () => {
 				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
 			).toBe(false);
 			// The chip drops the vendor prefix; the Connected row keeps the whole ID.
-			expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('free-one:free');
+			expect(
+				panel.panel.querySelector('.agent-panel__model .agent-chip-button__label').textContent
+			).toBe('free-one');
 			// No step line is added: the Connected row is the feedback.
 			expect(panel.thread.querySelectorAll('agent-step-line')).toHaveLength(0);
 		});
@@ -528,7 +536,9 @@ describe('controller wiring (#21)', () => {
 			await flush();
 			expect(panel.controller.connected).toBe(true);
 			expect(panel.model).toBe('vendor/paid-two');
-			expect(panel.panel.querySelector('.agent-panel__model').textContent).toBe('paid-two');
+			expect(
+				panel.panel.querySelector('.agent-panel__model .agent-chip-button__label').textContent
+			).toBe('paid-two');
 			expect(host(panel).querySelector('.agent-connected').textContent).toContain(
 				'vendor/paid-two'
 			);
@@ -617,7 +627,8 @@ describe('controller wiring (#21)', () => {
 			panel.handleEvent({ type: 'finish' });
 			const labels = [...bubble.querySelectorAll('button')].map((button) => button.textContent);
 			expect(labels).toEqual(['Change model', 'Re-enter key']);
-			expect(bubble.textContent).toContain('This starts a new chat.');
+			// Switching keeps the chat (bugs 1, 14).
+			expect(bubble.textContent).not.toContain('new chat');
 		});
 
 		it('Esc inside the card does not minimize the panel', async () => {
@@ -630,7 +641,7 @@ describe('controller wiring (#21)', () => {
 			expect(panel.mode).toBe('open');
 		});
 
-		it('a run error from the provider names the status and offers Change model; Change starts a new chat', async () => {
+		it('a run error from the provider names the status and offers Change model; the chat stays', async () => {
 			const { panel } = await connectedPanel();
 			panel.handleEvent({ type: 'start', prompt: 'Draw a', attachments: [], context });
 			panel.handleEvent({
@@ -646,10 +657,14 @@ describe('controller wiring (#21)', () => {
 			const change = [...bubble.querySelectorAll('button')].find(
 				(button) => button.textContent === 'Change model'
 			);
-			expect(bubble.textContent).toContain('This starts a new chat.');
+			expect(bubble.textContent).not.toContain('new chat');
 			panel.handleEvent({ type: 'finish' });
 			change.click();
-			expect(host(panel).querySelector('[role="listbox"]')).not.toBe(null);
+			// The model list opens in the chip's popover; the thread is untouched.
+			const popover = panel.panel.querySelector('.agent-popover--model');
+			expect(popover.hidden).toBe(false);
+			expect(popover.querySelector('[role="listbox"]')).not.toBe(null);
+			expect(panel.thread.contains(bubble)).toBe(true);
 		});
 	});
 

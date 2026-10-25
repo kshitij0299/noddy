@@ -1,7 +1,8 @@
 /**
  * Agent panel composer (M4, issue #19; Figma Composer in 50:78).
  *
- * Attach (`attach_file`) · input "Ask the agent" · round send
+ * Input "Ask the agent" on top; under it the tool row: attach (`attach_file`), the Model,
+ * Mode and Target chips (PR B, put in `tools` by the panel), then the round send
  * (`arrow_upward`). Attachment chips sit above the input. Enter sends,
  * Shift+Enter adds a line; the input grows to 4 lines, then scrolls.
  * While a run is in flight the send button becomes Stop: minimizing and
@@ -62,8 +63,12 @@ export function createPanelComposer({
 	const sendIcon = icon('arrow_upward');
 	send.append(sendIcon);
 
-	row.append(attach, input, send);
-	root.append(chips, row, chooser);
+	// The panel's chips go in `tools`, between the paperclip and Send.
+	const tools = el('div', 'agent-composer__tools');
+	const toolRow = el('div', 'agent-composer__tool-row');
+	row.append(input);
+	toolRow.append(attach, tools, send);
+	root.append(chips, row, toolRow, chooser);
 
 	let attachments = [];
 	let busy = false;
@@ -182,7 +187,13 @@ export function createPanelComposer({
 		input,
 		send,
 		attach,
+		tools,
 		addFiles,
+		/** The input's placeholder and name ("Ask the agent", "Message Claude Code"). */
+		setPlaceholder(text) {
+			input.placeholder = text;
+			input.setAttribute('aria-label', text);
+		},
 		openChooser() {
 			if (!busy) chooser.click();
 		},

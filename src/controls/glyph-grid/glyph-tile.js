@@ -110,11 +110,19 @@ export class GlyphGridTile extends HTMLElement {
 		this.mark.classList.add('glyph-grid-tile__mark');
 		this.actionsEl = makeElement({ tag: 'span', className: 'glyph-grid-tile__actions' });
 		this._actionsKey = '';
+		// Picked for the agent's Target (Cmd/Ctrl/Shift-click): a check badge, top-left.
+		this.pickEl = makeElement({
+			tag: 'span',
+			className: 'material-symbols-rounded glyph-grid-tile__pick',
+			content: 'check',
+			attributes: { 'aria-hidden': 'true' },
+		});
 
 		this.appendChild(this.art);
 		this.appendChild(this.labelEl);
 		this.appendChild(this.mark);
 		this.appendChild(this.actionsEl);
+		this.appendChild(this.pickEl);
 		this._staged = {
 			role: 'option',
 			tabindex: '-1',
@@ -146,11 +154,25 @@ export class GlyphGridTile extends HTMLElement {
 		else this.removeAttribute('selected');
 	}
 
+	/** Picked for the agent panel's Target (several glyphs at once). */
+	get picked() {
+		return this.hasAttribute('data-picked');
+	}
+
+	set picked(value) {
+		if (!!value === this.picked) return;
+		this.toggleAttribute('data-picked', !!value);
+		this.syncAria();
+	}
+
 	/** Accessible name "a · Draft" (UX note "Copy"), selection, tooltip. */
 	syncAria() {
 		if (!this.isConnected) return;
 		const statusLabel = STATUS_LABELS[this.status] || this.status;
-		this.setAttribute('aria-label', `${this.label} · ${statusLabel}`);
+		this.setAttribute(
+			'aria-label',
+			`${this.label} · ${statusLabel}${this.picked ? ' · Picked' : ''}`
+		);
 		this.setAttribute('aria-selected', this.selected ? 'true' : 'false');
 		if (this.status === 'failed')
 			this.setAttribute('title', this.reason ? `Failed · ${this.reason}` : FAILED_TOOLTIP);
