@@ -262,12 +262,17 @@ describe('<agent-receipt-card>', () => {
 		expect(cells[10].classList.contains('agent-glyph-art--failed')).toBe(true);
 		expect(cells[10].querySelector('.agent-glyph-art__badge').textContent).toContain('error');
 		expect(cells[10].querySelector('.agent-sr-only').textContent).toBe('failed');
-		expect(cells[10].getAttribute('aria-label')).toBe('k failed');
+		// With many glyphs each one is a button that names it and its state.
+		expect(cells[10].closest('button').getAttribute('aria-label')).toBe('k, failed');
 		expect(card.querySelector('.agent-receipt__summary').textContent.trim()).toBe(
 			'22 new · 1 failed'
 		);
 		const buttons = Array.from(card.querySelectorAll('.agent-receipt__actions button'));
-		expect(buttons.map((b) => b.textContent.trim())).toEqual(['checkKeep 22', 'refreshRetry k']);
+		expect(buttons.map((b) => b.textContent.trim())).toEqual([
+			'checkKeep 22',
+			'refreshRetry k',
+			'undoUndo 22',
+		]);
 		expect(card.querySelector('.agent-card .agent-card__button')).toBeNull(); // actions live below
 	});
 
