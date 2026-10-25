@@ -45,6 +45,37 @@ export function loadPaper() {
  * @returns {Promise<Array<{points: Array<Object>, depth: Number}>>}
  */
 export async function booleanContours({ operation, subject, clip }) {
+	return booleanOf(operation, subject.map(shapePoints), clip.map(shapePoints));
+}
+
+/**
+ * The same boolean on contours in the agent point format ({points: [{x, y, h1, h2}]}), for
+ * the chaos tools (src/agent/chaos/).
+ * @param {Object} options
+ * @param {'union' | 'subtract' | 'intersect' | 'exclude'} options.operation
+ * @param {Array<{points: Array<Object>}>} options.subject
+ * @param {Array<{points: Array<Object>}>} [options.clip]
+ * @returns {Promise<Array<{points: Array<Object>, depth: Number}>>}
+ */
+export async function booleanPointContours({ operation, subject, clip = [] }) {
+	return booleanOf(
+		operation,
+		subject.map((contour) => contour.points),
+		clip.map((contour) => contour.points)
+	);
+}
+
+/** A Glyphr Path's points in the agent format. */
+function shapePoints(shape) {
+	return shape.pathPoints.map((point) => ({
+		x: point.p.x,
+		y: point.p.y,
+		h1: point.h1.use ? { x: point.h1.x, y: point.h1.y } : null,
+		h2: point.h2.use ? { x: point.h2.x, y: point.h2.y } : null,
+	}));
+}
+
+async function booleanOf(operation, subject, clip) {
 	const scope = await loadPaper();
 	const a = toCompound(scope, subject);
 	const b = clip.length ? toCompound(scope, clip) : new scope.Path({ insert: false });
@@ -76,24 +107,23 @@ export async function booleanContours({ operation, subject, clip }) {
 	}));
 }
 
-function toCompound(scope, shapes) {
+function toCompound(scope, contours) {
 	return new scope.CompoundPath({
-		children: shapes.map((shape) => toPath(scope, shape)),
+		children: contours.map((points) => toPath(scope, points)),
 		fillRule: 'nonzero',
 		insert: false,
 	});
 }
 
-function toPath(scope, shape) {
-	const segments = shape.pathPoints.map((point) => {
-		const x = point.p.x;
-		const y = point.p.y;
-		return new scope.Segment(
-			new scope.Point(x, y),
-			point.h1.use ? new scope.Point(point.h1.x - x, point.h1.y - y) : null,
-			point.h2.use ? new scope.Point(point.h2.x - x, point.h2.y - y) : null
-		);
-	});
+function toPath(scope, points) {
+	const segments = points.map(
+		({ x, y, h1, h2 }) =>
+			new scope.Segment(
+				new scope.Point(x, y),
+				h1 ? new scope.Point(h1.x - x, h1.y - y) : null,
+				h2 ? new scope.Point(h2.x - x, h2.y - y) : null
+			)
+	);
 	return new scope.Path({ segments, closed: true, insert: false });
 }
 

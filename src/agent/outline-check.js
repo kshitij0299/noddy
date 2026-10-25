@@ -43,6 +43,19 @@ export const ISSUE_HINTS = Object.freeze({
 const SOLID_ISLAND_HINT =
 	"This contour is a solid island inside a hole but runs the same direction as the hole, so it does not fill. Reverse this contour's point order so it runs opposite to the hole (replace_paths with the points reversed), or redo the cut with boolean_paths, which winds islands correctly.";
 
+/**
+ * check_outlines codes that make geometry invalid: submit_glyph rejects them when they are new.
+ * Extents are warnings only, and so is any of these that the glyph already had before the job
+ * (preExisting).
+ */
+export const BLOCKING_ISSUES = Object.freeze([
+	'TOO_FEW_POINTS',
+	'DUPLICATE_POINTS',
+	'SELF_INTERSECTION',
+	'SPECK',
+	'WINDING_SAME_AS_CONTAINER',
+]);
+
 const DUPLICATE_DISTANCE = 0.5;
 const VERTEX_TOLERANCE = 1;
 const MAX_INTERSECTION_SEGMENTS = 256;
