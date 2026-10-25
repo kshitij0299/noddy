@@ -147,3 +147,14 @@ Draft. Found on the way:
     agent is connected, the composer routes messages to it; add an MCP tool like
     `wait_for_user_message` (long-poll) that returns what the user typed in the panel, and show the
     agent's replies in the thread.
+
+## Follow-ups from PR B QA (2026-10-26)
+
+31. **Target "Whole set" still refuses to send until a glyph is open** in the built-in agent (#72).
+32. **The connected card's "Change" button duplicates the new model chip.** Remove one.
+33. **While a turn is pending, Enter with text does nothing and gives no feedback.** Queue it or say
+    "wait for the current reply".
+34. **Any same-origin tab holding the token can inject panel messages for the local agent.** Bind
+    messages to the connected tab.
+35. **The local agent gets attachment names only, not the files**, and the 20-message queue limit has
+    no test. Long model names are cut off on the chip (needs a tooltip).
