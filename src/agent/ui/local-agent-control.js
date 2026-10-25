@@ -7,10 +7,49 @@
  * model chip into "<client> · connected"; its tool calls show as the usual step lines and a
  * submit_glyph adds the usual receipt. The composer's Stop button turns it off (as does the
  * switch, or closing the tab); built-in sends wait until then.
+ *
+ * A reload keeps it on for this tab (bug 25): the switch state is kept in sessionStorage and
+ * the panel turns it back on at mount. The dev server's token is the same until it restarts,
+ * so the coding agent's existing `claude mcp add` entry keeps working.
  */
 import { createLocalAgentLink } from '../local-agent.js';
 import { el, icon } from './cards/card-shell.js';
 import './local-agent.css';
+
+// Per tab: sessionStorage survives a reload of this tab only.
+export const LOCAL_AGENT_STORAGE_KEY = 'noddy.localAgent';
+
+/**
+ * What is kept: 'on:<fingerprint>' of the command, never the token itself. A different
+ * fingerprint after a reload means the dev server restarted (new token): show the command.
+ * @param {String} command
+ */
+function fingerprint(command) {
+	let hash = 0;
+	for (const char of command) hash = (Math.imul(hash, 31) + char.codePointAt(0)) | 0;
+	return (hash >>> 0).toString(36);
+}
+
+/** @returns {String | null} the stored fingerprint, '' for an old plain 'on', null when off */
+function remembered() {
+	try {
+		const value = sessionStorage.getItem(LOCAL_AGENT_STORAGE_KEY);
+		if (value === 'on') return '';
+		return value?.startsWith('on:') ? value.slice(3) : null;
+	} catch {
+		return null;
+	}
+}
+
+/** @param {String | false} command - the command now on, or false: off */
+function remember(command) {
+	try {
+		if (command) sessionStorage.setItem(LOCAL_AGENT_STORAGE_KEY, `on:${fingerprint(command)}`);
+		else sessionStorage.removeItem(LOCAL_AGENT_STORAGE_KEY);
+	} catch {
+		// Storage blocked: Local agent still works, it just does not survive a reload.
+	}
+}
 
 /**
  * MCP clientInfo names are ids ("claude-code"); the chip shows "Claude Code".
@@ -82,6 +121,9 @@ export function mountLocalAgent(panel) {
 			announced = null;
 			panel.setChip(null);
 			retireCommand();
+			// The user turned it off, or another tab took it: a reload keeps it off. A closed
+			// stream (reload, dev server restart) keeps it on for the next load.
+			if (reason === 'stop' || reason === 'replaced') remember(false);
 			const copy = {
 				stop: 'Local agent off · finished edits are kept',
 				replaced: 'Local agent moved to another tab',
@@ -142,18 +184,24 @@ export function mountLocalAgent(panel) {
 		copy.focus();
 	}
 
-	async function turnOn() {
+	/** @param {{resumed?: Boolean}} [options] - resumed: turned back on after a reload */
+	async function turnOn({ resumed = false } = {}) {
 		if (panel.isBusy()) {
-			panel.addError({ message: 'Stop the agent first · then turn on Local agent' });
+			if (!resumed) panel.addError({ message: 'Stop the agent first · then turn on Local agent' });
 			return;
 		}
 		starting = true;
 		button.disabled = true;
 		try {
 			const { command } = await link.enable();
-			showCommand(command);
+			const before = remembered();
+			remember(command);
+			if (resumed && before === fingerprint(command))
+				panel.addStep('info', 'Local agent is still on after the reload');
+			else showCommand(command);
 		} catch (error) {
-			panel.addError({ message: error.message });
+			remember(false);
+			if (!resumed) panel.addError({ message: error.message });
 		} finally {
 			starting = false;
 			button.disabled = false;
@@ -165,6 +213,8 @@ export function mountLocalAgent(panel) {
 		if (link.state === 'off') turnOn();
 		else link.stop();
 	});
+
+	if (remembered() !== null) turnOn({ resumed: true });
 
 	return {
 		button,

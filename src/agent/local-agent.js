@@ -11,14 +11,33 @@
  * Session lifetime: one native session per MCP session (the coding agent's connection), made
  * on its first call with `grantOpen: false` (an external agent has no Send, so the glyph open
  * in the editor stays locked). The session is replaced, and the call retried once, when it
- * reports PROJECT_CHANGED, SESSION_CLOSED, SESSION_LIMIT (64 calls) or RENDER_LIMIT (8
- * images); the retried result says `sessionRestarted: true`, its revision is new and any
- * unsubmitted draft of the old session is gone. Turning the link off disposes every session.
+ * reports PROJECT_CHANGED, SESSION_CLOSED, SESSION_LIMIT (256 calls) or RENDER_LIMIT (32
+ * images); the retried result says `sessionRestarted: true` with a plain `notice` naming the
+ * dropped drafts, its revision is new and any unsubmitted draft of the old session is gone.
+ * Turning the link off disposes every session.
  */
 
 // Errors that mean "this session is used up or stale", not "this call is wrong".
 const RESTART_CODES = ['PROJECT_CHANGED', 'SESSION_CLOSED', 'SESSION_LIMIT', 'RENDER_LIMIT'];
 const ENDPOINT = '/api/agent/bridge';
+// Per MCP session (a coding agent's whole conversation, not one Send).
+export const LOCAL_RENDER_LIMIT = 32;
+export const LOCAL_CALL_LIMIT = 256;
+const RESTART_REASONS = {
+	PROJECT_CHANGED: 'the project changed',
+	SESSION_CLOSED: 'the old session had ended',
+	SESSION_LIMIT: `the old session reached its ${LOCAL_CALL_LIMIT}-call limit`,
+	RENDER_LIMIT: `the old session rendered ${LOCAL_RENDER_LIMIT} images`,
+};
+
+/** What a retried call's result says when its session was replaced. */
+function restartNotice(code, dropped) {
+	const reason = RESTART_REASONS[code] || 'the old session ended';
+	const drafts = dropped.length
+		? `Unsubmitted glyph drafts were dropped (${dropped.join(', ')}): begin those jobs again.`
+		: 'No unsubmitted drafts were open.';
+	return `Noddy started a new tool session because ${reason}. ${drafts} Use the revision in this result.`;
+}
 
 /**
  * @param {Object} options
@@ -57,7 +76,11 @@ export function createLocalAgentLink({
 	function sessionFor(key) {
 		let session = sessions.get(key);
 		if (!session) {
-			session = createSession({ grantOpen: false });
+			session = createSession({
+				grantOpen: false,
+				renderLimit: LOCAL_RENDER_LIMIT,
+				callLimit: LOCAL_CALL_LIMIT,
+			});
 			sessions.set(key, session);
 		}
 		return session;
@@ -69,7 +92,7 @@ export function createLocalAgentLink({
 	}
 
 	async function execute(call, signal) {
-		let restarted = false;
+		let restarted = null;
 		for (let attempt = 0; attempt < 2; attempt++) {
 			let session;
 			try {
@@ -85,12 +108,25 @@ export function createLocalAgentLink({
 				signal,
 			});
 			if (attempt === 0 && RESTART_CODES.includes(result?.error?.code)) {
+				let dropped = [];
+				try {
+					dropped = [...(session.openJobs || [])];
+				} catch {
+					// A session without job bookkeeping drops nothing visible.
+				}
 				session.dispose();
 				sessions.delete(call.session);
-				restarted = true;
+				restarted = { code: result.error.code, dropped };
 				continue;
 			}
-			return restarted ? { ...result, sessionRestarted: true } : result;
+			return restarted
+				? {
+						...result,
+						sessionRestarted: true,
+						droppedDrafts: restarted.dropped,
+						notice: restartNotice(restarted.code, restarted.dropped),
+				  }
+				: result;
 		}
 	}
 

@@ -9,7 +9,7 @@ import { createLocalAgentBridge } from './local-agent.js';
 import { createAgentMiddleware } from './relay.js';
 import { createLocalAgentServer } from './serve.js';
 import { agentRelayPlugin } from './vite-plugin.js';
-import { TOOL_DEFINITIONS } from '../../src/agent/tool-definitions.js';
+import { TOOL_DEFINITIONS, optionalNullableSchema } from '../../src/agent/tool-definitions.js';
 
 const PNG_BASE64 =
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
@@ -262,7 +262,9 @@ test('lists exactly the native tools with their JSON schemas; enable returns the
 		);
 		const render = tools.find((tool) => tool.name === 'render_glyphs');
 		const native = TOOL_DEFINITIONS.find((definition) => definition.name === 'render_glyphs');
-		assert.deepEqual(render.inputSchema, native.inputSchema);
+		// Optional fields are optional for MCP clients (bug 26).
+		assert.deepEqual(render.inputSchema, optionalNullableSchema(native.inputSchema));
+		assert.deepEqual(render.inputSchema.required, ['glyphIds']);
 		assert.equal(render.description, native.description);
 	} finally {
 		await client.close();
@@ -397,6 +399,42 @@ test('Stop rejects the pending call and every later call with a readable error',
 	} finally {
 		await client.close();
 		tab.close();
+	}
+});
+
+test('a call without its optional fields reaches the tab (bug 26)', async () => {
+	const { token } = await enable(env.origin);
+	const tab = await connectTab(env.origin, token);
+	const client = await connectClient(env.origin, token);
+	try {
+		const result = await client.callTool({
+			name: 'render_glyphs',
+			arguments: { glyphIds: ['glyph-0x41'] },
+		});
+		assert.equal(result.isError, undefined);
+		assert.deepEqual(tab.calls[0].input, { glyphIds: ['glyph-0x41'] });
+	} finally {
+		await client.close();
+		tab.close();
+	}
+});
+
+test('after Stop the connected chip clears: a re-enabled tab waits until the agent calls again', async () => {
+	const { token } = await enable(env.origin);
+	const first = await connectTab(env.origin, token);
+	const client = await connectClient(env.origin, token);
+	try {
+		await client.callTool({ name: 'get_context', arguments: {} });
+		await first.post({ type: 'stop' });
+		const second = await connectTab(env.origin, token);
+		assert.equal(second.events.find((event) => event.type === 'ready').data.client, null);
+		await client.callTool({ name: 'get_context', arguments: {} });
+		const named = await second.waitFor('client');
+		assert.equal(named.data.name, 'Claude Code');
+		second.close();
+	} finally {
+		await client.close();
+		first.close();
 	}
 });
 

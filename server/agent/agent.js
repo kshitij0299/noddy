@@ -11,9 +11,15 @@ Use only the supplied native font tools. Never request JavaScript, shell, browse
 Read current context and the glyph before editing; use the latest exact revision from a successful
 native read. Direct edits apply to the captured current glyph only. To draw or redraw any glyph in the
 set, use a glyph job: create_glyph (new character) or begin_glyph (existing), edit the private draft
-with replace_paths, delete_paths, add_paths, add_svg_path, transform_paths or set_spacing, look at it,
-then submit_glyph. Nothing reaches the font until submit_glyph, which rejects broken outlines and lands
-the whole job as one undo step marked Draft.
+with replace_paths, delete_paths, add_paths, add_svg_path, copy_paths, boolean_paths, transform_paths or
+set_spacing, look at it, then submit_glyph. Nothing reaches the font until submit_glyph, which rejects
+new broken outlines (each issue has a hint; problems the glyph already had are only warnings) and lands
+the whole job as one undo step marked Draft. Inside a job, render_glyphs, check_outlines and read_glyphs
+show the draft. To carry a mark from one glyph to another (a slash, a serif, a dot), copy_paths it into
+the target's job and combine it with boolean_paths instead of retyping points: exclude cuts where the
+mark overlaps the ink and keeps it solid outside (the graffiti-slash look), subtract removes the mark's
+area entirely, union merges. Optional tool fields can be left out. If a tool result says your call was invalid,
+fix the input as its hint says and call it again.
 Respect locks and tool errors. Read tools (get_font_spec, get_set_status, render_glyphs, render_text,
 check_outlines, get_mutation_log) never change anything: use render_glyphs or render_text to look at
 glyphs and check_outlines to find outline problems after drawing. Write tools refuse glyphs that are
@@ -32,11 +38,37 @@ export async function loadNativeRegistry() {
 	// Lazy import keeps server tests independent of the UI/domain module graph.
 	const modulePath = '../../src/agent/tool-definitions.js';
 	registryPromise ??= import(modulePath);
-	const { TOOL_DEFINITIONS, validateToolInput } = await registryPromise;
+	const { TOOL_DEFINITIONS, validateToolInput, repairToolCall, optionalNullableSchema } =
+		await registryPromise;
 	if (!Array.isArray(TOOL_DEFINITIONS) || typeof validateToolInput !== 'function') {
 		throw new RelayError('TOOLS_UNAVAILABLE', 'Native agent tools are unavailable.', 503);
 	}
-	return { definitions: TOOL_DEFINITIONS, validateToolInput };
+	return {
+		definitions: TOOL_DEFINITIONS,
+		validateToolInput,
+		repairToolCall,
+		optionalNullableSchema,
+	};
+}
+
+const INVALID_HINT =
+	"Check the tool's schema: required fields, types, bounds and allowed values. Optional fields can be left out. Fix the input and call the tool again.";
+
+/**
+ * A model call the browser must not run, reported back to the model as a tool error.
+ * @param {{toolCallId: string, toolName: string}} call
+ * @param {string} code - INVALID_ARGUMENTS | UNKNOWN_TOOL | STEP_CALL_LIMIT
+ * @param {string} reason
+ * @param {string} hint
+ */
+function rejectedCall(call, code, reason, hint) {
+	return {
+		toolCallId: String(call.toolCallId).slice(0, 160),
+		toolName: String(call.toolName ?? '').slice(0, 64),
+		code,
+		reason: String(reason || 'Invalid tool input.').slice(0, 300),
+		hint,
+	};
 }
 
 /**
@@ -77,10 +109,22 @@ export async function generateAgentStep(body, registry, options = {}) {
 		stopWhen: isStepCount(1),
 		maxRetries: 0,
 		maxOutputTokens: LIMITS.outputTokens,
-		// Prevent server-side OpenAI response retention; no remote built-in tools.
+		// Prevent server-side OpenAI response retention; no remote built-in tools. One call at
+		// a time: native tools depend on each other's revisions (OpenRouter takes the raw
+		// parallel_tool_calls body field through the openai-compatible adapter).
 		...(request.protocol === 'responses' || request.provider === 'openai'
 			? { providerOptions: { openai: { store: false, parallelToolCalls: false } } }
+			: request.provider === 'openrouter'
+			? { providerOptions: { openrouter: { parallel_tool_calls: false } } }
 			: {}),
+		// One deterministic repair per malformed call (wrong-case name, JSON-string input,
+		// string numbers, unknown keys). Still invalid: fed back to the model below.
+		repairToolCall: async ({ toolCall }) => {
+			const repaired = registry.repairToolCall?.(toolCall.toolName, toolCall.input);
+			return repaired
+				? { ...toolCall, toolName: repaired.name, input: JSON.stringify(repaired.input) }
+				: null;
+		},
 		telemetry: { isEnabled: false },
 	});
 	const result = await agent.generate({
@@ -88,43 +132,85 @@ export async function generateAgentStep(body, registry, options = {}) {
 		abortSignal: options.signal,
 		timeout: LIMITS.requestTimeoutMs,
 	});
-	if (
-		result.toolCalls.length > LIMITS.toolCallsPerStep ||
-		result.toolCalls.some((call) => call.invalid)
-	) {
-		throw new RelayError(
-			'INVALID_TOOL_CALL',
-			'The model returned an invalid tool call. No edit was applied.',
-			502
-		);
-	}
-	const toolCalls = result.toolCalls.map((call) => {
-		if (!registry.validateToolInput(call.toolName, call.input).valid) {
-			throw new RelayError(
-				'INVALID_TOOL_CALL',
-				'The model returned an invalid tool call. No edit was applied.',
-				502
+	// Invalid calls never become executable: the browser answers each with a tool error
+	// (tool, reason, hint) so the model can fix it (bug 8). Calls past the per-step cap are
+	// answered the same way instead of failing the whole step (#73).
+	const names = new Set(Object.keys(tools));
+	const toolCalls = [];
+	const rejectedCalls = [];
+	for (const call of result.toolCalls) {
+		if (!names.has(call.toolName)) {
+			rejectedCalls.push(
+				rejectedCall(
+					call,
+					'UNKNOWN_TOOL',
+					`There is no tool named "${String(call.toolName).slice(0, 64)}".`,
+					`Use one of: ${[...names].join(', ')}.`
+				)
 			);
+			continue;
 		}
-		return { toolCallId: call.toolCallId, toolName: call.toolName, input: call.input };
-	});
+		const validation = registry.validateToolInput(call.toolName, call.input);
+		if (call.invalid || !validation.valid) {
+			rejectedCalls.push(
+				rejectedCall(call, 'INVALID_ARGUMENTS', validation.error || 'Invalid input.', INVALID_HINT)
+			);
+		} else if (toolCalls.length >= LIMITS.toolCallsPerStep) {
+			rejectedCalls.push(
+				rejectedCall(
+					call,
+					'STEP_CALL_LIMIT',
+					`At most ${LIMITS.toolCallsPerStep} tool calls run per step; this one was not run.`,
+					'Call it again in your next step.'
+				)
+			);
+		} else
+			toolCalls.push({ toolCallId: call.toolCallId, toolName: call.toolName, input: call.input });
+	}
 	// Keep only approved assistant message forms and opaque continuation data.
 	// Raw requests, response headers and provider errors never enter this response.
-	if (!toolCalls.length && !result.text.trim()) {
+	if (!toolCalls.length && !rejectedCalls.length && !result.text.trim()) {
 		throw new RelayError(
 			'EMPTY_RESPONSE',
 			'The model returned no usable response. Try a shorter request or another model.',
 			502
 		);
 	}
-	const messages = validateMessages(result.response.messages, new Set(Object.keys(tools)), {
-		completed: false,
-		fromProvider: true,
-	});
+	// The SDK answers invalid calls with its own error results; the browser answers every
+	// call instead (one result per call). A call to a tool that does not exist leaves the
+	// history: the browser tells the model about it in a short note.
+	const unknown = new Set(
+		rejectedCalls.filter((call) => call.code === 'UNKNOWN_TOOL').map((call) => call.toolCallId)
+	);
+	const providerMessages = result.response.messages
+		.filter((message) => message.role !== 'tool')
+		.map((message) =>
+			message.role === 'assistant' && Array.isArray(message.content)
+				? {
+						...message,
+						content: message.content
+							.filter((part) => !(part.type === 'tool-call' && unknown.has(part.toolCallId)))
+							.map((part) =>
+								part.type === 'tool-call' &&
+								(part.input === null || typeof part.input !== 'object' || Array.isArray(part.input))
+									? { ...part, input: {} }
+									: part
+							),
+				  }
+				: message
+		)
+		.filter((message) => !Array.isArray(message.content) || message.content.length);
+	const messages = providerMessages.length
+		? validateMessages(providerMessages, names, { completed: false, fromProvider: true })
+		: [];
 	return {
 		text: result.text,
 		messages,
 		toolCalls,
+		rejectedCalls: rejectedCalls.map((call) => ({
+			...call,
+			inHistory: !unknown.has(call.toolCallId),
+		})),
 		finishReason: result.finishReason,
 		usage: {
 			inputTokens: result.usage.inputTokens ?? null,

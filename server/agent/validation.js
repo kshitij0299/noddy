@@ -15,7 +15,8 @@ export const LIMITS = Object.freeze({
 	messages: 96,
 	textCharacters: 160000,
 	outputTokens: 4096,
-	toolCallsPerStep: 8,
+	// Calls run per model step; the rest are answered with STEP_CALL_LIMIT (not a failure).
+	toolCallsPerStep: 16,
 	requestTimeoutMs: 300000, // Free models write long path data slowly; 90 s cut them off mid-edit.
 	concurrentRequests: 2,
 	// Model-list route (M4, #76): free, so a short timeout and a body that only fits

@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockLanguageModelV4 } from 'ai/test';
-import { generateAgentStep } from './agent.js';
+import { generateAgentStep, loadNativeRegistry } from './agent.js';
 import { createProviderModel } from './providers.js';
 import { DEV_KEY_WORD, createAgentMiddleware, publicError } from './relay.js';
 import { LIMITS, validateRequest } from './validation.js';
@@ -304,10 +304,10 @@ test('real ToolLoopAgent stops after one call, returns native calls without exec
 	assert.equal(JSON.stringify(result).includes(base.apiKey), false);
 });
 
-test('invalid tool input and unknown tools do not become executable calls', async () => {
-	for (const toolCall of [
-		{ toolName: 'get_context', input: '{"bad":true}' },
-		{ toolName: 'eval', input: '{}' },
+test('invalid tool input and unknown tools do not become executable calls; each comes back as a named tool error', async () => {
+	for (const [toolCall, code] of [
+		[{ toolName: 'get_context', input: '{"bad":true}' }, 'INVALID_ARGUMENTS'],
+		[{ toolName: 'eval', input: '{}' }, 'UNKNOWN_TOOL'],
 	]) {
 		const model = new MockLanguageModelV4({
 			doGenerate: {
@@ -317,9 +317,100 @@ test('invalid tool input and unknown tools do not become executable calls', asyn
 				warnings: [],
 			},
 		});
-		await assert.rejects(generateAgentStep(base, registry, { modelFactory: () => model }));
+		const result = await generateAgentStep(base, registry, { modelFactory: () => model });
 		assert.equal(model.doGenerateCalls.length, 1);
+		assert.deepEqual(result.toolCalls, [], 'nothing executable');
+		assert.equal(result.rejectedCalls.length, 1);
+		assert.equal(result.rejectedCalls[0].code, code);
+		assert.equal(result.rejectedCalls[0].toolName, toolCall.toolName);
+		assert.ok(result.rejectedCalls[0].hint.length > 10, 'carries a hint');
+		// No SDK error results in the history: the browser answers every call once.
+		assert.equal(
+			result.messages.some((message) => message.role === 'tool'),
+			false
+		);
+		// An unknown tool never enters the history (later requests would reject it).
+		assert.equal(JSON.stringify(result.messages).includes('"eval"'), false);
+		assert.equal(result.rejectedCalls[0].inHistory, code !== 'UNKNOWN_TOOL');
 	}
+});
+
+test('repairToolCall fixes a malformed call once, deterministically, without another model call', async () => {
+	const nativeRegistry = await loadNativeRegistry();
+	const model = new MockLanguageModelV4({
+		doGenerate: {
+			content: [
+				{
+					type: 'tool-call',
+					toolCallId: 'call_1',
+					// Wrong case, numbers as strings, an unknown key, optional fields absent.
+					toolName: 'Render-Glyphs',
+					input: JSON.stringify({ glyphIds: ['glyph-0x41'], height: '256', colour: 'red' }),
+				},
+			],
+			finishReason: { unified: 'tool-calls' },
+			usage,
+			warnings: [],
+		},
+	});
+	const result = await generateAgentStep(base, nativeRegistry, { modelFactory: () => model });
+	assert.equal(model.doGenerateCalls.length, 1);
+	assert.deepEqual(result.toolCalls, [
+		{
+			toolCallId: 'call_1',
+			toolName: 'render_glyphs',
+			input: { glyphIds: ['glyph-0x41'], height: 256 },
+		},
+	]);
+	assert.deepEqual(result.rejectedCalls, []);
+});
+
+test('calls past the per-step cap are answered, not a failed step (#73)', async () => {
+	const calls = Array.from({ length: LIMITS.toolCallsPerStep + 2 }, (_, index) => ({
+		type: 'tool-call',
+		toolCallId: `call_${index}`,
+		toolName: 'get_context',
+		input: '{}',
+	}));
+	const model = new MockLanguageModelV4({
+		doGenerate: { content: calls, finishReason: { unified: 'tool-calls' }, usage, warnings: [] },
+	});
+	const result = await generateAgentStep(base, registry, { modelFactory: () => model });
+	assert.equal(result.toolCalls.length, LIMITS.toolCallsPerStep);
+	assert.deepEqual(
+		result.rejectedCalls.map((call) => call.code),
+		['STEP_CALL_LIMIT', 'STEP_CALL_LIMIT']
+	);
+});
+
+test('OpenRouter is asked for one tool call at a time, like OpenAI', async () => {
+	const requests = [];
+	const transport = async (url, init) => {
+		requests.push(JSON.parse(init.body));
+		return new Response(
+			JSON.stringify({
+				id: 'c1',
+				created: 1,
+				model: 'm',
+				choices: [
+					{ index: 0, message: { role: 'assistant', content: 'Hi.' }, finish_reason: 'stop' },
+				],
+				usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+			}),
+			{ headers: { 'Content-Type': 'application/json' } }
+		);
+	};
+	await generateAgentStep(
+		{
+			...base,
+			provider: 'openrouter',
+			protocol: 'auto',
+			model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+		},
+		registry,
+		{ modelFactory: (settings) => createProviderModel(settings, transport) }
+	);
+	assert.equal(requests[0].parallel_tool_calls, false);
 });
 
 function providerResponse(protocol, tool = true) {
@@ -470,9 +561,9 @@ test('Muse Spark Contributor Free automatic mode uses the real Responses adapter
 	// The installed SDK currently sends strict:false unless explicitly requested.
 	assert.equal(requests[0].body.tools[0].strict, false);
 	duplicateCall = true;
-	await assert.rejects(generateAgentStep(input, nativeRegistry, { modelFactory }), {
-		code: 'INVALID_TOOL_CALL',
-	});
+	const duplicate = await generateAgentStep(input, nativeRegistry, { modelFactory });
+	assert.deepEqual(duplicate.toolCalls, [], 'duplicate glyph IDs never become executable');
+	assert.equal(duplicate.rejectedCalls[0].code, 'INVALID_ARGUMENTS');
 	assert.equal(requests.length, 2, 'No billed retries or fallback protocol probes');
 });
 

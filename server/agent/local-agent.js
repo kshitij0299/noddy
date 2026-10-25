@@ -122,16 +122,29 @@ export function createLocalAgentBridge(options = {}) {
 		target.res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
 	}
 
-	/** The newest MCP client's name, for the panel's "<name> · connected" chip. */
+	/**
+	 * The newest active MCP client's name, for the panel's "<name> · connected" chip. A session
+	 * goes inactive when the tab turns Local agent off or closes, and active again on its next
+	 * call, so a re-enabled tab says "waiting" until the coding agent is actually back.
+	 */
 	function clientName() {
-		const last = [...sessions.values()].at(-1);
+		const last = [...sessions.values()].filter((entry) => entry.active).at(-1);
 		return last ? last.client : null;
+	}
+
+	function markActive(entry) {
+		if (!entry || entry.active) return;
+		entry.active = true;
+		sendEvent(tab, 'client', { name: clientName() });
 	}
 
 	/** Ends a tab's stream and fails the calls it still owed. */
 	function dropTab(target, code) {
 		if (!target) return;
-		if (tab === target) tab = null;
+		if (tab === target) {
+			tab = null;
+			for (const entry of sessions.values()) entry.active = false;
+		}
 		clearInterval(target.keepalive);
 		for (const [id, call] of pending) {
 			if (call.tab === target) {
@@ -144,6 +157,7 @@ export function createLocalAgentBridge(options = {}) {
 
 	async function callTool(sessionId, name, input, signal) {
 		const registry = await loadRegistry();
+		markActive(sessions.get(sessionId));
 		if (!registry.definitions.some((definition) => definition.name === name)) {
 			return toolError(
 				'UNKNOWN_TOOL',
@@ -187,20 +201,24 @@ export function createLocalAgentBridge(options = {}) {
 			{
 				capabilities: { tools: {} },
 				instructions:
-					'Noddy font editor tools, running in the user’s open Noddy tab. Read with get_context first and pass the latest revision as expectedRevision. Draw glyphs as jobs (begin_glyph or create_glyph, edit, submit_glyph): each submit lands as a Draft and one undo step. Respect LOCKED_YOURS and LOCKED_OPEN; never work around them.',
+					'Noddy font editor tools, running in the user’s open Noddy tab. Read with get_context first and pass the latest revision as expectedRevision. Draw glyphs as jobs (begin_glyph or create_glyph, edit, submit_glyph): each submit lands as a Draft and one undo step. Inside a job, render_glyphs, check_outlines and read_glyphs show the draft. To carry a mark from one glyph to another, copy_paths it into the job and combine it with boolean_paths (exclude: cut through the ink and keep the mark solid outside, the graffiti look; subtract: remove the mark entirely; union: merge). Gate issues come with a hint; problems the glyph already had are warnings. Optional fields can be left out. If a result says sessionRestarted, unsubmitted drafts were dropped: begin those jobs again. Respect LOCKED_YOURS and LOCKED_OPEN; never work around them.',
 			}
 		);
 		server.oninitialized = () => {
 			entry.client = String(server.getClientVersion()?.name || 'Local agent').slice(0, 60);
+			entry.active = Boolean(tab);
 			sendEvent(tab, 'client', { name: clientName() });
 		};
 		server.setRequestHandler(ListToolsRequestSchema, async () => {
-			const { definitions } = await loadRegistry();
+			const { definitions, optionalNullableSchema } = await loadRegistry();
 			return {
 				tools: definitions.map((definition) => ({
 					name: definition.name,
 					description: definition.description,
-					inputSchema: definition.inputSchema,
+					// Optional fields are optional here: MCP clients may leave them out (bug 26).
+					inputSchema: optionalNullableSchema
+						? optionalNullableSchema(definition.inputSchema)
+						: definition.inputSchema,
 				})),
 			};
 		});
@@ -247,7 +265,7 @@ export function createLocalAgentBridge(options = {}) {
 			const [oldest] = sessions.values();
 			await oldest.transport.close();
 		}
-		const entry = { client: 'Local agent', transport: null, server: null };
+		const entry = { client: 'Local agent', transport: null, server: null, active: false };
 		entry.transport = new StreamableHTTPServerTransport({
 			sessionIdGenerator: () => randomUUID(),
 			onsessioninitialized: (id) => {

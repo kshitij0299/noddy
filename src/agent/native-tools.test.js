@@ -89,6 +89,8 @@ describe('native agent tool boundary', () => {
 			'read_glyphs',
 			'set_spacing',
 			'transform_paths',
+			'copy_paths',
+			'boolean_paths',
 			'add_paths',
 			'create_glyph',
 			'begin_glyph',

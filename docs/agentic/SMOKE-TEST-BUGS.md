@@ -5,7 +5,8 @@ The owner's rule: **an end user must never have to do any of this by hand.** Fre
 availability changes daily, so anything below that depends on "which models work" must be
 checked live by the app, not hard-coded.
 
-Status: open unless marked. Existing issues are linked where they match.
+Status: open unless marked. PR A (agent tools fix) fixed 8, 9, 22, 23, 25, 26, 27 and the
+"compact tools" part of 17 (copy_paths, boolean_paths, transform pivots). Existing issues are linked where they match.
 
 ## Connection and models
 
@@ -51,10 +52,10 @@ Status: open unless marked. Existing issues are linked where they match.
 0. **Temporary fix on branch `agent/dev-env-key`:** relay timeout raised from 90 s to 5 min
    (`server/agent/validation.js`). Not yet re-tested on a real edit.
 
-8. **"The model returned an invalid tool call. No edit was applied."** is a dead end. It does not
+8. **"The model returned an invalid tool call. No edit was applied."** **Fixed in PR A (invalid calls go back to the model as tool errors with tool, reason and hint; one free repair; two retries, then the error names the tool and reason).** is a dead end. It does not
    say which tool or why, and the model gets no chance to fix its call. Wanted: name the tool and
    reason, send the validation error back to the model as the tool result, allow a bounded retry.
-9. **8-tool-call cap per step** ([#73](https://github.com/kshitij0299/noddy/issues/73)). "Do it
+9. **8-tool-call cap per step** **Fixed in PR A (16 calls per step with the rest answered, 40 per request; parallel_tool_calls false for OpenRouter).** ([#73](https://github.com/kshitij0299/noddy/issues/73)). "Do it
    for all other chars" makes the model fire one call per glyph and the whole step is rejected.
    Also `parallelToolCalls: false` is sent to OpenAI only, not OpenRouter.
 10. **"Same style as my A" for the whole set** ([#71](https://github.com/kshitij0299/noddy/issues/71))
@@ -88,13 +89,13 @@ Status: open unless marked. Existing issues are linked where they match.
     and "Restore" only listed older projects. Wanted: autosave every project (including imported
     fonts) to the Restore list, and a "leave page?" guard while there are unsaved edits.
 
-22. **With the 5-minute limit the agent got much further:** read A and B, described A's style
+22. **With the 5-minute limit the agent got much further:** **Fixed in PR A (issues the glyph had before the job are warnings; copy_paths + boolean_paths make a real cut).** read A and B, described A's style
     correctly ("a diagonal tag path"), began a B job, drew it and checked outlines. Then
     `submit_glyph` refused it: "The draft has outline problems" (self-intersection, winding).
     The owner's own A tag crosses itself, so a faithful copy of the user's style can never pass the
     gate. Wanted: allow the user's intended overlaps (or let the user approve a draft with
     warnings), instead of a hard refusal.
-23. **After the refusal the next call was "The model returned an invalid tool call"** (bug 8) and
+23. **After the refusal the next call was "The model returned an invalid tool call"** **Fixed in PR A (see 8).** (bug 8) and
     the run stopped with "0 edits applied · 1 failed".
 24. **The retry button says "Retry A" but the failed job was B.**
 
@@ -120,3 +121,23 @@ Status: open unless marked. Existing issues are linked where they match.
 
 - Font loaded: DotGothic16 Regular, from `github.com/google/fonts` (OFL), 116/116 characters.
 - Models probed with one "Reply with OK." check each through `/api/agent/step`.
+
+## Local agent (Claude Code over MCP), first live run (2026-10-24)
+
+It worked: Claude connected over MCP, read A, drafted B with A's slash and submitted it as a
+Draft. Found on the way:
+
+25. **A page reload switches the local agent off without saying so.** **Fixed in PR A (sessionStorage keeps it on for the tab; a new token after a dev-server restart shows the new command).** The connect command still
+    shows the same token, but the agent's calls fail until the user clicks the switch again.
+26. **Optional tool fields are required.** **Fixed in PR A (absent nullable fields are null in the relay, the MCP endpoint and the tab; MCP lists them as optional).** `render_glyphs` without `height` and `guides` fails with
+    "missing height"; agents must send `null`. Make optional fields truly optional.
+27. **The outline gate's errors don't say how to fix them.** **Fixed in PR A (every gate issue carries a hint).** `WINDING_SAME_AS_CONTAINER` should say
+    "reverse this contour's point order to cut out, or keep it outside the letter". The user's own
+    A (a self-crossing slash) would also be rejected (bug 22); the agent had to split it into two
+    triangles and reverse one.
+28. ~~"Save project file" does nothing in the built-in browser~~ Not a bug: the Claude app shows a
+    save prompt that the owner hadn't answered. Minor: the "Saved Noddy Project File" toast appears
+    before the user has actually saved.
+29. **Run log (C–F):** with the split slash (upper as drawn, lower reversed), C, D, E and F each
+    passed the gate first try in one MCP session: 14 tool calls for 4 glyphs. The workaround is
+    reusable, but an agent only finds it after reading the gate's codes (bug 27).
