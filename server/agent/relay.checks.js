@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockLanguageModelV4 } from 'ai/test';
-import { generateAgentStep, loadNativeRegistry } from './agent.js';
+import { generateAgentStep, loadNativeRegistry, modeInstructions } from './agent.js';
 import { createProviderModel } from './providers.js';
 import { DEV_KEY_WORD, createAgentMiddleware, publicError } from './relay.js';
 import { LIMITS, validateRequest } from './validation.js';
@@ -1466,5 +1466,49 @@ test('dev .env.local key: `env` swaps in the server key for OpenRouter free mode
 		assert.deepEqual(seen.slice(2), ['env', 'sk-or-v1-pasted']);
 	} finally {
 		await new Promise((resolve) => relay.close(resolve));
+	}
+});
+
+// ---- PR B: the panel's Mode, Chaos and Target chips ----
+
+test('mode, chaos and target are accepted in the context and reach the instructions', async () => {
+	const context = {
+		glyphId: 'glyph-0x41',
+		mode: 'remix',
+		chaos: 70,
+		target: { scope: 'selected', glyphIds: ['glyph-0x41', 'glyph-0x42'] },
+	};
+	const model = new MockLanguageModelV4({
+		doGenerate: {
+			content: [{ type: 'text', text: 'ok' }],
+			finishReason: { unified: 'stop' },
+			usage,
+			warnings: [],
+		},
+	});
+	await generateAgentStep({ ...base, context }, registry, { modelFactory: () => model });
+	const system = JSON.stringify(model.doGenerateCalls[0].prompt[0]);
+	assert.match(system, /Mode: Remix, chaos 70 of 100/);
+	assert.match(system, /vary each glyph through its type anatomy/);
+	assert.match(system, /Target: the selected glyphs \(glyph-0x41, glyph-0x42\)/);
+	assert.match(modeInstructions({ mode: 'exact' }), /faithfully/);
+	assert.match(modeInstructions({ mode: 'wild', chaos: 90 }), /Wild, chaos 90.*readable/s);
+	assert.equal(modeInstructions({}), '');
+});
+
+test('bad mode, chaos or target values are refused before any provider call', () => {
+	for (const context of [
+		{ mode: 'chaotic' },
+		{ chaos: 101 },
+		{ chaos: 2.5 },
+		{ target: { scope: 'all', glyphIds: [] } },
+		{ target: { scope: 'set' } },
+		{ target: { scope: 'set', glyphIds: [], extra: 1 } },
+	]) {
+		assert.throws(
+			() => validateRequest({ ...base, context }, registry.definitions),
+			undefined,
+			JSON.stringify(context)
+		);
 	}
 });

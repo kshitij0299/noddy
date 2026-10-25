@@ -5,7 +5,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { createLocalAgentBridge } from './local-agent.js';
+import { CHAT_TOOLS, createLocalAgentBridge } from './local-agent.js';
 import { createAgentMiddleware } from './relay.js';
 import { createLocalAgentServer } from './serve.js';
 import { agentRelayPlugin } from './vite-plugin.js';
@@ -258,8 +258,13 @@ test('lists exactly the native tools with their JSON schemas; enable returns the
 		const { tools } = await client.listTools();
 		assert.deepEqual(
 			tools.map((tool) => tool.name),
-			TOOL_DEFINITIONS.map((definition) => definition.name)
+			[...TOOL_DEFINITIONS.map((definition) => definition.name), ...CHAT_TOOLS.map((t) => t.name)]
 		);
+		// The panel chat tools tell the agent to loop.
+		for (const name of ['wait_for_user_message', 'reply_to_user']) {
+			const chatTool = tools.find((tool) => tool.name === name);
+			assert.match(chatTool.description, /wait_for_user_message.*reply_to_user.*again/s);
+		}
 		const render = tools.find((tool) => tool.name === 'render_glyphs');
 		const native = TOOL_DEFINITIONS.find((definition) => definition.name === 'render_glyphs');
 		// Optional fields are optional for MCP clients (bug 26).
@@ -475,6 +480,183 @@ test('a second tab takes over: the first is told and disconnected, calls go to t
 	} finally {
 		await client.close();
 		first.close();
+	}
+});
+
+// ---- Talking to the agent from the panel (bug 30) ----
+
+const textOf = (result) => JSON.parse(result.content[0].text);
+const panelMessage = (text, extra = {}) => ({
+	type: 'message',
+	message: {
+		text,
+		attachments: [{ name: 'sketch.png', kind: 'image', size: 1234 }],
+		target: { scope: 'selected', glyphIds: ['glyph-0x41', 'glyph-0x42'] },
+		mode: 'remix',
+		chaos: 70,
+		...extra,
+	},
+});
+
+test('wait_for_user_message returns what the user typed, with target, mode and chaos', async () => {
+	const { token } = await enable(env.origin);
+	const tab = await connectTab(env.origin, token);
+	const client = await connectClient(env.origin, token);
+	try {
+		const waiting = client.callTool({ name: 'wait_for_user_message', arguments: {} });
+		const listening = await tab.waitFor('listening');
+		assert.equal(listening.data.on, true);
+		const posted = await tab.post(panelMessage('Make the A bolder'));
+		assert.equal(posted.status, 200);
+		const { id, delivered } = await posted.json();
+		assert.equal(delivered, true);
+		const result = textOf(await waiting);
+		assert.equal(result.ok, true);
+		assert.deepEqual(result.message, {
+			id,
+			text: 'Make the A bolder',
+			attachments: [{ name: 'sketch.png', kind: 'image', size: 1234 }],
+			target: { scope: 'selected', glyphIds: ['glyph-0x41', 'glyph-0x42'] },
+			mode: 'remix',
+			chaos: 70,
+		});
+		assert.equal((await tab.waitFor('delivered')).data.id, id);
+		// Messages never reach the tab as tool calls.
+		assert.equal(tab.calls.length, 0);
+	} finally {
+		await client.close();
+		tab.close();
+	}
+});
+
+test('messages sent while the agent is busy are queued and come one per call, in order', async () => {
+	const { token } = await enable(env.origin);
+	const tab = await connectTab(env.origin, token);
+	const client = await connectClient(env.origin, token);
+	try {
+		const first = await (await tab.post(panelMessage('one'))).json();
+		assert.equal(first.delivered, false);
+		await tab.post(panelMessage('two'));
+		const a = textOf(await client.callTool({ name: 'wait_for_user_message', arguments: {} }));
+		const b = textOf(await client.callTool({ name: 'wait_for_user_message', arguments: {} }));
+		assert.deepEqual([a.message.text, b.message.text], ['one', 'two']);
+	} finally {
+		await client.close();
+		tab.close();
+	}
+});
+
+test('the long poll times out with timedOut, never longer than asked', async () => {
+	const { token } = await enable(env.origin);
+	const tab = await connectTab(env.origin, token);
+	const client = await connectClient(env.origin, token);
+	try {
+		const started = Date.now();
+		const result = textOf(
+			await client.callTool({ name: 'wait_for_user_message', arguments: { timeoutSeconds: 1 } })
+		);
+		const took = Date.now() - started;
+		assert.equal(result.message, null);
+		assert.equal(result.timedOut, true);
+		assert.ok(took >= 900 && took < 5000, `took ${took} ms`);
+		assert.equal(
+			errorOf(
+				await client.callTool({ name: 'wait_for_user_message', arguments: { timeoutSeconds: 120 } })
+			).code,
+			'INVALID_ARGUMENTS'
+		);
+	} finally {
+		await client.close();
+		tab.close();
+	}
+});
+
+test('reply_to_user shows the text in the tab; without a tab it is NO_TAB', async () => {
+	const { token } = await enable(env.origin);
+	const client = await connectClient(env.origin, token);
+	try {
+		assert.equal(
+			errorOf(await client.callTool({ name: 'reply_to_user', arguments: { text: 'hi' } })).code,
+			'NO_TAB'
+		);
+		assert.equal(
+			errorOf(await client.callTool({ name: 'wait_for_user_message', arguments: {} })).code,
+			'NO_TAB'
+		);
+		const tab = await connectTab(env.origin, token);
+		const result = await client.callTool({
+			name: 'reply_to_user',
+			arguments: { text: 'Made the A bolder.' },
+		});
+		assert.equal(result.isError, undefined);
+		assert.equal((await tab.waitFor('reply')).data.text, 'Made the A bolder.');
+		assert.equal(
+			errorOf(await client.callTool({ name: 'reply_to_user', arguments: { text: '' } })).code,
+			'INVALID_ARGUMENTS'
+		);
+		tab.close();
+	} finally {
+		await client.close();
+	}
+});
+
+test('Stop fails a waiting wait_for_user_message and drops the queue', async () => {
+	const { token } = await enable(env.origin);
+	const tab = await connectTab(env.origin, token);
+	const client = await connectClient(env.origin, token);
+	try {
+		const waiting = client.callTool({ name: 'wait_for_user_message', arguments: {} });
+		await tab.waitFor('listening');
+		await tab.post({ type: 'stop' });
+		assert.equal(errorOf(await waiting).code, 'LOCAL_AGENT_OFF');
+		// A new tab starts with an empty queue.
+		const again = await connectTab(env.origin, token);
+		const result = textOf(
+			await client.callTool({ name: 'wait_for_user_message', arguments: { timeoutSeconds: 1 } })
+		);
+		assert.equal(result.message, null);
+		again.close();
+	} finally {
+		await client.close();
+		tab.close();
+	}
+});
+
+test('panel messages need the token, the Origin and a tab; bad messages are refused', async () => {
+	const { token } = await enable(env.origin);
+	const post = (body, headers = {}) =>
+		fetch(env.origin + '/api/agent/bridge', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Origin: env.origin, ...headers },
+			body: JSON.stringify(body),
+		});
+	assert.equal((await post(panelMessage('hi'))).status, 401);
+	assert.equal((await post(panelMessage('hi'), { Authorization: 'Bearer wrong' })).status, 401);
+	assert.equal(
+		(
+			await post(panelMessage('hi'), {
+				Authorization: `Bearer ${token}`,
+				Origin: 'http://evil.example',
+			})
+		).status,
+		403
+	);
+	// No tab connected.
+	assert.equal((await post(panelMessage('hi'), { Authorization: `Bearer ${token}` })).status, 409);
+	const tab = await connectTab(env.origin, token);
+	try {
+		const auth = { Authorization: `Bearer ${token}` };
+		assert.equal((await post({ type: 'message', message: { text: '' } }, auth)).status, 400);
+		assert.equal(
+			(await post({ type: 'message', message: { text: 'x', apiKey: 'sk-' } }, auth)).status,
+			400
+		);
+		assert.equal(
+			(await post({ type: 'message', message: { text: 'x'.repeat(12_001) } }, auth)).status,
+			400
+		);
+	} finally {
+		tab.close();
 	}
 });
 

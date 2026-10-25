@@ -269,7 +269,23 @@ export function validateRequest(body, definitions) {
 			'spec',
 			'set',
 			'lock',
+			'mode',
+			'chaos',
+			'target',
 		]);
+		const { mode, chaos, target } = body.context;
+		if (mode !== undefined && !['exact', 'remix', 'wild'].includes(mode)) invalid();
+		if (chaos !== undefined && !(Number.isInteger(chaos) && chaos >= 0 && chaos <= 100)) invalid();
+		if (target !== undefined) {
+			keys(target, ['scope', 'glyphIds']);
+			if (!['glyph', 'selected', 'set'].includes(target.scope)) invalid();
+			if (
+				!Array.isArray(target.glyphIds) ||
+				target.glyphIds.length > 256 ||
+				!target.glyphIds.every((id) => typeof id === 'string' && id.length <= 64)
+			)
+				invalid();
+		}
 		if (
 			body.context.unitsPerEm !== undefined &&
 			(!Number.isFinite(body.context.unitsPerEm) ||
