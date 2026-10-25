@@ -420,3 +420,79 @@ describe('an external (local) agent session', () => {
 			expect(message).not.toMatch(/\bsend\b/i);
 	});
 });
+
+describe('QA round 1: exclude islands, copied contours, island hints', () => {
+	// Counter-clockwise in y-up font units: a hole.
+	const hole = (x1, y1, x2, y2, name = 'Counter') => ({
+		name,
+		pathPoints: [corner(x1, y1), corner(x2, y1), corner(x2, y2), corner(x1, y2)],
+	});
+
+	it('exclude through a letter with counters leaves islands in the counters that submit clean', async () => {
+		// A B-like letter: one outer contour and two counters; the slash crosses both counters.
+		addGlyph(B, [
+			rect(50, 0, 550, 700, 'Bowl'),
+			hole(150, 100, 450, 300, 'Lower counter'),
+			hole(150, 400, 450, 600, 'Upper counter'),
+		]);
+		addGlyph(A, [
+			rect(0, 0, 600, 700, 'Stem'),
+			{
+				name: 'Slash',
+				pathPoints: [corner(-50, 150), corner(650, 550), corner(650, 350), corner(-50, 250)],
+			},
+		]);
+		run('begin_glyph', { glyphId: B });
+		run('copy_paths', { glyphId: B, sourceGlyphId: A, sourcePathIndices: [1] });
+		const cut = await run('boolean_paths', {
+			glyphId: B,
+			operation: 'exclude',
+			pathIndices: [0, 1, 2],
+			withPathIndices: [3],
+		});
+		expect(cut.ok).toBe(true);
+		const check = session.execute('check_outlines', { glyphId: B });
+		expect(check.issues.filter((issue) => issue.code === 'WINDING_SAME_AS_CONTAINER')).toEqual([]);
+		expect(check.submitWouldPass).toBe(true);
+		const submit = run('submit_glyph', { glyphId: B });
+		expect(submit.ok).toBe(true);
+		// Islands exist: some contour sits inside a counter and runs opposite to it.
+		expect(glyph(B).shapes.length).toBeGreaterThan(3);
+	});
+
+	it('flags a solid island that runs the same way as its hole, with a hint that does not say cut it out', () => {
+		const island = hole(250, 150, 350, 250, 'Island');
+		const check = checkGlyphOutlines(
+			new Glyph({ id: B, shapes: [rect(50, 0, 550, 700), hole(150, 100, 450, 300), island] }),
+			{ upm: 1000, ascent: 800, descent: -200, capHeight: 700, xHeight: 500, overshoot: 10 }
+		);
+		const issues = check.issues.filter((item) => item.code === 'WINDING_SAME_AS_CONTAINER');
+		expect(issues).toHaveLength(1);
+		expect(issues[0]).toMatchObject({ pathIndex: 2, containerIndex: 1, shouldBe: 'solid' });
+		expect(issues[0].hint).toMatch(/solid island/);
+		expect(issues[0].hint).not.toMatch(/cut it out/);
+	});
+
+	it('a correctly wound island inside a counter is clean, though the outer contour bounds it too', () => {
+		const check = checkGlyphOutlines(
+			new Glyph({
+				id: B,
+				shapes: [rect(50, 0, 550, 700), hole(150, 100, 450, 300), rect(250, 150, 350, 250)],
+			}),
+			{ upm: 1000, ascent: 800, descent: -200, capHeight: 700, xHeight: 500, overshoot: 10 }
+		);
+		expect(check.issues).toEqual([]);
+	});
+
+	it('a contour copied in is new even when it matches one the glyph already had', () => {
+		run('begin_glyph', { glyphId: A });
+		const copied = run('copy_paths', { glyphId: A, sourceGlyphId: A, sourcePathIndices: [1] });
+		expect(copied.newPathIndices).toEqual([2]);
+		const submit = run('submit_glyph', { glyphId: A });
+		expect(submit.error.code).toBe('INVALID_OUTLINES');
+		const crossings = submit.error.details.issues.filter(
+			(item) => item.code === 'SELF_INTERSECTION'
+		);
+		expect(crossings.map((item) => item.pathIndex)).toContain(2);
+	});
+});

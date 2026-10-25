@@ -11,7 +11,7 @@ import {
 	latinKernelCoverage,
 	latinKernelEntry,
 } from '../project_editor/charset_latin_kernel.js';
-import { checkGlyphOutlines, markPreExisting } from './outline-check.js';
+import { checkGlyphOutlines, contourFingerprint, markPreExisting } from './outline-check.js';
 import {
 	agentJobSignal,
 	assertAgentMayWrite,
@@ -374,11 +374,20 @@ export function createNativeToolSession({
 		const metrics = fontMetrics(project);
 		const check = checkGlyphOutlines(job.candidate, metrics);
 		const base = job.create ? null : job.baseGlyph;
+		// Pre-existing means in THIS glyph before the job: a contour copied in from another
+		// glyph (copy_paths) is always new, even if it matches one the glyph had.
+		const copied = new Set(job.copied || []);
 		const issues = markPreExisting(
 			job.candidate,
 			check.issues,
 			base,
 			base ? checkGlyphOutlines(base, metrics).issues : []
+		).map((issue) =>
+			issue.preExisting &&
+			Number.isInteger(issue.pathIndex) &&
+			copied.has(contourFingerprint(job.candidate.shapes[issue.pathIndex]))
+				? { ...issue, preExisting: false }
+				: issue
 		);
 		const blocking = issues.filter(
 			(issue) => BLOCKING_ISSUES.includes(issue.code) && !issue.preExisting
@@ -411,6 +420,10 @@ export function createNativeToolSession({
 				fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
 			assertInSet(project, [input.sourceGlyphId]);
 			added = copyPathsInto(next, glyphFor(input.sourceGlyphId), input);
+			job.copied = [
+				...(job.copied || []),
+				...added.map((index) => contourFingerprint(next.shapes[index])),
+			];
 		} else if (name === 'boolean_paths') {
 			if (!prepared || prepared.candidate !== job.candidate)
 				fail('DRAFT_CHANGED', 'The draft changed while the boolean ran. Call boolean_paths again.');

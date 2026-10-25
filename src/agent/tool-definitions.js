@@ -167,7 +167,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'copy_paths',
 		description:
-			"Inside a glyph job: copy contours from another glyph (sourceGlyphId; read only, never changed, its locks do not matter) and append them to the draft, optionally moved, scaled, rotated, skewed or mirrored on the way (same fields as transform_paths; the pivot is the copied paths' bounds). sourcePathIndices null = every contour of the source (at most 32). If the source glyph has an open job in this session, its draft is copied. Use it to carry a mark from one glyph to another (a slash, a serif, a dot) instead of retyping points, then cut or merge it into the letter with boolean_paths. The result lists the new path indices. Edits the draft only.",
+			"Inside a glyph job: copy contours from another glyph (sourceGlyphId; read only, never changed, its locks do not matter) and append them to the draft, optionally moved, scaled, rotated, skewed or mirrored on the way (same fields as transform_paths; the pivot is the copied paths' bounds). sourcePathIndices null = every contour of the source (at most 32). If the source glyph has an open job in this session, its draft is copied. Use it to carry a mark from one glyph to another (a slash, a serif, a dot) instead of retyping points, then cut or merge it into the letter with boolean_paths (exclude: cut through the ink, keep the mark solid outside; subtract: remove the mark entirely; union: merge). The result lists the new path indices. Edits the draft only.",
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
@@ -179,7 +179,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'boolean_paths',
 		description:
-			'Inside a glyph job: combine two sets of draft contours into clean closed cubic outlines that pass submit_glyph. union merges them, subtract cuts withPathIndices out of pathIndices, intersect keeps only the overlap, exclude keeps everything except the overlap (what an overlapping contour drawn in the opposite direction looks like). Self-crossing and wrongly wound input is resolved first, so a self-crossing slash cuts cleanly. withPathIndices null with union just untangles pathIndices (fixes SELF_INTERSECTION and winding). The results replace all listed contours, inserted at the lowest listed index; the result lists the new path indices. Use it after copy_paths to cut a mark into a letter, or to fix WINDING_SAME_AS_CONTAINER. Edits the draft only.',
+			'Inside a glyph job: combine two sets of draft contours into clean closed cubic outlines that pass submit_glyph. union merges them; subtract removes the whole area of the mark (withPathIndices) from pathIndices, so nothing of the mark is left outside the letter; intersect keeps only the overlap; exclude cuts where the mark overlaps the letter ink and keeps the mark solid outside it (the graffiti-slash look, and what an overlapping contour drawn the opposite way looks like). To carry a slash like the one on A onto another glyph, use exclude; to punch a clean gap, use subtract. Self-crossing and wrongly wound input is resolved first, so a self-crossing slash cuts cleanly. withPathIndices null with union just untangles pathIndices (fixes SELF_INTERSECTION and winding). The results replace all listed contours, inserted at the lowest listed index; the result lists the new path indices. Use it after copy_paths to cut a mark into a letter, or to fix WINDING_SAME_AS_CONTAINER. Edits the draft only.',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,

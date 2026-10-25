@@ -446,6 +446,18 @@ describe('agent runner recovery', () => {
 		);
 	});
 
+	it('stops at exactly 40 tool calls by default and names the limit', async () => {
+		const transport = vi.fn();
+		let next = 0;
+		transport.mockImplementation(async () => tool(`call-${next++}`));
+		const { controller, session, events } = setup(transport);
+		await controller.run('Keep going forever');
+		expect(session.execute).toHaveBeenCalledTimes(40);
+		expect(events.find((event) => event.type === 'error').message).toMatch(
+			/tool limit \(40 tool calls\)/
+		);
+	});
+
 	it('allows 40 tool calls per chat request by default', async () => {
 		const transport = vi.fn();
 		for (let i = 0; i < 12; i++) transport.mockResolvedValueOnce(tool(`call-${i}`));

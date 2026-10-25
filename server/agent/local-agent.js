@@ -201,7 +201,7 @@ export function createLocalAgentBridge(options = {}) {
 			{
 				capabilities: { tools: {} },
 				instructions:
-					'Noddy font editor tools, running in the user’s open Noddy tab. Read with get_context first and pass the latest revision as expectedRevision. Draw glyphs as jobs (begin_glyph or create_glyph, edit, submit_glyph): each submit lands as a Draft and one undo step. Inside a job, render_glyphs, check_outlines and read_glyphs show the draft. To carry a mark from one glyph to another, copy_paths it into the job and cut or merge it with boolean_paths. Gate issues come with a hint; problems the glyph already had are warnings. Optional fields can be left out. If a result says sessionRestarted, unsubmitted drafts were dropped: begin those jobs again. Respect LOCKED_YOURS and LOCKED_OPEN; never work around them.',
+					'Noddy font editor tools, running in the user’s open Noddy tab. Read with get_context first and pass the latest revision as expectedRevision. Draw glyphs as jobs (begin_glyph or create_glyph, edit, submit_glyph): each submit lands as a Draft and one undo step. Inside a job, render_glyphs, check_outlines and read_glyphs show the draft. To carry a mark from one glyph to another, copy_paths it into the job and combine it with boolean_paths (exclude: cut through the ink and keep the mark solid outside, the graffiti look; subtract: remove the mark entirely; union: merge). Gate issues come with a hint; problems the glyph already had are warnings. Optional fields can be left out. If a result says sessionRestarted, unsubmitted drafts were dropped: begin those jobs again. Respect LOCKED_YOURS and LOCKED_OPEN; never work around them.',
 			}
 		);
 		server.oninitialized = () => {
