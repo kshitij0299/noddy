@@ -529,7 +529,7 @@ describe('the stepped connect card (#82)', () => {
 			});
 		});
 
-		it('while it tests: "Testing…", the list ignores input, Back stays enabled and cancels', async () => {
+		it('while it tests: "Testing…", the list ignores input, Cancel stops the test (bug 13)', async () => {
 			open();
 			await toModelStep();
 			let resolve;
@@ -537,17 +537,42 @@ describe('the stepped connect card (#82)', () => {
 			primary().click();
 			expect(primary().querySelector('.agent-card__button-label').textContent).toBe('Testing…');
 			expect(q('[role="listbox"]').getAttribute('aria-busy')).toBe('true');
+			expect(q('.agent-connect__caption').textContent).toBe('One short test message · up to 45 s');
 			optionFor('vendor/paid-one').click();
 			expect(optionFor('vendor/paid-one').getAttribute('aria-selected')).toBe('false');
-			expect(back().disabled).toBe(false);
+			const cancel = q('.agent-connect__cancel');
+			expect(cancel.hidden).toBe(false);
+			expect(back().hidden).toBe(true);
 			const { signal } = check.mock.calls[0][1];
-			back().click();
+			cancel.click();
 			expect(signal.aborted).toBe(true);
-			expect(card.step).toBe(2);
+			// Cancel keeps the model step, says so, and the button is "Use this model" again.
+			expect(card.step).toBe(3);
+			expect(q('.agent-connect__error').textContent).toContain('Test cancelled');
+			expect(primary().querySelector('.agent-card__button-label').textContent).toBe(
+				'Use this model'
+			);
+			expect(cancel.hidden).toBe(true);
+			expect(back().hidden).toBe(false);
 			resolve({ ok: true });
 			await flush();
 			expect(onConnected).not.toHaveBeenCalled();
 			expect(card.connected).toBe(null);
+		});
+
+		it('a test with no answer in time says how long it waited, not "isn\'t responding"', async () => {
+			open();
+			await toModelStep();
+			check.mockResolvedValue({
+				ok: false,
+				error: { code: 'PROVIDER_UNAVAILABLE', status: 408, timeoutSeconds: 45 },
+			});
+			primary().click();
+			await flush();
+			expect(card.step).toBe(3);
+			expect(q('.agent-connect__error').textContent).toContain(
+				'No answer from this model in 45 s — it may be busy. Try again, or pick another model.'
+			);
 		});
 
 		it('Enter on the chosen row confirms: accepting the start is Enter, Enter', async () => {
@@ -1183,7 +1208,10 @@ describe('the stepped connect card (#82)', () => {
 			for (const step of [2, 3]) {
 				card.open(step === 2 ? 'key' : 'model');
 				const actions = q('.agent-connect__actions');
-				const buttons = [...actions.children].filter((node) => node.tagName === 'BUTTON');
+				// The hidden Cancel only shows while the model test runs.
+				const buttons = [...actions.children].filter(
+					(node) => node.tagName === 'BUTTON' && !node.hidden
+				);
 				expect(buttons.map((node) => node.dataset.action)).toEqual(['primary', 'back']);
 				expect(buttons[0].type).toBe('submit');
 			}

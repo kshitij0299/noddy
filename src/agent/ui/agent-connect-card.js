@@ -43,7 +43,7 @@ import {
 	readRemembered,
 	remember,
 } from '../connect-flow.js';
-import { checkConnection, fetchModels } from '../connect-api.js';
+import { CHECK_TIMEOUT_MS, checkConnection, fetchModels } from '../connect-api.js';
 import { cardButton, el, icon, srOnly } from './cards/card-shell.js';
 import { createModelList } from './agent-model-list.js';
 
@@ -524,10 +524,24 @@ export function createConnectCard({
 		const primary = primaryButton('Use this model');
 		const back = backButton();
 		back.addEventListener('click', goBack);
+		// While the test runs, Cancel stops it and keeps this step (bug 13).
+		const cancel = /** @type {HTMLButtonElement} */ (
+			cardButton({ label: 'Cancel', action: 'cancel', variant: 'ghost' })
+		);
+		cancel.type = 'button';
+		cancel.classList.add('agent-connect__cancel');
+		cancel.hidden = true;
+		cancel.addEventListener('click', () => {
+			cancelRequest();
+			errorSlot.replaceChildren(
+				el('p', 'agent-connect__line text-body-small', 'Test cancelled · nothing changed.')
+			);
+			primary.focus();
+		});
 		// The failure of "Use this model" and the cost line sit in the sticky action stack, right
 		// above the button they are about, so they are on screen at any panel height.
 		const actions = el('div', 'agent-connect__actions');
-		actions.append(errorSlot, caption, primary, back);
+		actions.append(errorSlot, caption, primary, cancel, back);
 		nodes.push(actions);
 
 		// The list gives up height until the whole step fits the panel, so the count line, "Use a
@@ -605,6 +619,16 @@ export function createConnectCard({
 				list?.setBusy(on);
 				if (idInput) idInput.readOnly = on;
 				setPrimaryLabel(primary, on ? 'Testing…' : 'Use this model', on);
+				const hadFocus = document.activeElement === back || document.activeElement === cancel;
+				cancel.hidden = !on;
+				back.hidden = on;
+				if (on) {
+					errorSlot.replaceChildren();
+					caption.textContent = `One short test message · up to ${Math.round(
+						CHECK_TIMEOUT_MS / 1000
+					)} s`;
+				} else updateCaption();
+				if (hadFocus) (on ? cancel : back).focus();
 			},
 			showError(errorView) {
 				errorSlot.replaceChildren(errorBlock(errorView));
@@ -1002,8 +1026,10 @@ export function createConnectCard({
 	});
 
 	// Esc inside the card never leaves it or minimizes the panel (the list and search use it first).
+	// In the model chip's popover an unused Esc closes the popover instead.
 	form.addEventListener('keydown', (event) => {
 		if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+			if (form.closest('.agent-popover')) return;
 			event.stopPropagation();
 		}
 	});

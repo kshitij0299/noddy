@@ -13,9 +13,10 @@
  */
 import { readFreeRequests, readModelList } from './model-list.js';
 
-/** The relay gives up after 15 s on models; a connection check should answer well inside 100 s. */
+/** The relay gives up after 15 s on models. A one-word check that takes longer than 45 s
+ * means the model is too slow to work with (bug 13): it stops with a clear message. */
 const MODELS_TIMEOUT_MS = 20_000;
-const CHECK_TIMEOUT_MS = 100_000;
+export const CHECK_TIMEOUT_MS = 45_000;
 
 /**
  * The caller's cancel signal plus a timeout.
@@ -59,10 +60,10 @@ async function readError(response) {
 /**
  * @param {string} url
  * @param {object} payload
- * @param {{signal?: AbortSignal, fetchImpl?: typeof fetch, timeoutMs: number}} options
+ * @param {{signal?: AbortSignal, fetchImpl?: typeof fetch, timeoutMs: number, sayTimeout?: boolean}} options
  * @returns {Promise<{ok: true, body: any} | {ok: false, error: import('./connect-flow.js').ConnectError}>}
  */
-async function post(url, payload, { signal, fetchImpl = globalThis.fetch, timeoutMs }) {
+async function post(url, payload, { signal, fetchImpl = globalThis.fetch, timeoutMs, sayTimeout }) {
 	let response;
 	try {
 		response = await fetchImpl(url, {
@@ -76,7 +77,14 @@ async function post(url, payload, { signal, fetchImpl = globalThis.fetch, timeou
 		if (signal?.aborted) return { ok: false, error: { aborted: true } };
 		// A timeout is the provider (or the relay) not answering; anything else is no relay.
 		if (error?.name === 'TimeoutError') {
-			return { ok: false, error: { code: 'PROVIDER_UNAVAILABLE', status: 408 } };
+			return {
+				ok: false,
+				error: {
+					code: 'PROVIDER_UNAVAILABLE',
+					status: 408,
+					...(sayTimeout ? { timeoutSeconds: Math.round(timeoutMs / 1000) } : {}),
+				},
+			};
 		}
 		return { ok: false, error: { offline: true } };
 	}
@@ -115,7 +123,10 @@ export async function fetchModels(config, { signal, fetchImpl } = {}) {
  * @param {{signal?: AbortSignal, fetchImpl?: typeof fetch}} [options]
  * @returns {Promise<{ok: true} | {ok: false, error: import('./connect-flow.js').ConnectError}>}
  */
-export async function checkConnection(config, { signal, fetchImpl } = {}) {
+export async function checkConnection(
+	config,
+	{ signal, fetchImpl, timeoutMs = CHECK_TIMEOUT_MS } = {}
+) {
 	const answer = await post(
 		'/api/agent/step',
 		{
@@ -126,7 +137,7 @@ export async function checkConnection(config, { signal, fetchImpl } = {}) {
 			purpose: 'check',
 			messages: [{ role: 'user', content: 'Reply with OK.' }],
 		},
-		{ signal, fetchImpl, timeoutMs: CHECK_TIMEOUT_MS }
+		{ signal, fetchImpl, timeoutMs, sayTimeout: true }
 	);
 	return answer.ok ? { ok: true } : answer;
 }
