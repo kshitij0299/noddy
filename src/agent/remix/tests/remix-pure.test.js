@@ -126,6 +126,16 @@ describe('Telephone', () => {
 		expect([...kinds].sort()).toEqual(['add', 'swap', 'tweak']);
 	});
 
+	it('grows a hand of one, so the regret still leaves a move to hand on', () => {
+		const one = [{ id: 'KICK', params: { angle: 0, width: 8, strength: 60 } }];
+		for (const seed of [1, 2, 3, 4]) {
+			const { cards, telephone } = telephoneCards({ seed, glyphId: C, previous: one, from: B });
+			expect(telephone.mutation.kind).toBe('add');
+			expect(cards.map((card) => card.id)[0]).toBe('KICK');
+			expect(cards).toHaveLength(2);
+		}
+	});
+
 	it('takes the closest earlier glyph with a landed take', () => {
 		const run = remixRun({});
 		recordDraw(run, B, { seed: 1, cards: [] });

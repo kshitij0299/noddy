@@ -193,7 +193,7 @@ export function createModeChip({ getEditor }) {
 	const telephoneHint = el(
 		'span',
 		'agent-telephone__hint text-body-small',
-		'Each glyph riffs on the last one'
+		'Each glyph riffs on the last'
 	);
 	telephoneHint.id = `${telephoneId}-hint`;
 	telephoneText.append(telephoneLabel, telephoneHint);

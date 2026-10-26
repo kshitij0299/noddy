@@ -238,7 +238,8 @@ export function drawCards({ seed, glyphId, count, chaos = 50, mode = 'remix', ta
 
 /**
  * Telephone: the previous glyph's kept moves, re-dealt for this glyph, plus one mutation:
- * tweak one setting, swap one card for a fresh one (not tabu, not already in hand), or add one.
+ * tweak one setting, swap one card for a fresh one (not tabu, not already in hand), or add one
+ * (always add to a hand of one, so the regret still leaves a move to pass on).
  * @param {Object} options - as drawCards, plus
  * @param {Array<{id: String, params: Object}>} options.previous - kept cards of the previous glyph
  * @param {String} options.from - the previous glyph's ID
@@ -265,7 +266,8 @@ export function telephoneCards({
 	if (hand.some((entry) => numericKeys(entry.params).length)) kinds.push('tweak');
 	if (hand.length && fresh.length) kinds.push('swap');
 	if (hand.length < MAX_CARDS && fresh.length) kinds.push('add');
-	const kind = kinds.length ? rng.pick(kinds) : 'add';
+	// A hand of one grows: with two moves the agent can still regret one and pass one on.
+	const kind = hand.length < 2 && fresh.length ? 'add' : kinds.length ? rng.pick(kinds) : 'add';
 	let mutation;
 	if (kind === 'tweak') {
 		const entries = hand.filter((entry) => numericKeys(entry.params).length);
