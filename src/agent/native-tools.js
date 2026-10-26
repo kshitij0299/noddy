@@ -4,6 +4,7 @@ import { Glyph } from '../project_data/glyph.js';
 import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
 import { ioSVG_convertSVGTagsToGlyph } from '../formats_io/svg_outlines/svg_outline_import.js';
 import { queueItemChanged } from '../project_editor/item_changed.js';
+import { isPreDraft } from '../project_editor/glyph-status.js';
 import {
 	codePointToGlyphID,
 	isInLatinKernel,
@@ -11,7 +12,12 @@ import {
 	latinKernelCoverage,
 	latinKernelEntry,
 } from '../project_editor/charset_latin_kernel.js';
-import { checkGlyphOutlines, contourFingerprint, markPreExisting } from './outline-check.js';
+import {
+	BLOCKING_ISSUES,
+	checkGlyphOutlines,
+	contourFingerprint,
+	markPreExisting,
+} from './outline-check.js';
 import {
 	agentJobSignal,
 	assertAgentMayWrite,
@@ -24,6 +30,8 @@ import {
 } from './ownership.js';
 import { fontMetrics, renderRow } from './render.js';
 import { readAgentControls } from './agent-controls.js';
+import { getChaosOp, runChaos } from './chaos/engine.js';
+import { glyphContours, projectCellGrid } from './chaos/project-bridge.js';
 import {
 	READ_ONLY_TOOLS,
 	RENDER_IMAGES_PER_REQUEST,
@@ -62,19 +70,11 @@ const JOB_TOOLS = [
 	'add_svg_path',
 	'copy_paths',
 	'boolean_paths',
+	'apply_chaos',
 ];
 // Legacy write tools edit the job's draft when a job is open for their glyph.
 const DRAFT_TOOLS = ['set_spacing', 'transform_paths', 'add_paths'];
 const MAX_JOBS = 8;
-// check_outlines codes that make geometry invalid. Extents are warnings only, and so is any of
-// these that the glyph already had before the job (preExisting).
-const BLOCKING_ISSUES = [
-	'TOO_FEW_POINTS',
-	'DUPLICATE_POINTS',
-	'SELF_INTERSECTION',
-	'SPECK',
-	'WINDING_SAME_AS_CONTAINER',
-];
 const cloneGlyph = (glyph) => {
 	const clone = new Glyph(copy(glyph.save(true)));
 	clone.wasCreatedThisSession = glyph.wasCreatedThisSession;
@@ -90,6 +90,9 @@ const abortIfNeeded = (signal) => {
  * create a new session per Send and retain the last one for its inline Undo.
  * `grantOpen: false` (the local agent bridge) skips the Send-time hand-off below: an
  * external agent has no Send, so the open glyph stays LOCKED_OPEN.
+ * `consentFor(id)` (the Chaos tab, PR C) returns a UI-minted grant (grantConsent) for a glyph
+ * the user applied a chaos tool to; it is never reachable from model input. `historyLabel`
+ * names the submit's undo step ("Chaos · A" instead of "Agent · A").
  */
 export function createNativeToolSession({
 	getEditor = getCurrentProjectEditor,
@@ -98,6 +101,8 @@ export function createNativeToolSession({
 	grantOpen = true,
 	renderLimit = RENDER_IMAGES_PER_REQUEST,
 	callLimit = SESSION_CALL_LIMIT,
+	consentFor,
+	historyLabel = 'Agent',
 } = {}) {
 	const editor = getEditor();
 	const project = editor?.project;
@@ -127,7 +132,9 @@ export function createNativeToolSession({
 	/** @type {Map<String, {id: String, create: Boolean, candidate: Glyph, base: String | null, signal: AbortSignal}>} */
 	const jobs = new Map();
 	// The Send-time grant covers only the glyph bound to this request.
-	const grantFor = (id) => (id === glyphId ? requestGrant : undefined);
+	const grantFor = (id) =>
+		(id === glyphId ? requestGrant : undefined) ??
+		(typeof consentFor === 'function' ? consentFor(id) : undefined);
 	// A run job (M7) may write only the glyph(s) the run queued for it.
 	const scope = Array.isArray(jobScope) ? new Set(jobScope) : null;
 	function assertInJobScope(id) {
@@ -212,7 +219,72 @@ export function createNativeToolSession({
 	 */
 	function execute(name, input, options = {}) {
 		if (name === 'boolean_paths') return executeBoolean(input, options);
+		if (name === 'apply_chaos') return executeChaos(input, options);
 		return executeNow(name, input, options);
+	}
+
+	// apply_chaos (PR C): the engine runs (and may load paper.js) on each glyph's base outline
+	// first; the job tool then applies each result only if that base is still what it ran on.
+	async function executeChaos(rawInput, options) {
+		let prepared;
+		try {
+			if (validateToolInput('apply_chaos', rawInput).valid && !disposed) {
+				const input = normalizeToolInput('apply_chaos', rawInput);
+				prepared = await prepareChaos(input);
+			}
+		} catch (error) {
+			prepared = { error };
+		}
+		return executeNow('apply_chaos', rawInput, { ...options, prepared });
+	}
+
+	/** What apply_chaos starts from for one glyph: before-draft, the open draft, or the font. */
+	function chaosBase(id, base) {
+		if (base === 'before-draft') {
+			const record = editor.glyphStatus?.get?.(id);
+			if (record?.status === 'draft' && isPreDraft(record.preDraft))
+				return {
+					glyph: record.preDraft.glyph ? new Glyph(copy(record.preDraft.glyph)) : null,
+					key: 'pre',
+				};
+		}
+		const glyph = glyphFor(id);
+		return { glyph, key: glyph ? JSON.stringify(glyph.save()) : '' };
+	}
+
+	async function prepareChaos(input) {
+		const op = getChaosOp(input.op);
+		const metrics = fontMetrics(project);
+		const controls = readAgentControls(editor);
+		const seed = input.seed ?? Math.floor(Math.random() * 999999) + 1;
+		const chaos = input.chaos ?? controls.chaos;
+		const breakRules = input.breakRules === true && controls.mode === 'wild';
+		const grid = op?.needsGrid ? projectCellGrid(project, input.glyphIds) : null;
+		const results = new Map();
+		for (const id of input.glyphIds) {
+			const { glyph, key } = chaosBase(id, input.base);
+			let result;
+			try {
+				result = await runChaos({
+					op: input.op,
+					contours: glyphContours(glyph),
+					glyphId: id,
+					seed,
+					chaos,
+					params: input.params ?? {},
+					metrics,
+					grid,
+					breakRules,
+				});
+			} catch (error) {
+				result = {
+					ok: false,
+					error: { code: error.code || 'CHAOS_FAILED', message: error.message },
+				};
+			}
+			results.set(id, { key, result });
+		}
+		return { results, breakRules, guard: breakRules ? 'off' : 'on' };
 	}
 
 	// The boolean runs on a snapshot of the draft before the synchronous tool path; the job
@@ -410,6 +482,7 @@ export function createNativeToolSession({
 			assertInJobScope(input.glyphId);
 			return beginJob(input.glyphId, context);
 		}
+		if (name === 'apply_chaos') return applyChaos(input, context, signal, prepared);
 		const job = jobs.get(input.glyphId);
 		if (!job) fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
 		assertJobLive(job);
@@ -446,6 +519,76 @@ export function createNativeToolSession({
 				: name === 'add_paths' || name === 'add_svg_path'
 				? { newPathIndices: range(before, next.shapes.length) }
 				: {}),
+		};
+	}
+
+	/** apply_chaos, the synchronous half: each glyph's result becomes its job's draft. */
+	function applyChaos(input, context, signal, prepared) {
+		if (!prepared) fail('CHAOS_UNAVAILABLE', 'The chaos engine could not run. Try again.');
+		if (prepared.error) {
+			if (prepared.error.code) throw prepared.error;
+			fail('CHAOS_UNAVAILABLE', 'The chaos engine could not load. Try again.');
+		}
+		const results = [];
+		for (const id of input.glyphIds) {
+			try {
+				abortIfNeeded(signal);
+				assertInJobScope(id);
+				assertInSet(project, [id]);
+				const entry = prepared.results.get(id);
+				if (!entry)
+					fail('CHAOS_UNAVAILABLE', 'This glyph was not prepared. Call apply_chaos again.');
+				if (chaosBase(id, input.base).key !== entry.key)
+					fail(
+						'DRAFT_CHANGED',
+						'The glyph changed while the chaos tool ran. Call apply_chaos again.'
+					);
+				const { result } = entry;
+				if (!result.ok) fail(result.error.code, result.error.message);
+				if (!jobs.has(id)) beginJob(id, context);
+				const job = jobs.get(id);
+				assertJobLive(job);
+				const next = cloneGlyph(job.candidate);
+				next._shapes = [];
+				for (const data of chaosShapeData(result.contours, input.op)) next.addOneShape(data);
+				next.changed();
+				assertGeometry(next);
+				job.candidate = next;
+				job.fromPreDraft = input.base === 'before-draft';
+				results.push({
+					glyphId: id,
+					ok: true,
+					seed: result.seed,
+					chaos: result.chaos,
+					rerolled: result.rerolled,
+					attempts: result.attempts,
+					job: describeJob(job),
+				});
+			} catch (error) {
+				results.push({
+					glyphId: id,
+					ok: false,
+					error: {
+						code: error.code || 'CHAOS_FAILED',
+						message: error.message || 'The tool failed.',
+					},
+				});
+			}
+		}
+		const applied = results.filter((result) => result.ok);
+		if (!applied.length)
+			fail(
+				results[0]?.error?.code || 'CHAOS_FAILED',
+				results[0]?.error?.message || 'Nothing was applied.',
+				{ results }
+			);
+		return {
+			ok: true,
+			context,
+			op: input.op,
+			guard: prepared.guard,
+			results,
+			next: 'Look with render_glyphs, then submit_glyph each glyph to land it as a Draft (one undo step each).',
 		};
 	}
 
@@ -547,14 +690,17 @@ export function createNativeToolSession({
 		// Re-check right before commit: the lock state is read at execution time.
 		assertJobLive(job);
 		const char = glyphChar(job.id);
-		commit(job.id, candidate, `Agent · ${char}`, signal, { create: job.create });
+		commit(job.id, candidate, `${historyLabel} · ${char}`, signal, { create: job.create });
 		jobs.delete(job.id);
 		try {
 			const store = editor.glyphStatus;
 			const before = store?.get(job.id);
 			// The outline before the agent drew it, for Revert (a redraw of a
 			// Draft keeps the first snapshot inside the store).
-			const preDraft = { glyph: job.create ? null : JSON.parse(job.base) };
+			// A chaos re-roll from before the Draft (apply_chaos base 'before-draft') keeps the
+			// first snapshot, so Undo goes back to the glyph before any chaos.
+			const keep = job.fromPreDraft && before?.status === 'draft' && isPreDraft(before.preDraft);
+			const preDraft = keep ? before.preDraft : { glyph: job.create ? null : JSON.parse(job.base) };
 			// assertJobLive passed, so a Yours glyph here carries the user's consent.
 			store?.set(job.id, 'draft', 'agent', { consent: true, preDraft });
 			if (before)
@@ -1503,6 +1649,22 @@ function applyBoolean(glyph, input, contours) {
 	glyph._shapes = [...before, ...added, ...after];
 	glyph.changed();
 	return range(before.length, before.length + added.length);
+}
+
+const round2 = (value) => Math.round(value * 100) / 100;
+
+function chaosShapeData(contours, op) {
+	return contours.map((contour, index) =>
+		contourShape({
+			name: `${op} ${index + 1}`,
+			points: contour.points.map((point) => ({
+				x: round2(point.x),
+				y: round2(point.y),
+				h1: point.h1 ? { x: round2(point.h1.x), y: round2(point.h1.y) } : null,
+				h2: point.h2 ? { x: round2(point.h2.x), y: round2(point.h2.y) } : null,
+			})),
+		})
+	);
 }
 
 function glyphChar(id) {

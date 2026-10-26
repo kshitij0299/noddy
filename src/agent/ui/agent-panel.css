@@ -1474,7 +1474,8 @@ button.agent-pill:focus-visible {
 }
 
 .agent-panel__tab--chaos {
-	overflow-y: auto;
+	/* The Chaos tab scrolls inside its tool block, so its footer stays put (chaos-tab.css). */
+	overflow: hidden;
 }
 
 /* Agent | Chaos: a pill track like the grid's segmented switch. */

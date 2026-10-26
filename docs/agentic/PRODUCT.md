@@ -23,6 +23,7 @@ These are the owner's decisions so far (owner: a designer, Figma power user; not
 | Agent output | Everything the agent draws is a **Draft until the user presses Keep** (Keep all per group). Glyphs the user edited by hand are **Yours**, and the agent must not touch them without explicit consent. |
 | Statuses | Empty · Queued · Drafting · Draft · Kept · Yours · Failed. Show them as shape plus colour, never colour alone. |
 | Runs | The agent stops for approval after the spec and after the control glyphs **n o H O** ("Approve the style"). Small asks ("fix the g") get no plan and no gate, only a receipt. Esc, minimize and hide **never stop** a run. Pause finishes the current glyph; Stop asks inline. |
+| Chaos tools vs locks | The Chaos tab is the user's own action (owner, 2026-10-26): This glyph / Selected glyphs apply to Yours and open glyphs; Whole set skips Yours, includes the open glyph. The agent's `apply_chaos` keeps the normal locks. See [CHAOS-TOOLS.md](CHAOS-TOOLS.md). |
 | Undo | One shared history. During a run, Cmd+Z undoes only the user's own last change. Agent work is reverted from its cell or receipt. |
 | First font style | A simple sans. |
 | Models | API-key models (OpenAI, OpenCode Zen, …) through the existing relay. Keys live in memory only. |

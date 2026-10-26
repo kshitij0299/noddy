@@ -55,6 +55,31 @@ const transformFields = {
 	pivot: nullable({ type: 'string', enum: TRANSFORM_PIVOTS }),
 	origin: { ...object({ x: coordinate, y: coordinate }), type: ['object', 'null'] },
 };
+// The chaos tools (src/agent/chaos/engine.js CHAOS_OPS). Mirrored, not imported: the relay loads
+// this file without the editor module graph; a vitest keeps the two lists equal.
+export const CHAOS_OP_NAMES = ['slash-cut', 'glitch-bands', 'warp', 'grid-snap', 'pixel-life'];
+export const CHAOS_BASES = ['current', 'before-draft'];
+// Every op's params in one object; each op reads its own keys and ignores the rest. Ranges are
+// the widest any op allows; the engine clamps to the op's own range.
+const chaosParams = {
+	...object({
+		count: nullable({ type: 'integer', minimum: 1, maximum: 4 }),
+		angle: nullable({ type: 'number', minimum: -80, maximum: 80 }),
+		width: nullable({ type: 'number', minimum: 2, maximum: 20 }),
+		overshoot: nullable({ type: 'number', minimum: 0, maximum: 80 }),
+		bands: nullable({ type: 'integer', minimum: 2, maximum: 12 }),
+		shift: nullable({ type: 'number', minimum: 1, maximum: 30 }),
+		warp: nullable({ type: 'string', enum: ['arc', 'bulge', 'wave', 'twist'] }),
+		strength: nullable({ type: 'number', minimum: -100, maximum: 100 }),
+		cols: nullable({ type: 'integer', minimum: 3, maximum: 12 }),
+		rows: nullable({ type: 'integer', minimum: 3, maximum: 16 }),
+		angleStep: nullable({ type: 'number', minimum: 0, maximum: 45 }),
+		generations: nullable({ type: 'integer', minimum: 1, maximum: 6 }),
+		rule: nullable({ type: 'string', enum: ['mould', 'life', 'coral', 'erode'] }),
+		protectStems: nullable({ type: 'boolean' }),
+	}),
+	type: ['object', 'null'],
+};
 // Rendered PNGs per request (one Send). The relay allows the same number per
 // conversation (LIMITS.toolImages); past it, render tools return RENDER_LIMIT.
 export const RENDER_IMAGES_PER_REQUEST = 8;
@@ -186,6 +211,21 @@ export const TOOL_DEFINITIONS = [
 			operation: { type: 'string', enum: BOOLEAN_OPERATIONS },
 			pathIndices,
 			withPathIndices: nullable(pathIndices),
+		}),
+	},
+	{
+		name: 'apply_chaos',
+		description:
+			"Run one of the Chaos tab's algorithmic effects (the same engine the user's Chaos tab uses) on up to 8 glyphs, each inside its glyph job: it begins the job if none is open, replaces the draft's outlines with the result, and returns per glyph the seed and chaos it used. Nothing reaches the font until you submit_glyph each one (one undo step per glyph, marked Draft); render_glyphs shows the drafts first. op: slash-cut (sharp kite slashes cut with exclude: through the ink, solid outside; params count 1-4, angle degrees, width % of em, overshoot %), glitch-bands (horizontal slices shifted sideways; bands 2-12, shift % of em), warp (warp arc | bulge | wave | twist, strength -100..100), grid-snap (points snapped to a cols x rows lattice, rotated by multiples of angleStep degrees), pixel-life (dot and pixel fonts only: Game-of-Life generations 1-6 on the font's own cell grid, rule mould | life | coral | erode, protectStems; NOT_PIXEL_FONT otherwise). params null or absent keys = the op's defaults; other ops' keys are ignored. seed (null = a new one) makes the result reproducible: the same seed, chaos and params give the same outlines; change it to re-roll one glyph. chaos 0-100 (null = the panel's chaos) scales every range. A legibility guard rejects takes that break the outline check, lose a counter, or drift too far in ink or bounds, and re-rolls (seed+1 up to 3 times, then lower chaos); the result says which seed and chaos landed. breakRules true turns the legibility rules off, only in Wild mode (the outline check always applies). base 'before-draft' starts from the glyph as it was before its current Draft (to re-roll a chaos draft instead of stacking on it); null = the current outline (the open job's draft if any). Refuses Yours and open glyphs like begin_glyph.",
+		inputSchema: object({
+			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
+			expectedRevision,
+			op: { type: 'string', enum: CHAOS_OP_NAMES },
+			seed: nullable({ type: 'integer', minimum: 0, maximum: 2147483646 }),
+			chaos: nullable({ type: 'integer', minimum: 0, maximum: 100 }),
+			params: chaosParams,
+			breakRules: nullable({ type: 'boolean' }),
+			base: nullable({ type: 'string', enum: CHAOS_BASES }),
 		}),
 	},
 	{

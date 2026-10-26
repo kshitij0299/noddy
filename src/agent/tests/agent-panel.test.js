@@ -19,6 +19,7 @@ import {
 	threadCopyFor,
 } from '../ui/agent-panel.js';
 import { CARD_ACTION_EVENT } from '../ui/cards/index.js';
+import { resetChaosToolsForTests } from '../ui/agent-panel-tabs.js';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -57,6 +58,8 @@ function panelFixture(options = {}) {
 beforeEach(() => {
 	document.body.innerHTML = '<div id="app__wrapper"></div>';
 	resetAgentPanelSlotForTests();
+	// ensureAgentPanel registers the Chaos tools (PR C); each test starts without them.
+	resetChaosToolsForTests();
 });
 
 afterEach(() => {
