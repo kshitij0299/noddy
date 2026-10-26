@@ -158,3 +158,13 @@ Draft. Found on the way:
     messages to the connected tab.
 35. **The local agent gets attachment names only, not the files**, and the 20-message queue limit has
     no test. Long model names are cut off on the chip (needs a tooltip).
+
+## Follow-ups from PR C QA (2026-10-26)
+
+36. **Whole-set Chaos Apply is slow:** 8.8 s (Grid snap) to 16.3 s (Warp) on DotGothic16's 116
+    glyphs; paper.js runs on the main thread in 100–340 ms tasks (the page yields and Stop works).
+    Wanted: a progress count in the result list now, a Web Worker later.
+37. **The faster self-intersection check misses rare grazing crossings** (2 of 400 random cases the
+    old check caught). Sample more finely (e.g. 32 steps per cubic) or confirm near-misses exactly.
+38. **Whole set skips an open glyph that is also Yours**; the docs don't say so. The preview strip's
+    8th cell wraps onto its own row.
