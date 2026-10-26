@@ -572,7 +572,13 @@ export function createNativeToolSession({
 						'The glyph changed while the chaos tool ran. Call apply_chaos again.'
 					);
 				const { result } = entry;
-				if (!result.ok) fail(result.error.code, result.error.message);
+				if (!result.ok)
+					fail(
+						result.error.code,
+						jobs.get(id)?.remix && result.error.code === 'GUARD_REJECTED'
+							? `${result.error.message} This card does not suit this glyph: skip it and play the next one.`
+							: result.error.message
+					);
 				if (!jobs.has(id)) beginJob(id, context);
 				const job = jobs.get(id);
 				assertJobLive(job);
@@ -740,8 +746,15 @@ export function createNativeToolSession({
 		job.moves ??= [];
 		let reverted = null;
 		if (input.revert === true) {
-			const move = [...job.moves].reverse().find((item) => !item.reverted);
+			const active = job.moves.filter((item) => !item.reverted);
+			const move = active.at(-1);
 			if (!move) fail('NO_MOVE', 'This job has no move left to revert.');
+			// The regret drops one move of several: the only move left stays (else nothing lands).
+			if (active.length === 1 && job.remix)
+				fail(
+					'LAST_MOVE',
+					'This is the only move left, so keep it: play another card first if you want to regret one, or submit_glyph as it is.'
+				);
 			job.candidate = move.before;
 			move.reverted = true;
 			move.reason = input.reason ? String(input.reason).trim().slice(0, 200) : '';

@@ -166,22 +166,29 @@ export const pieceMirror = {
 	id: 'piece-mirror',
 	label: 'Mirror a part',
 	icon: 'flip',
-	hint: 'Cut the letter in two and flip one piece left to right',
+	hint: 'Cut the letter in two and flip one piece end to end along the cut',
 	deck: true,
 	params: [cutAngle],
 	async run(contours, ctx) {
 		const cut = seededCut({ contours, ...ctx });
 		const { piece, rest } = await split(contours, cut, ctx);
 		if (!piece.length || !rest.length) return contours;
-		let xMin = Infinity;
-		let xMax = -Infinity;
-		for (const contour of piece)
-			for (const p of contour.points) {
-				xMin = Math.min(xMin, p.x);
-				xMax = Math.max(xMax, p.x);
-			}
-		const axis = (xMin + xMax) / 2;
-		const flipped = orientByDepth(mapPoints(piece, (p) => ({ x: 2 * axis - p.x, y: p.y })));
+		// Reflect across the line perpendicular to the cut, through the middle of the piece's cut
+		// edge: the edge stays on the cut line and on the rest's edge, so the piece stays joined.
+		const ux = Math.cos(cut.angle);
+		const uy = Math.sin(cut.angle);
+		const along = (p) => (p.x - cut.x) * ux + (p.y - cut.y) * uy;
+		const across = (p) => Math.abs(-(p.x - cut.x) * uy + (p.y - cut.y) * ux);
+		const points = piece.flatMap((contour) => contour.points);
+		const edge = points.filter((p) => across(p) < 2);
+		const span = (edge.length >= 2 ? edge : points).map(along);
+		const middle = (Math.min(...span) + Math.max(...span)) / 2;
+		const flipped = orientByDepth(
+			mapPoints(piece, (p) => {
+				const d = along(p) - middle;
+				return { x: p.x - 2 * d * ux, y: p.y - 2 * d * uy };
+			})
+		);
 		return weld([flipped, rest], ctx.boolean);
 	},
 };

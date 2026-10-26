@@ -220,9 +220,16 @@ describe('op_history and the regret rule', () => {
 		});
 		expect(revert.reverted).toMatchObject({ tool: 'transform_paths', reason: 'the nudge did nothing' });
 		expect(paths(O)).toBe(afterFirst);
-		session.execute('op_history', { glyphId: O, revert: true });
-		expect(paths(O)).toBe(start);
-		const none = session.execute('op_history', { glyphId: O, revert: true });
+		// In a card take the only move left stays: the regret drops one of several.
+		const last = session.execute('op_history', { glyphId: O, revert: true });
+		expect(last.error.code).toBe('LAST_MOVE');
+		expect(paths(O)).toBe(afterFirst);
+		expect(start).not.toBe(afterFirst);
+		// Outside a card take every move can go.
+		run('begin_glyph', { glyphId: H });
+		run('transform_paths', { glyphId: H, pathIndices: [0], dx: 5, dy: null });
+		expect(session.execute('op_history', { glyphId: H, revert: true }).ok).toBe(true);
+		const none = session.execute('op_history', { glyphId: H, revert: true });
 		expect(none.error.code).toBe('NO_MOVE');
 	});
 

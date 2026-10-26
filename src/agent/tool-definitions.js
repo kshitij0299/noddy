@@ -267,7 +267,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'op_history',
 		description:
-			"Inside a glyph job: list your moves in this job (every draft edit: apply_chaos, transform_paths, copy_paths, boolean_paths, add/replace/delete paths), oldest first, with the card each one played. revert true takes back the last move that is not reverted yet (the draft goes back to how it was before it); reason (optional) says why, and goes in the take's log. The Remix regret rule: after you render a glyph, revert the move you like least (revert repeatedly to reach an earlier one, then replay the ones you keep) and say why you kept the rest. Edits the draft only; nothing reaches the font until submit_glyph.",
+			"Inside a glyph job: list your moves in this job (every draft edit: apply_chaos, transform_paths, copy_paths, boolean_paths, add/replace/delete paths), oldest first, with the card each one played. revert true takes back the last move that is not reverted yet (the draft goes back to how it was before it; in a draw_cards take the only move left is kept: LAST_MOVE); reason (optional) says why, and goes in the take's log. The Remix regret rule: after you render a glyph, revert the move you like least (revert repeatedly to reach an earlier one, then replay the ones you keep) and say why you kept the rest. Edits the draft only; nothing reaches the font until submit_glyph.",
 		inputSchema: object({
 			glyphId,
 			revert: nullable({ type: 'boolean' }),
