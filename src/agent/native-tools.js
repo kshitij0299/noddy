@@ -144,6 +144,8 @@ export function createNativeToolSession({
 	let lastHead;
 	let disposed = false;
 	let lastEdit;
+	// The reference mark sentence draw_cards last sent in this session (#97: sent once).
+	let sentReference = null;
 	const completedCalls = new Map();
 	/** @type {Map<String, {id: String, create: Boolean, candidate: Glyph, base: String | null, signal: AbortSignal}>} */
 	const jobs = new Map();
@@ -214,21 +216,22 @@ export function createNativeToolSession({
 		};
 	}
 
+	// #97: only get_context returns the context; an error keeps just the revision to retry with.
 	function errorResult(error) {
-		let context;
+		let revision;
 		try {
-			context = getContext();
+			revision = getContext().revision;
 		} catch {
-			// A closed/replaced project has no usable context in this session.
+			// A closed/replaced project has no usable revision in this session.
 		}
 		return {
 			ok: false,
+			...(revision ? { revision } : {}),
 			error: {
 				code: error.code || 'NATIVE_TOOL_FAILED',
 				message: error.message || 'The edit failed.',
 				...(error.details ? { details: error.details } : {}),
 			},
-			...(context ? { context } : {}),
 		};
 	}
 
@@ -348,7 +351,7 @@ export function createNativeToolSession({
 			const context = getContext();
 			let result;
 			if (name === 'get_context') {
-				result = { ok: true, context };
+				result = { ok: true, context: contextReply(context) };
 			} else if (name === 'read_glyphs') {
 				let remainingPoints = 512;
 				const glyphs = input.glyphIds.map((id) => {
@@ -362,11 +365,11 @@ export function createNativeToolSession({
 						source: jobs.has(id) ? 'draft' : 'font',
 					};
 				});
-				result = { ok: true, context, glyphs };
+				result = { ok: true, glyphs };
 			} else if (name === 'describe_mark') {
-				result = describeMarkTool(input, context);
+				result = describeMarkTool(input);
 			} else if (name === 'op_history') {
-				result = opHistory(input, context);
+				result = opHistory(input);
 			} else if (READ_ONLY_TOOLS.includes(name)) {
 				// The envelope's ok always wins: a payload field can never fail a step.
 				result = {
@@ -427,7 +430,7 @@ export function createNativeToolSession({
 				// Re-check right before commit: the lock state is read at execution time.
 				assertAgentMayWrite(editor, glyphId, { grant: requestGrant, job });
 				if (JSON.stringify(before.save()) === JSON.stringify(candidate.save())) {
-					result = { ok: true, changed: false, context, glyph: describeGlyph(before, false) };
+					result = { ok: true, changed: false, glyph: glyphSummary(before) };
 				} else {
 					commit(glyphId, candidate, `Agent: ${commandTitle(name, input)}`, signal);
 					logAgentWrite(editor, {
@@ -438,13 +441,20 @@ export function createNativeToolSession({
 					});
 					result = {
 						ok: true,
+						// The font changed: the new revision (this also refreshes lastState).
+						revision: getContext().revision,
 						changed: true,
-						context: getContext(),
-						glyph: describeGlyph(candidate, false),
+						glyph: glyphSummary(candidate),
 						undoAvailable: true,
 					};
 					lastEdit = { entry: editor.history.queue[0], state: lastState };
 				}
+			}
+			// Every reply but get_context's carries only the revision (what expectedRevision
+			// needs); a write that changed the font already put the new one in.
+			if (name !== 'get_context') {
+				const { ok, revision = context.revision, ...rest } = result;
+				result = { ok, revision, ...rest };
 			}
 			if (callId) completedCalls.set(callId, { signature, result: copy(result) });
 			return result;
@@ -499,21 +509,21 @@ export function createNativeToolSession({
 		}
 		if (name === 'create_glyph') {
 			assertInJobScope(codePointToGlyphID(input.codePoint));
-			return createJob(input, context);
+			return createJob(input);
 		}
 		if (name === 'begin_glyph') {
 			assertInJobScope(input.glyphId);
-			return beginJob(input.glyphId, context);
+			return beginJob(input.glyphId);
 		}
-		if (name === 'apply_chaos') return applyChaos(input, context, signal, prepared);
+		if (name === 'apply_chaos') return applyChaos(input, signal, prepared);
 		if (name === 'draw_cards') {
 			assertInJobScope(input.glyphId);
-			return drawCardsJob(input, context);
+			return drawCardsJob(input);
 		}
 		const job = jobs.get(input.glyphId);
 		if (!job) fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
 		assertJobLive(job);
-		if (name === 'submit_glyph') return submitJob(job, input, context, signal);
+		if (name === 'submit_glyph') return submitJob(job, input, signal);
 		// Edit a copy so a failed command leaves the draft as it was.
 		const next = cloneGlyph(job.candidate);
 		const before = next.shapes.length;
@@ -539,9 +549,8 @@ export function createNativeToolSession({
 		job.candidate = next;
 		return {
 			ok: true,
-			context,
-			job: describeJob(job),
-			glyph: describeGlyph(next, false),
+			glyph: glyphSummary(next),
+			...(job.create ? { creating: true } : {}),
 			...(added
 				? { newPathIndices: added }
 				: name === 'add_paths' || name === 'add_svg_path'
@@ -551,7 +560,7 @@ export function createNativeToolSession({
 	}
 
 	/** apply_chaos, the synchronous half: each glyph's result becomes its job's draft. */
-	function applyChaos(input, context, signal, prepared) {
+	function applyChaos(input, signal, prepared) {
 		if (!prepared) fail('CHAOS_UNAVAILABLE', 'The chaos engine could not run. Try again.');
 		if (prepared.error) {
 			if (prepared.error.code) throw prepared.error;
@@ -579,7 +588,7 @@ export function createNativeToolSession({
 							? `${result.error.message} This card does not suit this glyph: skip it and play the next one.`
 							: result.error.message
 					);
-				if (!jobs.has(id)) beginJob(id, context);
+				if (!jobs.has(id)) beginJob(id);
 				const job = jobs.get(id);
 				assertJobLive(job);
 				const next = cloneGlyph(job.candidate);
@@ -596,9 +605,8 @@ export function createNativeToolSession({
 					ok: true,
 					seed: result.seed,
 					chaos: result.chaos,
-					rerolled: result.rerolled,
-					attempts: result.attempts,
-					job: describeJob(job),
+					...(result.rerolled ? { rerolled: true, attempts: result.attempts } : {}),
+					pathCount: next.shapes.length,
 				});
 			} catch (error) {
 				results.push({
@@ -620,11 +628,9 @@ export function createNativeToolSession({
 			);
 		return {
 			ok: true,
-			context,
-			op: input.op,
 			guard: prepared.guard,
 			results,
-			next: 'Look with render_glyphs, then submit_glyph each glyph to land it as a Draft (one undo step each).',
+			next: 'render_glyphs to look, then submit_glyph each glyph.',
 		};
 	}
 
@@ -662,7 +668,7 @@ export function createNativeToolSession({
 		};
 	}
 
-	function drawCardsJob(input, context) {
+	function drawCardsJob(input) {
 		const controls = readAgentControls(editor);
 		if (controls.mode === 'exact')
 			fail(
@@ -679,7 +685,7 @@ export function createNativeToolSession({
 			record?.status === 'draft' &&
 			isPreDraft(record.preDraft) &&
 			Boolean(record.preDraft.glyph);
-		beginJob(id, context);
+		beginJob(id);
 		const job = jobs.get(id);
 		if (reroll) {
 			const start = new Glyph(copy(record.preDraft.glyph));
@@ -710,19 +716,16 @@ export function createNativeToolSession({
 			telephone: deal.telephone ?? null,
 		};
 		job.moves = [];
+		// The reference sentence goes out once per session (describe_mark returned it too).
+		const reference = run.mark && run.mark.summary !== sentReference ? run.mark.summary : null;
+		if (reference) sentReference = reference;
 		return {
 			ok: true,
-			context,
 			glyphId: id,
 			seed,
 			startedFrom: reroll ? 'before-draft' : 'current',
-			cards: deal.cards.map((card) => ({
-				id: card.id,
-				title: card.title,
-				idea: card.idea,
-				params: card.params,
-				play: card.play,
-			})),
+			// The card's settings are its play input's params (#97: not repeated).
+			cards: deal.cards.map((card) => ({ id: card.id, idea: card.idea, play: card.play })),
 			tabu: deal.tabu,
 			...(deal.tabuRelaxed ? { tabuRelaxed: true } : {}),
 			...(deal.telephone
@@ -733,13 +736,12 @@ export function createNativeToolSession({
 						},
 				  }
 				: {}),
-			...(run.mark ? { reference: run.mark.summary } : {}),
-			job: describeJob(job),
-			next: 'Play each card (its play input plus expectedRevision), render_glyphs, then op_history revert one move and say why, then submit_glyph.',
+			...(reference ? { reference } : {}),
+			next: 'Play each card (play input + expectedRevision), render_glyphs, op_history revert one with a reason, submit_glyph.',
 		};
 	}
 
-	function opHistory(input, context) {
+	function opHistory(input) {
 		const job = jobs.get(input.glyphId);
 		if (!job) fail('NO_JOB', 'Start a glyph job with draw_cards or begin_glyph first.');
 		assertJobLive(job);
@@ -762,20 +764,16 @@ export function createNativeToolSession({
 		}
 		return {
 			ok: true,
-			context,
 			glyphId: input.glyphId,
 			moves: job.moves.map(describeMove),
 			...(reverted
-				? {
-						reverted,
-						next: 'Look again with render_glyphs if you like, then submit_glyph and say why you kept the rest.',
-				  }
+				? { reverted: reverted.index, next: 'submit_glyph and say why you kept the rest.' }
 				: {}),
-			job: describeJob(job),
+			pathCount: job.candidate.shapes.length,
 		};
 	}
 
-	function describeMarkTool(input, context) {
+	function describeMarkTool(input) {
 		assertInSet(project, [input.glyphId]);
 		const glyph = glyphFor(input.glyphId);
 		if (!glyph) fail('GLYPH_MISSING', 'This glyph has no outlines yet.');
@@ -795,11 +793,10 @@ export function createNativeToolSession({
 		remixRun(editor).mark = { ...measured, glyphId: input.glyphId, pathIndices: input.pathIndices };
 		return {
 			ok: true,
-			context,
 			glyphId: input.glyphId,
 			source: jobs.has(input.glyphId) ? 'draft' : 'font',
 			mark: measured,
-			next: "This is the run's reference mark: draw_cards starts slashes, gashes and kicks from its angle and width. Re-express it on each glyph's anatomy; never paste it.",
+			next: "The run's reference now: re-express it on each glyph's anatomy, never paste it.",
 		};
 	}
 
@@ -832,7 +829,7 @@ export function createNativeToolSession({
 		assertAgentMayWrite(editor, job.id, { grant: grantFor(job.id), job: job.signal });
 	}
 
-	function openJob(id, candidate, create, context) {
+	function openJob(id, candidate, create) {
 		if (!jobs.has(id) && jobs.size >= MAX_JOBS)
 			fail('JOB_LIMIT', `Submit an open glyph job first (at most ${MAX_JOBS} at once).`);
 		const job = {
@@ -848,10 +845,10 @@ export function createNativeToolSession({
 		};
 		const restarted = jobs.has(id);
 		jobs.set(id, job);
-		return { ok: true, context, glyphId: id, restarted, job: describeJob(job) };
+		return { ok: true, glyphId: id, restarted, job: describeJob(job) };
 	}
 
-	function createJob(input, context) {
+	function createJob(input) {
 		const id = codePointToGlyphID(input.codePoint);
 		if (!id || !isInLatinKernel(id))
 			fail('OUT_OF_SET', "Not in this font's character set (Latin Kernel).");
@@ -862,10 +859,10 @@ export function createNativeToolSession({
 		});
 		// Same starting state as the native auto-create (new Glyph({ id })),
 		// but kept off the project until submit: never getItem(id, true).
-		return openJob(id, new Glyph({ id }), true, context);
+		return openJob(id, new Glyph({ id }), true);
 	}
 
-	function beginJob(id, context) {
+	function beginJob(id) {
 		assertInSet(project, [id]);
 		const before = project.glyphs[id];
 		if (!before) fail('GLYPH_MISSING', 'This glyph does not exist yet. Use create_glyph.');
@@ -880,10 +877,10 @@ export function createNativeToolSession({
 				'Agent edits to glyphs containing component instances are not supported yet.'
 			);
 		}
-		return openJob(id, cloneGlyph(before), false, context);
+		return openJob(id, cloneGlyph(before), false);
 	}
 
-	function submitJob(job, input, context, signal) {
+	function submitJob(job, input, signal) {
 		if (lastState.length > 8_000_000)
 			fail(
 				'PROJECT_TOO_LARGE',
@@ -916,7 +913,7 @@ export function createNativeToolSession({
 		abortIfNeeded(signal);
 		if (!job.create && JSON.stringify(candidate.save()) === job.base) {
 			jobs.delete(job.id);
-			return { ok: true, changed: false, context, glyph: describeGlyph(current, false), warnings };
+			return { ok: true, changed: false, glyph: glyphSummary(current), warnings };
 		}
 		// Remix and Wild: a take that repeats a sibling's change is rejected (job stays open).
 		const mask = assertNovel(job, readAgentControls(editor));
@@ -955,9 +952,10 @@ export function createNativeToolSession({
 		const result = {
 			ok: true,
 			changed: true,
+			// The font changed: the new revision (this also refreshes lastState).
+			revision: getContext().revision,
 			created: job.create,
-			context: getContext(),
-			glyph: describeGlyph(project.glyphs[job.id], false),
+			glyph: glyphSummary(project.glyphs[job.id]),
 			warnings,
 			undoAvailable: true,
 			...(remix ? { remix } : {}),
@@ -1568,42 +1566,84 @@ function getSelection(editor, glyph) {
 	return { pathIndices, pointIndices };
 }
 
+// #97: a whole-set target is a count (get_set_status lists it); small targets keep their IDs.
+const TARGET_LIST_LIMIT = 26;
+
+/** The get_context reply: the context, with a large target reduced to its scope and count. */
+function contextReply(context) {
+	const target = context.target;
+	if (!target || (target.scope !== 'set' && target.glyphIds.length <= TARGET_LIST_LIMIT))
+		return context;
+	return { ...context, target: { scope: target.scope, count: target.glyphIds.length } };
+}
+
+const roundBounds = (bounds) =>
+	bounds
+		? {
+				xMin: round2(bounds.xMin),
+				xMax: round2(bounds.xMax),
+				yMin: round2(bounds.yMin),
+				yMax: round2(bounds.yMax),
+		  }
+		: null;
+
+/** What a write reply says about the glyph it changed (read_glyphs has the full description). */
+function glyphSummary(glyph) {
+	return {
+		glyphId: glyph.id,
+		char: glyphChar(glyph.id),
+		advanceWidth: round2(glyph.advanceWidth),
+		bounds: roundBounds(glyph.maxes),
+		pathCount: glyph.shapes.length,
+		pointCount: glyph.pointCount,
+	};
+}
+
+const anyLock = (locks) => Object.values(locks).some((value) => value === true);
+
 function describeGlyph(glyph, includePaths, maxBytes = 112000) {
 	const bounds = glyph.maxes;
 	const description = {
 		glyphId: glyph.id,
 		exists: true,
 		name: glyph.name,
-		advanceWidth: glyph.advanceWidth,
-		leftSideBearing: glyph.leftSideBearing,
-		rightSideBearing: glyph.rightSideBearing,
-		bounds: { xMin: bounds.xMin, xMax: bounds.xMax, yMin: bounds.yMin, yMax: bounds.yMax },
+		advanceWidth: round2(glyph.advanceWidth),
+		leftSideBearing: round2(glyph.leftSideBearing),
+		rightSideBearing: round2(glyph.rightSideBearing),
+		bounds: roundBounds(bounds),
 		pathCount: glyph.shapes.length,
 		pointCount: glyph.pointCount,
 		usedIn: glyph.usedIn.slice(0, 32),
 		dependentCount: glyph.usedIn.length,
 		pathsIncluded: includePaths,
-		paths: glyph.shapes.slice(0, 128).map((shape, index) => ({
-			index,
-			name: String(shape.name).slice(0, 80),
-			type: shape.objType,
-			locks: { x: shape.xLock, y: shape.yLock, width: shape.wLock, height: shape.hLock },
-			...(includePaths && shape.objType === 'Path'
-				? {
-						points: shape.pathPoints.map((point) => ({
-							x: point.p.x,
-							y: point.p.y,
-							h1: point.h1.use ? { x: point.h1.x, y: point.h1.y } : null,
-							h2: point.h2.use ? { x: point.h2.x, y: point.h2.y } : null,
-							locks: {
-								p: { x: point.p.xLock, y: point.p.yLock },
-								h1: { x: point.h1.xLock, y: point.h1.yLock },
-								h2: { x: point.h2.xLock, y: point.h2.yLock },
-							},
-						})),
-				  }
-				: {}),
-		})),
+		// Locks are listed only where one is set (#97): most paths have none.
+		paths: glyph.shapes.slice(0, 128).map((shape, index) => {
+			const locks = { x: shape.xLock, y: shape.yLock, width: shape.wLock, height: shape.hLock };
+			return {
+				index,
+				name: String(shape.name).slice(0, 80),
+				type: shape.objType,
+				...(anyLock(locks) ? { locks } : {}),
+				...(includePaths && shape.objType === 'Path'
+					? {
+							points: shape.pathPoints.map((point) => {
+								const pointLocks = {
+									p: { x: point.p.xLock, y: point.p.yLock },
+									h1: { x: point.h1.xLock, y: point.h1.yLock },
+									h2: { x: point.h2.xLock, y: point.h2.yLock },
+								};
+								return {
+									x: round2(point.p.x),
+									y: round2(point.p.y),
+									h1: point.h1.use ? { x: round2(point.h1.x), y: round2(point.h1.y) } : null,
+									h2: point.h2.use ? { x: round2(point.h2.x), y: round2(point.h2.y) } : null,
+									...(Object.values(pointLocks).some(anyLock) ? { locks: pointLocks } : {}),
+								};
+							}),
+					  }
+					: {}),
+			};
+		}),
 	};
 	if (jsonSize(description) > maxBytes) {
 		for (const path of description.paths) delete path.points;
@@ -1947,7 +1987,7 @@ function describeJob(job) {
 		creating: job.create,
 		pathCount: job.candidate.shapes.length,
 		pointCount: job.candidate.pointCount,
-		advanceWidth: job.candidate.advanceWidth,
+		advanceWidth: round2(job.candidate.advanceWidth),
 	};
 }
 

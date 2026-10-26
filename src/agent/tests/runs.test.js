@@ -623,7 +623,7 @@ describe('glyph jobs through the agent controller', () => {
 			const glyphId = /\((glyph-0x[0-9A-F]+),/i.exec(text)[1];
 			const last = payload.messages.at(-1);
 			const revision =
-				(last.role === 'tool' && last.content[0].output.value?.context?.revision) ||
+				(last.role === 'tool' && last.content[0].output.value?.revision) ||
 				payload.context.revision;
 			step++;
 			const call = (toolName, input) => ({

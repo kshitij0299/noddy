@@ -80,7 +80,7 @@ function weakModel(targets) {
 	return vi.fn(async (payload) => {
 		const results = payload.messages.filter((m) => m.role === 'tool');
 		const last = results.at(-1)?.content?.[0]?.output?.value;
-		const revision = last?.context?.revision || payload.context.revision;
+		const revision = last?.revision || payload.context.revision;
 		const step = results.length;
 		const call = (toolName, input) => {
 			plan.push(toolName);

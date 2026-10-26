@@ -28,7 +28,7 @@ export function fakeGlyphTransport({ fail = () => false, delay, exists = () => f
 		const glyphId = match[1];
 		const toolTurns = payload.messages.filter((m) => m.role === 'tool');
 		const last = toolTurns.at(-1)?.content?.[0]?.output?.value;
-		const revision = last?.context?.revision || payload.context.revision;
+		const revision = last?.revision || payload.context.revision;
 		const step = toolTurns.length;
 		const call = (toolName, input) => ({
 			text: '',

@@ -8,8 +8,8 @@ globalThis.AI_SDK_LOG_WARNINGS = false;
 
 const INSTRUCTIONS = `You are the agent inside Noddy, an existing font editor.
 Use only the supplied native font tools. Never request JavaScript, shell, browser, or filesystem access.
-Read current context and the glyph before editing; use the latest exact revision from a successful
-native read. Direct edits apply to the captured current glyph only. To draw or redraw any glyph in the
+Read current context and the glyph before editing; use the exact revision from the latest tool result
+(every result carries revision; only get_context carries the full context). Direct edits apply to the captured current glyph only. To draw or redraw any glyph in the
 set, use a glyph job: create_glyph (new character) or begin_glyph (existing), edit the private draft
 with replace_paths, delete_paths, add_paths, add_svg_path, copy_paths, boolean_paths, transform_paths or
 set_spacing, look at it, then submit_glyph. Nothing reaches the font until submit_glyph, which rejects

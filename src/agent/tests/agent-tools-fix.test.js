@@ -169,10 +169,11 @@ describe('copy_paths', () => {
 		});
 		expect(result.ok).toBe(true);
 		expect(result.newPathIndices).toEqual([1]);
-		expect(result.glyph.paths[1].name).toBe('Slash');
-		// Scaled about its own centre (300) to half width, then moved 100 right.
-		expect(result.glyph.paths.length).toBe(2);
+		// The reply is a slim summary (#97); read_glyphs has the path names.
+		expect(result.glyph.pathCount).toBe(2);
 		const draft = session.execute('read_glyphs', { glyphIds: [B], includePaths: true }).glyphs[0];
+		expect(draft.paths[1].name).toBe('Slash');
+		// Scaled about its own centre (300) to half width, then moved 100 right.
 		const xs = draft.paths[1].points.map((point) => point.x);
 		expect(Math.min(...xs)).toBe(225);
 		expect(Math.max(...xs)).toBe(575);
