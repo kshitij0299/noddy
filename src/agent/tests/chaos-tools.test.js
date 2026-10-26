@@ -236,6 +236,69 @@ describe('Chaos tab Apply and preview', () => {
 		expect(picked[0].ok).toBe(true);
 	});
 
+	describe('locks (owner decision 2026-10-26)', () => {
+		const apply = (scope, ids) =>
+			applyChaos(getEditor, { op: 'glitch-bands', ids, scope, seed: 4, chaos: 50, params: {} });
+		const openGlyph = (id) => {
+			editor.nav.focus = true;
+			editor.selectedGlyphID = id;
+		};
+
+		it('This glyph / Selected glyphs: Yours and the open glyph are applied; the editor refreshes and undo works', async () => {
+			editor.glyphStatus.set(O, 'yours', 'user');
+			openGlyph(H);
+			const published = [];
+			editor.subscribe({
+				topic: 'currentItem',
+				subscriberID: 'chaos-test',
+				callback: (item) => published.push(item?.id),
+			});
+			const original = JSON.stringify(editor.project.glyphs[H].save());
+			const picked = await apply('selected', [H, O]);
+			expect(picked.map((r) => r.ok)).toEqual([true, true]);
+			expect(editor.glyphStatus.getStatus(O)).toBe('draft');
+			// The open glyph's editor got the new outline, and one undo takes it back.
+			expect(published).toContain(H);
+			expect(JSON.stringify(editor.project.glyphs[H].save())).not.toBe(original);
+			editor.history.restoreState(); // O
+			editor.history.restoreState(); // H
+			expect(JSON.stringify(editor.project.glyphs[H].save())).toBe(original);
+			const one = await apply('glyph', [H]);
+			expect(one[0].ok).toBe(true);
+		});
+
+		it('Whole set: skips Yours glyphs, includes the open glyph', async () => {
+			editor.glyphStatus.set(O, 'yours', 'user');
+			openGlyph(H);
+			const results = await apply('set', [H, O]);
+			expect(results[0].ok).toBe(true);
+			expect(results[1]).toMatchObject({
+				ok: false,
+				skipped: true,
+				error: { code: 'LOCKED_YOURS' },
+			});
+			expect(editor.glyphStatus.getStatus(O)).toBe('yours');
+		});
+
+		it('the agent tool keeps the normal locks: LOCKED_YOURS and LOCKED_OPEN refuse', async () => {
+			editor.glyphStatus.set(O, 'yours', 'user');
+			openGlyph(H);
+			const agent = createNativeToolSession({ grantOpen: false });
+			const result = await agent.execute('apply_chaos', {
+				glyphIds: [H, O],
+				expectedRevision: agent.getContext().revision,
+				op: 'glitch-bands',
+				seed: 4,
+			});
+			agent.dispose();
+			expect(result.ok).toBe(false);
+			expect(result.error.details.results.map((r) => r.error.code)).toEqual([
+				'LOCKED_OPEN',
+				'LOCKED_YOURS',
+			]);
+		});
+	});
+
 	it('previews without writing anything, and says when Pixel Life cannot run', async () => {
 		const before = saved();
 		const entries = editor.history.length;

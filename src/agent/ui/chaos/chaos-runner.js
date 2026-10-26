@@ -8,9 +8,10 @@
 	So the Chaos tab, the built-in agent and Claude Code over MCP share the engine, the gate and
 	the history path.
 
-	Consent: Apply is the user's own action on the glyphs they targeted. For This glyph and
-	Selected glyphs the session gets a UI-minted grant per glyph (the open glyph and Yours
-	glyphs included). For the Whole set, glyphs that are Yours or open are skipped.
+	Consent (owner decision 2026-10-26): Apply is the user's own action, like a filter. For This
+	glyph and Selected glyphs the session gets a UI-minted grant per glyph covering the open glyph
+	and Yours glyphs. For the Whole set the grant covers the open glyph only, so Yours
+	(hand-drawn) glyphs are skipped. The agent tool apply_chaos gets no grants: its locks stay.
 */
 import { Glyph } from '../../../project_data/glyph.js';
 import { isPreDraft } from '../../../project_editor/glyph-status.js';
@@ -155,7 +156,7 @@ export async function applyChaos(
 	const editor = getEditor();
 	const explicit = scope !== 'set';
 	const grants = new Map(
-		explicit ? ids.map((id) => [id, grantConsent(editor, id, { open: true, yours: true })]) : []
+		ids.map((id) => [id, grantConsent(editor, id, { open: true, yours: explicit })])
 	);
 	const session = createNativeToolSession({
 		getEditor,

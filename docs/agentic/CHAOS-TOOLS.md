@@ -18,8 +18,15 @@ through the `apply_chaos` tool, so Remix mode (PR D) and the tab share one engin
    **Undo** per glyph, plus Keep all and Undo all. Applying again to a glyph the tab drafted starts from
    before that Draft, so takes never stack.
 
-This glyph and Selected glyphs are your explicit choice, so they include the glyph open in the editor
-and glyphs that are Yours. The whole set skips Yours and open glyphs.
+**Locks (owner decision 2026-10-26).** Applying a chaos tool is the user's own action, like a filter:
+
+| Who applies | Target | Yours (hand-drawn) glyphs | The glyph open in the editor |
+|---|---|---|---|
+| Chaos tab | This glyph, Selected glyphs | applied (the user chose them) | applied; the editor shows the new outline, one undo takes it back |
+| Chaos tab | Whole set | skipped ("skipped N hand-drawn glyphs" in the results) | applied |
+| `apply_chaos` (built-in agent, MCP) | any | refused: LOCKED_YOURS | refused: LOCKED_OPEN |
+
+The tab passes UI-minted grants (`grantConsent`) to its own session; the agent tool never gets them.
 
 ## The five tools
 

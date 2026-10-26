@@ -469,7 +469,10 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 		const status = el('p', 'chaos-results__status text-body-small');
 		status.setAttribute('aria-live', 'polite');
 		const landed = lastResults.filter((row) => row.ok).length;
-		status.textContent = `${landed} of ${lastResults.length} landed as Drafts`;
+		const handDrawn = lastResults.filter((row) => row.error?.code === 'LOCKED_YOURS').length;
+		status.textContent = `${landed} of ${lastResults.length} landed as Drafts${
+			handDrawn ? ` · skipped ${handDrawn} hand-drawn glyph${handDrawn === 1 ? '' : 's'}` : ''
+		}`;
 		const drafts = lastResults.filter((row) => row.ok && store?.getStatus(row.id) === 'draft');
 		const head = el('div', 'chaos-results__head');
 		const keepAll = cardButton({ label: 'Keep all', action: 'keep-all', variant: 'secondary' });
@@ -572,7 +575,7 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 }
 
 function skipReason(error = {}) {
-	if (error.code === 'LOCKED_YOURS') return 'Yours';
+	if (error.code === 'LOCKED_YOURS') return 'hand-drawn';
 	if (error.code === 'LOCKED_OPEN') return 'open in the editor';
 	if (error.code === 'EMPTY_GLYPH') return 'nothing drawn';
 	if (error.code === 'DEPENDENT_GLYPHS') return 'used by other glyphs';
