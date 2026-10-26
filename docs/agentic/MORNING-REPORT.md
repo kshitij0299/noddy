@@ -1,5 +1,32 @@
 # Morning report: agentic build
 
+## Local session 2026-10-23 → 26 (owner + orchestrator on the laptop) — READ THIS FIRST
+
+**Merged into `dev` (in order):**
+- [#84](https://github.com/kshitij0299/noddy/pull/84) dev-only `.env.local` key: type `env` as the OpenRouter key on the dev server (free models only); per-step 5-min timeout.
+- [#85](https://github.com/kshitij0299/noddy/pull/85) **Local agent:** Claude Code (or any MCP client) drives Noddy's tools over `/mcp` on the dev server; panel switch shows the `claude mcp add …` command. See `plans/LOCAL-AGENT-MCP.md`.
+- [#86](https://github.com/kshitij0299/noddy/pull/86) **Tools fix:** `copy_paths`, `boolean_paths` (paper.js, lazy; `exclude` = the owner's graffiti cut), transform pivots, smarter outline gate with hints, optional fields optional, tools see the draft, built-in agent self-repairs invalid calls, 40-call cap.
+- [#88](https://github.com/kshitij0299/noddy/pull/88) **Panel controls:** model / mode (Exact·Remix·Wild + chaos) / target chips, New chat, grid multi-pick, talk to Claude Code from the panel (`wait_for_user_message` / `reply_to_user`).
+- [#90](https://github.com/kshitij0299/noddy/pull/90) **Chaos tools tab:** slash cut, glitch bands, warp, grid snap, Pixel Life; seeds, legibility guard, Apply as Drafts; `apply_chaos` tool. Owner rule: tab Apply on This/Selected may edit Yours and the open glyph; Whole set skips Yours; agents keep their locks. See `CHAOS-TOOLS.md`.
+- [#92](https://github.com/kshitij0299/noddy/pull/92) **Remix mode v1:** `draw_cards` (tabu), `op_history` (regret), `describe_mark`, Telephone, novelty reject, seeds + Re-roll on receipts.
+- Docs: #87, #89, #91, this report. Plan: `plans/AGENT-TOOLS-PANEL-REMIX.md`. Research: `research/remix-mode.md`. Bugs: `SMOKE-TEST-BUGS.md` (1–41, fixed ones marked).
+
+**What the owner did and liked:** imported DotGothic16 (Google Fonts, OFL), drew a graffiti slash on A; Claude over MCP copied it to B–F, then made creative per-glyph versions (double tap, spark, reversed slash, speed lines, lightning). Saved projects: `tmp/projects/` (git-ignored) and the owner's Downloads (`DotGothic16 - Noddy Project - remix A-F.gs2`). Scripts: `tmp/noddy-mcp/`.
+
+**Owner decisions:** agent panel = two tabs (Agent | Chaos); Chaos tab is algorithmic, the agent shares its engine; Remix/Wild modes should feel "cracked, creative, vibe-driven"; every control earns its place.
+
+**Hard-won rules:**
+- Subagents NEVER use the built-in browser pane (it is the owner's live workspace; one QA run wiped the owner's work). Headless Playwright only.
+- Save the owner's open project (Export → Save project file, or to `tmp/projects/`) before any dev-server restart.
+- Never read `.env.local`. The owner's dev server runs on 5300 from this folder (`npx vite serve ./src/ --port 5300 --strictPort`); never use 5187.
+- Builders cost ~350–500k tokens, QA ~120–190k: keep briefs lean (full test suite once, quiet output, screenshots only where QA needs them).
+
+**Next:**
+1. Live test Remix mode with the owner (Claude connected over MCP, DotGothic16 A → B–Z).
+2. Open bugs worth doing next: 31 (Whole set needs an open glyph), 36 (whole-set Chaos is slow; progress + worker), 39 (8 renders per message cuts A–Z runs), 32–35, 37–38, 40–41.
+3. Later ideas: Breed, Style DNA, Drop, Weld, Pixel Life polish (`research/remix-mode.md`).
+
+
 _Run 1: 2026-10-20 21:45 → ~22:30 UTC (stopped at the session usage limit). Run 2: 07:42 → 09:40 UTC (2-hour window). Run 3: 11:31 → 13:05 UTC (M3 and M4, then stop as the owner asked). See [BUDGET.md](BUDGET.md)._
 
 ## UI reset (local, 2026-10-21, after the run)
