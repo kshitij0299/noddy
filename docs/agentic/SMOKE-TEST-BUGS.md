@@ -168,3 +168,11 @@ Draft. Found on the way:
     old check caught). Sample more finely (e.g. 32 steps per cubic) or confirm near-misses exactly.
 38. **Whole set skips an open glyph that is also Yours**; the docs don't say so. The preview strip's
     8th cell wraps onto its own row.
+
+## Follow-ups from PR D QA (2026-10-26)
+
+39. **The built-in agent can render only 8 images per message**, so a full A–Z Remix run stops short.
+    Raise or reset the budget per glyph job, or let a run span several messages automatically.
+40. **`TOO_SIMILAR` has no retry cap in code** (only the agent's instructions stop it) and never fired
+    live; Re-roll on a receipt is a prompt to the agent, not a direct action.
+41. **Remix cards can overshoot a glyph's side bearings**; `op_history` reverts only the last move.
