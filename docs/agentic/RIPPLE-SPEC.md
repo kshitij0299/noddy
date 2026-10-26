@@ -161,3 +161,27 @@ All other critique points are applied as written.
 1. **Adopted defaults:** notices only when you leave the glyph, Wild only scales, a hand-edited Draft becomes Yours, and point drags ripple through the ink delta.
 2. **Draft dot:** dropping it also changes the generation flow.
 3. **Exit strokes only:** v1 has no "every foot" option, even for a deliberately weird ripple.
+
+---
+
+## 8. Update 2026-10-26: build on what now exists (read before starting M8)
+
+Since this spec was written, PRs #84–#92 added most of the transfer engine Ripple needs. Reuse it;
+do not build a second one.
+
+| Ripple stage / tool | Use now | Notes |
+|---|---|---|
+| 4. Transfer (shapelet, weld, cut) | `copy_paths`, `boolean_paths` (union / subtract / intersect / exclude, paper.js), `transform_paths` pivots | `exclude` is the owner's graffiti look (cut on ink, solid outside). Replaces `combinePaths` for welds/cuts. |
+| 5. `check_outlines` | The upgraded gate: real containment, hints, pre-existing issues = warnings, copied contours = new | Already used by `submit_glyph`. |
+| 6. Commit | Glyph jobs: one undo step per glyph, Draft status, receipts with Keep / Retry / Undo | `commitBatch` (one undo for the whole ripple) is still new and protected (history.js). |
+| Strength: Subtle / Same / Wild | The panel's mode chip: Exact ≈ Same, Remix ≈ Subtle-to-Wild with per-glyph variation, Wild + chaos | Decide whether Ripple keeps its own strength picker or reads the mode chip. Recommendation: read the mode chip. |
+| Kin / anatomy | `describe_mark` (measures a mark against stems, counters, terminals), Remix `draw_cards` | Still need the Latin Kernel part/kinship table (stage 2–3). |
+| Talking about it | Agent tab (built-in model) or Claude Code over MCP (`wait_for_user_message` / `reply_to_user`) | "Put this tail on the caps too" already works by hand through the agent. |
+| Batch effects | Chaos tab (`apply_chaos`) and its legibility guard | Ripple's Wild can call Chaos ops. |
+
+Still to build for M8: EditTracker + Notice (pip, pill, thresholds), `get_glyph_edit` diff overlay,
+the "What I see" card, the part/kinship table, `plan_ripple` / `commit_ripple` on top of the tools
+above, and `commitBatch` (protected).
+
+**Status: parked (owner, 2026-10-26).** The owner is building and testing features by hand first.
+Start M8 only when the owner triggers it — see `plans/RESUME-M8-M9.md`.

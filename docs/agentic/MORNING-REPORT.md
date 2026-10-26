@@ -21,6 +21,10 @@
 - Never read `.env.local`. The owner's dev server runs on 5300 from this folder (`npx vite serve ./src/ --port 5300 --strictPort`); never use 5187.
 - Builders cost ~350–500k tokens, QA ~120–190k: keep briefs lean (full test suite once, quiet output, screenshots only where QA needs them).
 
+**Parked:** M8 Ripple (#30–#33) and M9 Export (#34) are not started and parked by the owner, who is
+building and testing by hand first. Do not start them unless asked; trigger prompts are in
+`plans/RESUME-M8-M9.md`. M8 should reuse the new tools (`RIPPLE-SPEC.md` §8).
+
 **Next:**
 1. Live test Remix mode with the owner (Claude connected over MCP, DotGothic16 A → B–Z).
 2. Open bugs worth doing next: 31 (Whole set needs an open glyph), 36 (whole-set Chaos is slow; progress + worker), 39 (8 renders per message cuts A–Z runs), 32–35, 37–38, 40–41.
