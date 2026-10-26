@@ -120,7 +120,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'get_context',
 		description:
-			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), and the bound glyph's lock (null, yours or open). Direct edits (set_spacing, transform_paths, add_paths outside a job) apply only to the glyph selected when the user sent the request. Other glyphs in the set are drawn through glyph jobs: create_glyph or begin_glyph, edit the draft, then submit_glyph (one undo step per glyph). Font units use positive y upwards. To carry a mark from one glyph to another (a slash, a serif), use copy_paths in the target's job and cut or merge it in with boolean_paths. No shell, navigation, glyph deletion, export, font-wide generation, or arbitrary property edits are available.",
+			"Read the project, currently bound glyph, selection, revision, font spec (spec), set coverage with status counts, Yours glyphs and the open glyph (set), the bound glyph's lock (null, yours or open), and the panel's target (a whole-set target is just its scope and count; get_set_status lists the glyphs). Only get_context returns this context: every other tool's result carries just the revision (pass it as expectedRevision) and what that tool did. Direct edits (set_spacing, transform_paths, add_paths outside a job) apply only to the glyph selected when the user sent the request. Other glyphs in the set are drawn through glyph jobs: create_glyph or begin_glyph, edit the draft, then submit_glyph (one undo step per glyph). Font units use positive y upwards. To carry a mark from one glyph to another (a slash, a serif), use copy_paths in the target's job and cut or merge it in with boolean_paths. No shell, navigation, glyph deletion, export, font-wide generation, or arbitrary property edits are available.",
 		inputSchema: object({}),
 	},
 	{
@@ -180,7 +180,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'read_glyphs',
 		description:
-			'Read up to 8 existing glyphs and their metrics, path indices, and locks, without creating glyphs. includePaths (optional; null or absent = false) returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. A glyph with an open job in this session is read from its draft (source: draft). Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
+			'Read up to 8 existing glyphs and their metrics and path indices (locks are listed only where one is set), without creating glyphs. includePaths (optional; null or absent = false) returns bounded cubic point data (512 control points total / 112 KB output); pathsIncluded=false means geometry was omitted, pathsTruncated=true means some path summaries were omitted. Read one glyph at a time for more detail. A glyph with an open job in this session is read from its draft (source: draft). Read again after a stale revision. Change other glyphs through a glyph job (begin_glyph / submit_glyph).',
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
 			includePaths: nullable({ type: 'boolean' }),
@@ -256,7 +256,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'draw_cards',
 		description:
-			"Remix and Wild only (MODE_EXACT otherwise). Start this glyph's Remix take: it begins (or restarts) the glyph job (a re-roll of a Remix Draft starts from before that Draft) and deals 2-3 seeded move cards (count null = 2, or 3 at high chaos and in Wild). Cards: SLASH, DOUBLE-SLASH, GASH (through the counter), KICK (a spike off a terminal), ROTATE-PIECE, SHIFT-STROKE, SCALE-PART, MIRROR-PART, GLITCH-BAND, WAVE, TWIST, BULGE. Each card has an idea, settings scaled by the panel's chaos and the reference mark (describe_mark), and play: a ready apply_chaos input; add expectedRevision and call it. Tabu: no card repeats within the last 3 glyphs. With Telephone on, the hand is the previous glyph's kept moves plus one mutation (telephone.mutation). seed (null = a new one) makes the deal reproducible: the same seed deals the same cards and moves. Afterwards: play, render_glyphs, op_history revert one move (the regret), submit_glyph.",
+			"Remix and Wild only (MODE_EXACT otherwise). Start this glyph's Remix take: it begins (or restarts) the glyph job (a re-roll of a Remix Draft starts from before that Draft) and deals 2-3 seeded move cards (count null = 2, or 3 at high chaos and in Wild). Cards: SLASH, DOUBLE-SLASH, GASH (through the counter), KICK (a spike off a terminal), ROTATE-PIECE, SHIFT-STROKE, SCALE-PART, MIRROR-PART, GLITCH-BAND, WAVE, TWIST, BULGE. Each card has an id, an idea and play: a ready apply_chaos input (its params are the card's settings, scaled by the panel's chaos and the reference mark from describe_mark); add expectedRevision and call it. The reference mark's summary comes with the first hand only. Tabu: no card repeats within the last 3 glyphs. With Telephone on, the hand is the previous glyph's kept moves plus one mutation (telephone.mutation). seed (null = a new one) makes the deal reproducible: the same seed deals the same cards and moves. Afterwards: play, render_glyphs, op_history revert one move (the regret), submit_glyph.",
 		inputSchema: object({
 			glyphId,
 			expectedRevision,
@@ -267,7 +267,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'op_history',
 		description:
-			"Inside a glyph job: list your moves in this job (every draft edit: apply_chaos, transform_paths, copy_paths, boolean_paths, add/replace/delete paths), oldest first, with the card each one played. revert true takes back the last move that is not reverted yet (the draft goes back to how it was before it; in a draw_cards take the only move left is kept: LAST_MOVE); reason (optional) says why, and goes in the take's log. The Remix regret rule: after you render a glyph, revert the move you like least (revert repeatedly to reach an earlier one, then replay the ones you keep) and say why you kept the rest. Edits the draft only; nothing reaches the font until submit_glyph.",
+			"Inside a glyph job: list your moves in this job (every draft edit: apply_chaos, transform_paths, copy_paths, boolean_paths, add/replace/delete paths), oldest first, with the card each one played. revert true takes back the last move that is not reverted yet (the draft goes back to how it was before it; in a draw_cards take the only move left is kept: LAST_MOVE); reason (optional) says why, and goes in the take's log; reverted is that move's index. The Remix regret rule: after you render a glyph, revert the move you like least (revert repeatedly to reach an earlier one, then replay the ones you keep) and say why you kept the rest. Edits the draft only; nothing reaches the font until submit_glyph.",
 		inputSchema: object({
 			glyphId,
 			revert: nullable({ type: 'boolean' }),

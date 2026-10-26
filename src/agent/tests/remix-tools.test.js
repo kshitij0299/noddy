@@ -218,7 +218,12 @@ describe('op_history and the regret rule', () => {
 			revert: true,
 			reason: 'the nudge did nothing',
 		});
-		expect(revert.reverted).toMatchObject({ tool: 'transform_paths', reason: 'the nudge did nothing' });
+		// reverted is the move's index; the move itself is in moves (#97).
+		expect(revert.moves[revert.reverted]).toMatchObject({
+			tool: 'transform_paths',
+			reverted: true,
+			reason: 'the nudge did nothing',
+		});
 		expect(paths(O)).toBe(afterFirst);
 		// In a card take the only move left stays: the regret drops one of several.
 		const last = session.execute('op_history', { glyphId: O, revert: true });

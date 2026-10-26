@@ -490,7 +490,7 @@ describe('draft geometry tools', () => {
 			d: 'M60 0 L140 0 L140 800 L60 800 Z',
 			baselineY: null,
 		});
-		expect(result).toMatchObject({ ok: true, job: { pathCount: 1 } });
+		expect(result).toMatchObject({ ok: true, glyph: { pathCount: 1 } });
 		run('submit_glyph', { glyphId: B, note: null });
 		const glyph = editor.project.glyphs[B];
 		expect(glyph.shapes[0].maxes).toMatchObject({ xMin: 60, xMax: 140, yMin: 0, yMax: 800 });

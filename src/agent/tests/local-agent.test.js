@@ -67,7 +67,7 @@ function fakeBridge() {
 function sessionStub(results = {}) {
 	return {
 		getContext: () => ({ projectId: 'p', glyphId: null, writable: false }),
-		execute: vi.fn((name) => results[name] ?? { ok: true, context: { revision: 'agent-1:1' } }),
+		execute: vi.fn((name) => results[name] ?? { ok: true, revision: 'agent-1:1' }),
 		undoLast: vi.fn(),
 		dispose: vi.fn(),
 	};
@@ -105,7 +105,7 @@ describe('local agent link', () => {
 		expect(result.body).toEqual({
 			type: 'result',
 			id: 'c1',
-			result: { ok: true, context: { revision: 'agent-1:1' } },
+			result: { ok: true, revision: 'agent-1:1' },
 		});
 		expect(result.auth).toBe(`Bearer ${TOKEN}`);
 		expect(events.filter((e) => e.type === 'tool').map((e) => e.state)).toEqual([
