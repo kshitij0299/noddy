@@ -123,6 +123,29 @@ describe('agent panel shell (#19)', () => {
 		expect(click).toHaveBeenCalled();
 	});
 
+	it('chips sit in their own row above the composer box; Tab order is chips, input, attach, send (#95)', () => {
+		const panel = panelFixture({ controller: fakeController() });
+		const { tools, root, input, attach, send } = panel.composer;
+		expect(root.contains(tools)).toBe(false);
+		expect(tools.nextElementSibling).toBe(root);
+		const chips = [...tools.querySelectorAll('button.agent-chip-button')];
+		expect(chips.map((chip) => chip.classList.contains('agent-panel__model'))).toEqual([
+			true,
+			false,
+			false,
+		]);
+		// Each chip opens a menu: a decorative trailing chevron.
+		for (const chip of chips) {
+			const chevron = chip.lastElementChild;
+			expect(chevron.textContent).toBe('expand_more');
+			expect(chevron.getAttribute('aria-hidden')).toBe('true');
+		}
+		const order = [...panel.panel.querySelectorAll('button, textarea')].filter((node) =>
+			[...chips, input, attach, send].includes(node)
+		);
+		expect(order).toEqual([...chips, input, attach, send]);
+	});
+
 	it('thread content is anchored at the bottom of the scroller', () => {
 		const panel = panelFixture({ controller: fakeController() });
 		const log = panel.thread.querySelector('.agent-panel__log');

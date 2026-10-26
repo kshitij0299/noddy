@@ -1524,20 +1524,32 @@ button.agent-tab:focus-visible {
 	outline-offset: 2px;
 }
 
-/* Composer: the input on top, the tool row under it. */
+/* Composer: the input on top, attach (left) and send (right) under it. */
 .agent-composer__tool-row {
 	display: flex;
 	align-items: flex-end;
+	justify-content: space-between;
 	gap: var(--space-1);
 	min-width: 0;
 }
 
+/* Chip row (#95): one line above the box, on the panel surface. Narrow panels scroll it
+   sideways with no scrollbar; the 4px pad (cancelled by the margin) keeps focus rings unclipped. */
 .agent-composer__tools {
 	display: flex;
 	align-items: center;
 	gap: var(--space-1);
-	flex: 1 1 auto;
+	flex: none;
 	min-width: 0;
+	margin: calc(-1 * var(--space-1));
+	padding: var(--space-1);
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.agent-composer__tools::-webkit-scrollbar {
+	display: none;
 }
 
 /* Chips: 28px pills, label weight, paint-only hover. The model chip gives up width first. */
@@ -1586,13 +1598,8 @@ button.agent-chip-button.agent-panel__model {
 	min-width: 48px;
 }
 
-/* With a local agent on, its chip says "<client> · connected" in full: the chips may take a
-   second line rather than cut it. */
-.agent-composer__tools:has(> .agent-panel__model[data-local]) {
-	flex-wrap: wrap;
-	row-gap: var(--space-1);
-}
-
+/* With a local agent on, its chip says "<client> · connected" in full: the row scrolls
+   rather than cut it. */
 button.agent-chip-button.agent-panel__model[data-local] {
 	flex: none;
 }
@@ -1614,6 +1621,19 @@ button.agent-chip-button.agent-panel__model[data-local]:hover {
 .agent-chip-button__badge-icon {
 	flex: none;
 	font-size: 16px;
+}
+
+/* Trailing chevron: the chip opens a menu. Static, like the connect card's provider chevron. */
+.agent-chip-button__chevron {
+	flex: none;
+	margin-right: calc(-1 * var(--space-1));
+	font-size: 16px;
+	color: var(--color-text-secondary);
+}
+
+/* The local agent's status chip opens nothing: no chevron. */
+.agent-panel__model[data-local] .agent-chip-button__chevron {
+	display: none;
 }
 
 .agent-chip-button__badge {
