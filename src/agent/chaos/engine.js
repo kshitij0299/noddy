@@ -20,11 +20,22 @@ import gridSnap from './ops/grid-snap.js';
 import pixelLife from './ops/pixel-life.js';
 import slashCut from './ops/slash-cut.js';
 import warp from './ops/warp.js';
+import { MOVE_OPS } from './ops/moves.js';
 
 export { detectCellGrid };
 
-/** The ops, in the order the Chaos tab lists them. */
-export const CHAOS_OPS = Object.freeze([slashCut, glitchBands, warp, gridSnap, pixelLife]);
+/**
+ * The ops: the Chaos tab lists the five tools in this order; the Remix moves after them
+ * (`deck: true`, ops/moves.js) are for the card deck and apply_chaos only.
+ */
+export const CHAOS_OPS = Object.freeze([
+	slashCut,
+	glitchBands,
+	warp,
+	gridSnap,
+	pixelLife,
+	...MOVE_OPS,
+]);
 export const CHAOS_OP_IDS = Object.freeze(CHAOS_OPS.map((op) => op.id));
 
 /** Same limits as a glyph job (assertGeometry in native-tools.js). */

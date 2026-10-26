@@ -57,7 +57,20 @@ const transformFields = {
 };
 // The chaos tools (src/agent/chaos/engine.js CHAOS_OPS). Mirrored, not imported: the relay loads
 // this file without the editor module graph; a vitest keeps the two lists equal.
-export const CHAOS_OP_NAMES = ['slash-cut', 'glitch-bands', 'warp', 'grid-snap', 'pixel-life'];
+export const CHAOS_OP_NAMES = [
+	'slash-cut',
+	'glitch-bands',
+	'warp',
+	'grid-snap',
+	'pixel-life',
+	// Remix moves (the card deck's own ops, PR D).
+	'piece-rotate',
+	'piece-shift',
+	'piece-scale',
+	'piece-mirror',
+	'kick',
+	'gash',
+];
 export const CHAOS_BASES = ['current', 'before-draft'];
 // Every op's params in one object; each op reads its own keys and ignores the rest. Ranges are
 // the widest any op allows; the engine clamps to the op's own range.
