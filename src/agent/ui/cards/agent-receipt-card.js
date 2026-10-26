@@ -17,6 +17,8 @@
  * One-glyph receipts carry the same three below the card. Per-glyph actions are 'keep-one',
  * 'retry-one' and 'undo-one' with detail.glyphIds = [that glyph]. Retry on a Draft asks the
  * agent for another take; on a Failed glyph it retries the job.
+ * Remix (PR D): a row with a `seed` (a Remix take) shows it ("seed 4821") and its Retry is
+ * Re-roll ('reroll' / 'reroll-one'): the panel asks the agent for that glyph again with a new seed.
  */
 import { AgentCard, cardButton, chip, el } from './card-shell.js';
 import { glyphIdForChar, makeGlyphArt } from './glyph-art.js';
@@ -109,7 +111,9 @@ export class AgentReceiptCard extends AgentCard {
 					button.setAttribute('aria-pressed', String(row.char === this.picked));
 					button.setAttribute(
 						'aria-label',
-						`${row.char}, ${STATUS_WORDS[row.status] || row.status}`
+						`${row.char}, ${STATUS_WORDS[row.status] || row.status}${
+							Number.isInteger(row.seed) ? `, seed ${row.seed}` : ''
+						}`
 					);
 					art.removeAttribute('role');
 					art.removeAttribute('aria-label');
@@ -142,6 +146,11 @@ export class AgentReceiptCard extends AgentCard {
 		const summaryRow = el('div', 'agent-card__row agent-receipt__summary');
 		const reviewed = counts.applied || counts.kept || counts.yours || counts.reverted;
 		summaryRow.append(chip(counts.summary, { iconName: reviewed ? undefined : 'info' }));
+		// One Remix glyph: its seed sits next to the summary (more glyphs: in the picked row).
+		if (single && Number.isInteger(rows[0].seed))
+			summaryRow.append(
+				el('span', 'agent-receipt__seed text-mono-small', `seed ${rows[0].seed}`)
+			);
 		nodes.push(summaryRow);
 		return nodes;
 	}
@@ -170,11 +179,17 @@ export class AgentReceiptCard extends AgentCard {
 			)
 		);
 		const draft = row.status === 'new' || row.status === 'changed';
+		const remix = draft && Number.isInteger(row.seed);
+		if (remix) box.append(el('span', 'agent-receipt__seed text-mono-small', `seed ${row.seed}`));
 		if (draft)
 			box.append(
 				cardButton({ label: 'Keep', action: 'keep-one', iconName: 'check', variant: 'secondary' })
 			);
-		if (draft || row.status === 'failed')
+		if (remix)
+			box.append(
+				cardButton({ label: 'Re-roll', action: 'reroll-one', iconName: 'casino', variant: 'ghost' })
+			);
+		else if (draft || row.status === 'failed')
 			box.append(
 				cardButton({ label: 'Retry', action: 'retry-one', iconName: 'refresh', variant: 'ghost' })
 			);
@@ -203,7 +218,17 @@ export class AgentReceiptCard extends AgentCard {
 						size: 'lg',
 					})
 				);
-			if (draft || row.status === 'failed')
+			if (draft && Number.isInteger(row.seed))
+				actions.append(
+					cardButton({
+						label: `Re-roll ${row.char}`,
+						action: 'reroll',
+						iconName: 'casino',
+						variant: 'secondary',
+						size: 'lg',
+					})
+				);
+			else if (draft || row.status === 'failed')
 				actions.append(
 					cardButton({
 						label: `Retry ${row.char}`,
@@ -271,6 +296,7 @@ export class AgentReceiptCard extends AgentCard {
 		if (action === 'keep' || action === 'undo')
 			return { glyphIds: pick((g) => g.status === 'new' || g.status === 'changed') };
 		if (action === 'retry') return { glyphIds: pick((g) => g.status === 'failed') };
+		if (action === 'reroll') return { glyphIds: pick((g) => Number.isInteger(g.seed)) };
 		return {};
 	}
 

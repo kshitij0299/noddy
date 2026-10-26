@@ -42,6 +42,8 @@ import { createGlyphDrafter } from '../run/glyph-job.js';
 import { classifyAsk } from '../run/intent.js';
 import { RETRY_GLYPHS_EVENT, charOf, keepGlyphs, revertGlyphs, revertRun } from '../run/review.js';
 import { onControlsChange, readAgentControls } from '../agent-controls.js';
+import { randomSeed } from '../chaos/rng.js';
+import { remixSeedFor, resetRemixRun } from '../remix/remix-run.js';
 import { createRunController } from '../run/run-controller.js';
 import { formatDollars } from '../run/spend.js';
 import { createCheckpointLine, createRunBar } from './agent-run-bar.js';
@@ -657,7 +659,9 @@ export function createAgentPanel({
 			else if (status === 'draft')
 				row = record.preDraft && record.preDraft.glyph === null ? 'new' : 'changed';
 			else if (status === 'failed') row = 'failed';
-			return { char: charOf(id), status: row };
+			// A Remix take shows its seed; its Retry is Re-roll (PR D).
+			const seed = row === 'new' || row === 'changed' ? remixSeedFor(getEditor(), id) : null;
+			return { char: charOf(id), status: row, ...(Number.isInteger(seed) ? { seed } : {}) };
 		});
 	}
 
@@ -1088,6 +1092,32 @@ export function createAgentPanel({
 		controller.run(prompt, [], { requireGlyph: false }).catch((error) => addError(error));
 	}
 
+	/**
+	 * Re-roll a Remix take: the same glyph again with a new seed, from before its Draft
+	 * (draw_cards does that). The Draft stays until the new take lands.
+	 * @param {any} card
+	 * @param {Array<String>} ids
+	 */
+	function rerollGlyphs(card, ids) {
+		const seeds = ids.map(() => randomSeed());
+		const list = ids.map((id, index) => `${charOf(id)} with seed ${seeds[index]}`).join(', ');
+		const prompt = `Re-roll ${list}: call draw_cards with that seed (it starts from before the Draft), play the cards, look, regret one move, then submit_glyph.`;
+		reopenReceipt(card, null);
+		if (localAgent?.on) {
+			localAgent.send({ prompt, attachments: [], controls: readAgentControls(getEditor()) });
+			return;
+		}
+		if (!controller.connected) {
+			addError({ code: 'NO_MODEL' });
+			return;
+		}
+		if (controller.running || runs.active) {
+			addStep('info', 'The agent is busy · re-roll when it finishes');
+			return;
+		}
+		controller.run(prompt, [], { requireGlyph: false }).catch((error) => addError(error));
+	}
+
 	host.addEventListener(CARD_ACTION_EVENT, (event) => {
 		const detail = /** @type {CustomEvent} */ (event).detail || {};
 		const card = /** @type {any} */ (event.target);
@@ -1097,6 +1127,13 @@ export function createAgentPanel({
 		if (glyphAction) detail.action = String(detail.action).slice(0, -4);
 		if (detail.action === 'undo') {
 			undoGlyphs(card, detail.glyphIds || []);
+			return;
+		}
+		if (detail.action === 'reroll') {
+			const store = getEditor()?.glyphStatus;
+			const drafts = (detail.glyphIds || []).filter((id) => store?.getStatus(id) === 'draft');
+			if (drafts.length) rerollGlyphs(card, drafts);
+			else reopenReceipt(card, null);
 			return;
 		}
 		if (detail.action === 'retry') {
@@ -1205,6 +1242,8 @@ export function createAgentPanel({
 		try {
 			// The controller forgets the conversation and emits 'clear' (the empty state).
 			controller.clear();
+			// A new chat is a new Remix run: tabu, Telephone and novelty start over.
+			resetRemixRun(getEditor());
 		} catch (error) {
 			addError(error);
 			return;

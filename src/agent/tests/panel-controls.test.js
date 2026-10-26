@@ -335,6 +335,33 @@ describe('Mode chip', () => {
 	});
 });
 
+describe('Telephone switch (PR D)', () => {
+	it('shows only in Remix and Wild, toggles the store, and reaches get_context', () => {
+		const editor = makeEditor();
+		const panel = panelFixture({ getEditor: () => editor });
+		panel.modeChip.button.click();
+		const popover = panel.modeChip.popover.root;
+		const row = popover.querySelector('.agent-telephone');
+		const toggle = row.querySelector('[role="switch"]');
+		expect(row.hidden).toBe(true);
+		setMode(editor, 'remix');
+		expect(row.hidden).toBe(false);
+		expect(toggle.getAttribute('aria-checked')).toBe('false');
+		expect(toggle.getAttribute('aria-labelledby')).toBeTruthy();
+		toggle.click();
+		expect(toggle.getAttribute('aria-checked')).toBe('true');
+		expect(readAgentControls(editor).telephone).toBe(true);
+		expect(panel.modeChip.button.getAttribute('aria-label')).toBe(
+			'Mode: Remix, chaos 50, Telephone on'
+		);
+		// Exact never reports it, but remembers it for the next Remix.
+		setMode(editor, 'exact');
+		expect(readAgentControls(editor).telephone).toBe(false);
+		setMode(editor, 'wild');
+		expect(readAgentControls(editor).telephone).toBe(true);
+	});
+});
+
 describe('Target chip', () => {
 	it('shows the count, defaults from the selection and disables empty scopes', () => {
 		const editor = makeEditor();
@@ -531,5 +558,22 @@ describe('per-glyph receipts: Keep / Retry / Undo on each edited glyph', () => {
 		expect(controller.run).toHaveBeenCalledWith('Redraw B: try a different take, same style.', [], {
 			requireGlyph: false,
 		});
+	});
+
+	it('Re-roll on a Remix take asks for that glyph again with a new seed (PR D)', async () => {
+		const editor = draftEditor();
+		setCurrentProjectEditor(editor);
+		const controller = fakeController();
+		const panel = panelFixture({ getEditor: () => editor, controller });
+		const card = panel.addCard('agent-receipt-card', {
+			cardId: 'chat-receipt-r',
+			glyphs: [{ char: 'B', status: 'changed', seed: 12 }],
+		});
+		card.querySelector('[data-action="reroll"]').click();
+		await flush();
+		const [prompt] = controller.run.mock.calls[0];
+		const seed = Number(/B with seed (\d+)/.exec(prompt)?.[1]);
+		expect(Number.isInteger(seed)).toBe(true);
+		expect(prompt).toMatch(/draw_cards with that seed/);
 	});
 });

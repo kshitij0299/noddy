@@ -6,7 +6,8 @@
  *   Model   the connected model, short, with a Free / Paid mark; opens the model list
  *           (wired in agent-panel.js, which owns the connect card). With a local agent on it
  *           reads "<client> · connected" and opens nothing.
- *   Mode    Exact / Remix / Wild as a radio group; Remix and Wild show a Chaos slider (0–100).
+ *   Mode    Exact / Remix / Wild as a radio group; Remix and Wild show a Chaos slider (0–100)
+ *           and the Telephone switch (PR D: each glyph starts from the last glyph's moves).
  *   Target  This glyph / Selected glyphs / Whole set as a radio group with counts; a scope with
  *           nothing in it is disabled and says how to fill it.
  *
@@ -26,6 +27,7 @@ import {
 	setChaos,
 	setMode,
 	setScope,
+	setTelephone,
 } from '../agent-controls.js';
 import { charOf } from '../run/review.js';
 import { el, icon, srOnly } from './cards/card-shell.js';
@@ -180,26 +182,55 @@ export function createModeChip({ getEditor }) {
 	const chaosHead = el('div', 'agent-chaos__head');
 	chaosHead.append(chaosLabel, chaosValue);
 	chaosRow.append(chaosHead, slider);
-	popover.body.append(group.root, chaosRow);
+
+	// Telephone (Remix and Wild): each glyph starts from the previous glyph's moves plus one
+	// mutation, so the set drifts like a story.
+	const telephoneRow = el('div', 'agent-telephone');
+	const telephoneId = `agent-telephone-${Math.random().toString(36).slice(2, 8)}`;
+	const telephoneText = el('span', 'agent-telephone__text');
+	const telephoneLabel = el('span', 'text-label', 'Telephone');
+	telephoneLabel.id = telephoneId;
+	const telephoneHint = el(
+		'span',
+		'agent-telephone__hint text-body-small',
+		'Each glyph riffs on the last one'
+	);
+	telephoneHint.id = `${telephoneId}-hint`;
+	telephoneText.append(telephoneLabel, telephoneHint);
+	const telephone = /** @type {HTMLButtonElement} */ (el('button', 'agent-switch'));
+	telephone.type = 'button';
+	telephone.setAttribute('role', 'switch');
+	telephone.setAttribute('aria-labelledby', telephoneId);
+	telephone.setAttribute('aria-describedby', telephoneHint.id);
+	telephone.append(el('span', 'agent-switch__thumb'));
+	telephone.addEventListener('click', () =>
+		setTelephone(getEditor(), telephone.getAttribute('aria-checked') !== 'true')
+	);
+	telephoneRow.append(telephoneText, telephone);
+	popover.body.append(group.root, chaosRow, telephoneRow);
 
 	function draw() {
-		const { mode, chaos } = getModeSettings(getEditor());
+		const { mode, chaos, telephone: telephoneOn } = getModeSettings(getEditor());
 		group.render(
 			MODES.map((value) => ({ value, title: MODE_LABELS[value], hint: MODE_HINTS[value] })),
 			mode
 		);
 		chaosRow.hidden = mode === 'exact';
+		telephoneRow.hidden = mode === 'exact';
+		telephone.setAttribute('aria-checked', String(telephoneOn));
 		slider.value = String(chaos);
 		slider.setAttribute('aria-valuetext', `${chaos} of 100`);
 		chaosValue.textContent = String(chaos);
 	}
 
 	function render() {
-		const { mode, chaos } = getModeSettings(getEditor());
+		const { mode, chaos, telephone: telephoneOn } = getModeSettings(getEditor());
 		label.textContent = mode === 'exact' ? MODE_LABELS[mode] : `${MODE_LABELS[mode]} ${chaos}`;
 		button.setAttribute(
 			'aria-label',
-			mode === 'exact' ? `Mode: Exact` : `Mode: ${MODE_LABELS[mode]}, chaos ${chaos}`
+			mode === 'exact'
+				? `Mode: Exact`
+				: `Mode: ${MODE_LABELS[mode]}, chaos ${chaos}${telephoneOn ? ', Telephone on' : ''}`
 		);
 		button.dataset.mode = mode;
 		if (popover.isOpen) draw();
