@@ -1358,6 +1358,7 @@ export function createAgentPanel({
 	agentTab.append(
 		thread,
 		runBar.root,
+		composer.tools,
 		composer.root,
 		modelPopover.root,
 		modeChip.popover.root,

@@ -51,7 +51,7 @@ export function createPopover({
 		if (!host) return;
 		const hostBox = host.getBoundingClientRect();
 		const chipBox = anchor.getBoundingClientRect();
-		// Above the whole composer, so what is typed stays in view.
+		// Above its chip (the chip row sits above the composer, #95), so what is typed stays in view.
 		const floor = (anchor.closest('.agent-composer') || anchor).getBoundingClientRect();
 		const gap = 8;
 		root.style.bottom = `${Math.max(0, hostBox.bottom - floor.top + gap)}px`;

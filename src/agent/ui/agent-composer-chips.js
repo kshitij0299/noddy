@@ -1,7 +1,7 @@
 /**
- * The composer's chips (PR B): Model, Mode and Target, in the composer's tool row next to the
- * paperclip. Each is a small pill button that opens its popover (agent-popover.js) above the
- * composer.
+ * The composer's chips (PR B): Model, Mode and Target, in their own row above the composer box
+ * (#95). Each is a small pill button with a trailing chevron that opens its popover
+ * (agent-popover.js) above the chip.
  *
  *   Model   the connected model, short, with a Free / Paid mark; opens the model list
  *           (wired in agent-panel.js, which owns the connect card). With a local agent on it
@@ -34,7 +34,7 @@ import { el, icon, srOnly } from './cards/card-shell.js';
 import { createPopover } from './agent-popover.js';
 
 /**
- * A chip button: optional leading icon, a label, optional trailing node.
+ * A chip button: optional leading icon, a label, then a chevron (it opens a menu).
  * @param {String} className
  * @param {String} [iconName]
  */
@@ -45,8 +45,9 @@ export function chipButton(className, iconName) {
 	button.type = 'button';
 	if (iconName) button.append(icon(iconName, 'agent-chip-button__icon'));
 	const label = el('span', 'agent-chip-button__label');
-	button.append(label);
-	return { button, label };
+	const chevron = icon('expand_more', 'agent-chip-button__chevron');
+	button.append(label, chevron);
+	return { button, label, chevron };
 }
 
 /**
@@ -317,9 +318,9 @@ export function createTargetChip({ getEditor }) {
  * The Model chip (its popover is wired by the panel, which owns the connect card).
  */
 export function createModelChip() {
-	const { button, label } = chipButton('agent-panel__model');
+	const { button, label, chevron } = chipButton('agent-panel__model');
 	const badge = el('span', 'agent-chip-button__badge');
-	button.append(badge);
+	button.insertBefore(badge, chevron);
 	/**
 	 * @param {{label: String, tier?: 'free'|'paid', local?: Boolean}} view
 	 */
