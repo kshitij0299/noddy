@@ -176,3 +176,45 @@ Draft. Found on the way:
 40. **`TOO_SIMILAR` has no retry cap in code** (only the agent's instructions stop it) and never fired
     live; Re-roll on a receipt is a prompt to the agent, not a direct action.
 41. **Remix cards can overshoot a glyph's side bearings**; `op_history` reverts only the last move.
+42. **The `/mcp` tool list goes stale until the dev server restarts** (live Remix test, 2026-10-26).
+    `loadNativeRegistry()` caches `tool-definitions.js` in Node on first use, so a server started
+    before #92 offered no `draw_cards`, `op_history`, `describe_mark` or `apply_chaos` over MCP.
+    The browser side hot-reloads; the server side does not. Fix: re-import on file change (Vite
+    `server.watcher`) or tell the user in the panel to restart.
+43. **A `git pull` on the dev server's folder full-reloads the tab and closes the open project**
+    (2026-10-26, after merging #96). Local agent survives ("still on after the reload"), the project
+    does not: back to the start screen. Restore should reopen the last project automatically, or
+    the dev build should warn before a full reload with unsaved work.
+44. **Tool replies repeat the whole project context** (token baseline, 2026-10-26). `read_glyphs`
+    returns ~3.7k chars for one glyph, of which ~3k is `context` with every target glyph ID (116
+    on a Whole-set target); `get_context` is the same 3k. Send counts, not the ID list, and leave
+    `context` out of replies that don't need it.
+45. **Glyph jobs die with the MCP connection, silently** (live Remix test, 2026-10-26). A job opened
+    by `draw_cards` in one MCP session is gone in the next (`op_history` → `NO_JOB`), and its
+    unsubmitted draft vanishes with no warning; `apply_chaos` in a new session quietly starts a fresh
+    job, so the take loses its cards/seed link. Any Claude Code reconnect loses work this way. Keep
+    jobs per tab (not per session) for a grace period, or report "draft discarded" to the panel.
+46. **Remix deals WAVE/TWIST/BULGE to pixel fonts and they melt the pixel steps into curves**
+    (DotGothic16 H, seed 702). For a dot/pixel font the deck should skip warp cards or grid-snap
+    the result back onto the font's cell grid (Pixel Life already detects pixel fonts).
+47. **Remix cards drift off the reference style** (owner, live test 2026-10-26: "L sux, not similar
+    style"). L got KICK + ROTATE-PIECE, which have nothing of A's slash; re-cut with one slash-cut at
+    the reference angle and the owner's family held (A, H, L). Deal at least one card that re-uses
+    the reference mark (SLASH/DOUBLE-SLASH/GASH from describe_mark) in every hand, and let the rest
+    be the remix.
+48. **Validation errors carry no `revision`** (QA of #99). An input the server rejects before it
+    reaches the tab (INVALID_ARGUMENTS, for example op_history with an extra `expectedRevision`)
+    comes back without `revision`, and `get_context` has it only under `context`. Minor: agents
+    re-read it with get_context.
+49. **Remix hands repeat in a 4-glyph cycle** (Slash Gothic run, 2026-10-26). Seeds 801–814 dealt
+    the same four hands over and over (WAVE·MIRROR·SHIFT → TWIST·SLASH·SCALE → ROTATE·KICK·GASH →
+    GLITCH·BULGE·DOUBLE-SLASH → …): the seed barely moves the deal, and tabu only stops repeats
+    within 3 glyphs. Also: MIRROR-PART wrecked 4 of 4 glyphs it touched (M, Q, U, Y); KICK was
+    rejected by the owner (L). Consider dropping or reworking both for pixel fonts.
+50. **Copying the owner's mark fails the outline check** (Slash Gothic i/l). A's slash path
+    self-intersects (allowed on A, it's Yours), so `copy_paths` onto another glyph → submit
+    `INVALID_OUTLINES` (SELF_INTERSECTION). Fix by hand: `boolean_paths union` on the mark (which
+    split it into two paths), then `exclude` it with the stem. `copy_paths` could untangle a copied
+    mark automatically. Also: slash-cut on a thin stem (i, l) only nicks it, even at overshoot 60.
+51. **Restarting an MCP client while a submit failed leaves no trace**: the INVALID_OUTLINES drafts for
+    i and l vanished with the session (bug 45) and the panel never said so.
