@@ -15,6 +15,7 @@
 - [DESIGN-BRIEF.md](DESIGN-BRIEF.md): interaction model, edge cases, original roadmap. Where it differs from Figma, the Figma screens win.
 - [RIPPLE-SPEC.md](RIPPLE-SPEC.md): the "spread my edit" feature.
 - [CHAOS-TOOLS.md](CHAOS-TOOLS.md): the panel's Chaos tab and `apply_chaos`: the five ops, the legibility guard, how to add a tool.
+- [REMIX-MODE.md](REMIX-MODE.md): Remix and Wild: the card deck, seeds, tabu, Telephone, the regret rule, `describe_mark` and novelty pressure.
 - [research/](research/): engine audit, character sets, prior art, edge cases, concepts, Ripple research.
 - [prototype/](prototype/): the old HTML prototype. Superseded; reference only.
 - [../agent/](../agent/): Codex's native agent plumbing docs (tools, providers, the inspector-undo proposal).
