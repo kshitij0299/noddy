@@ -158,6 +158,25 @@ describe('the legibility guard', () => {
 		);
 	});
 
+	it('finds a self-crossing made by a curve (the fast flattened check)', () => {
+		const p = (x, y, h1 = null, h2 = null) => ({ x, y, h1, h2 });
+		// An S-curve from (0, 300) to (600, 300), closed by the straight line back: it crosses
+		// that line in the middle, away from both points.
+		const loop = [
+			{
+				points: [
+					p(0, 300, { x: 0, y: 300 }, { x: 200, y: 900 }),
+					p(600, 300, { x: 400, y: -300 }, { x: 600, y: 300 }),
+					p(300, 0),
+				],
+			},
+		];
+		const issues = gateIssues([], loop, METRICS).map((issue) => issue.code);
+		expect(issues).toContain('SELF_INTERSECTION');
+		expect(gateIssues([], SANS_H, METRICS)).toEqual([]);
+		expect(gateIssues([], CURVY_O, METRICS)).toEqual([]);
+	});
+
 	it('rejects drift in ink and bounds', () => {
 		const tiny = [ellipse(300, 350, 40, 40)];
 		const codes = guardResult(SANS_H, tiny, { metrics: METRICS }).reasons.map((r) => r.code);

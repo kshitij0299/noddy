@@ -2,10 +2,10 @@
 // Agent outline check (M6 #25): read-only diagnostics for one glyph
 // --------------------------------------------------------------
 /*
-	Uses the existing path helpers: Path.findWinding (winding direction),
-	Path.makePolySegment + PolySegment.findIntersections (built on
-	findSegmentIntersections) for self-intersections, and Path.maxes for
-	extents. Never mutates the glyph: every helper used here only reads.
+	Uses the existing path helpers: Path.findWinding (winding direction) and
+	Path.maxes for extents. Self-intersections are found on the flattened
+	contour (selfIntersections below; PR C replaced the recursive
+	PolySegment.findIntersections, which could run for minutes). Never mutates the glyph: every helper used here only reads.
 
 	Issue codes:
 	- TOO_FEW_POINTS     a contour with fewer than 3 points (cannot enclose area)
@@ -59,6 +59,8 @@ export const BLOCKING_ISSUES = Object.freeze([
 const DUPLICATE_DISTANCE = 0.5;
 const VERTEX_TOLERANCE = 1;
 const MAX_INTERSECTION_SEGMENTS = 256;
+// Lines per cubic when looking for self-intersections.
+const INTERSECTION_STEPS = 16;
 
 /**
  * @param {Object} glyph - project Glyph (only Path shapes are checked)
@@ -232,25 +234,91 @@ export function contourFingerprint(shape) {
 		.join(';');
 }
 
+/**
+ * Points where a contour crosses itself, away from its on-curve points. The contour is
+ * flattened (each cubic into short lines) and every pair of non-neighbouring lines is tested,
+ * with a bounding-box prefilter: fast and bounded on any input. (Glyphr's recursive Bézier
+ * intersection could take minutes on near-tangent curves, which froze the tab.)
+ */
 function selfIntersections(path) {
-	let found;
-	try {
-		found = path.makePolySegment().findIntersections();
-	} catch {
-		return [];
-	}
-	const vertices = path.pathPoints.map((point) => point.p);
+	const points = path.pathPoints;
+	const lines = [];
+	points.forEach((point, index) => {
+		const next = points[(index + 1) % points.length];
+		const p0 = { x: point.p.x, y: point.p.y };
+		const p3 = { x: next.p.x, y: next.p.y };
+		const curved = point.h2.use || next.h1.use;
+		const p1 = point.h2.use ? { x: point.h2.x, y: point.h2.y } : p0;
+		const p2 = next.h1.use ? { x: next.h1.x, y: next.h1.y } : p3;
+		const steps = curved ? INTERSECTION_STEPS : 1;
+		let previous = p0;
+		for (let step = 1; step <= steps; step++) {
+			const t = step / steps;
+			const u = 1 - t;
+			const at =
+				step === steps
+					? p3
+					: {
+							x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+							y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+					  };
+			lines.push({
+				a: previous,
+				b: at,
+				xMin: Math.min(previous.x, at.x),
+				xMax: Math.max(previous.x, at.x),
+				yMin: Math.min(previous.y, at.y),
+				yMax: Math.max(previous.y, at.y),
+			});
+			previous = at;
+		}
+	});
+	const vertices = points.map((point) => point.p);
 	const result = [];
-	for (const ix of found) {
-		const [x, y] = String(ix).split('/').map(Number);
-		if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-		// Neighbouring segments always meet at their shared point; only
-		// crossings away from on-curve points count.
-		if (vertices.some((v) => Math.hypot(v.x - x, v.y - y) <= VERTEX_TOLERANCE)) continue;
-		if (result.some((r) => Math.hypot(r.x - x, r.y - y) <= VERTEX_TOLERANCE)) continue;
-		result.push({ x: round(x), y: round(y) });
+	const count = lines.length;
+	for (let i = 0; i < count && result.length < 8; i++) {
+		const l1 = lines[i];
+		for (let j = i + 2; j < count; j++) {
+			// Neighbours share an end point; the first and last line are neighbours too.
+			if (i === 0 && j === count - 1) continue;
+			const l2 = lines[j];
+			if (l1.xMax < l2.xMin || l2.xMax < l1.xMin || l1.yMax < l2.yMin || l2.yMax < l1.yMin)
+				continue;
+			const hit = crossing(l1, l2);
+			if (!hit) continue;
+			// Crossings at on-curve points are where outlines meet, not cross.
+			if (vertices.some((v) => Math.hypot(v.x - hit.x, v.y - hit.y) <= VERTEX_TOLERANCE)) continue;
+			if (result.some((r) => Math.hypot(r.x - hit.x, r.y - hit.y) <= VERTEX_TOLERANCE)) continue;
+			result.push({ x: round(hit.x), y: round(hit.y) });
+		}
 	}
 	return result;
+}
+
+/** Where two lines cross (or overlap along a stretch), or null. */
+function crossing({ a: p, b: p2 }, { a: q, b: q2 }) {
+	const r = { x: p2.x - p.x, y: p2.y - p.y };
+	const s = { x: q2.x - q.x, y: q2.y - q.y };
+	const denominator = r.x * s.y - r.y * s.x;
+	const qp = { x: q.x - p.x, y: q.y - p.y };
+	const lengthR = Math.hypot(r.x, r.y);
+	const lengthS = Math.hypot(s.x, s.y);
+	if (!lengthR || !lengthS) return null;
+	if (Math.abs(denominator) < 1e-9 * lengthR * lengthS) {
+		// Parallel: a crossing only if collinear and overlapping by more than a hair.
+		if (Math.abs(qp.x * r.y - qp.y * r.x) / lengthR > 0.01) return null;
+		const t0 = (qp.x * r.x + qp.y * r.y) / (lengthR * lengthR);
+		const t1 = t0 + (s.x * r.x + s.y * r.y) / (lengthR * lengthR);
+		const from = Math.max(0, Math.min(t0, t1));
+		const to = Math.min(1, Math.max(t0, t1));
+		if ((to - from) * lengthR <= VERTEX_TOLERANCE) return null;
+		const mid = (from + to) / 2;
+		return { x: p.x + r.x * mid, y: p.y + r.y * mid };
+	}
+	const t = (qp.x * s.y - qp.y * s.x) / denominator;
+	const u = (qp.x * r.y - qp.y * r.x) / denominator;
+	if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+	return { x: p.x + r.x * t, y: p.y + r.y * t };
 }
 
 function nearestGuide(value, metrics) {
