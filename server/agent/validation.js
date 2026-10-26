@@ -271,9 +271,11 @@ export function validateRequest(body, definitions) {
 			'lock',
 			'mode',
 			'chaos',
+			'telephone',
 			'target',
 		]);
-		const { mode, chaos, target } = body.context;
+		const { mode, chaos, telephone, target } = body.context;
+		if (telephone !== undefined && typeof telephone !== 'boolean') invalid();
 		if (mode !== undefined && !['exact', 'remix', 'wild'].includes(mode)) invalid();
 		if (chaos !== undefined && !(Number.isInteger(chaos) && chaos >= 0 && chaos <= 100)) invalid();
 		if (target !== undefined) {

@@ -1848,3 +1848,79 @@ button.agent-glyph-pick:focus-visible {
 .agent-receipt__glyph-label {
 	flex: 1 1 auto;
 }
+
+/* Remix (PR D): a take's seed on its receipt, quiet next to the summary or the glyph label. */
+.agent-receipt__seed {
+	color: var(--color-text-secondary);
+}
+
+/* Telephone: a switch row under Chaos in the Mode menu (Remix and Wild only). */
+.agent-telephone {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+.agent-telephone[hidden] {
+	display: none;
+}
+
+.agent-telephone__text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.agent-telephone__hint {
+	color: var(--color-text-secondary);
+}
+
+button.agent-switch,
+button.agent-switch:hover,
+button.agent-switch:focus,
+button.agent-switch:active {
+	position: relative;
+	flex: none;
+	box-sizing: border-box;
+	width: 36px;
+	height: 20px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-track);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+button.agent-switch[aria-checked='true'] {
+	background-color: var(--color-bg-accent);
+}
+
+.agent-switch__thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	border-radius: var(--radius-full);
+	background: var(--color-bg-surface);
+	transition: transform 120ms ease;
+}
+
+button.agent-switch[aria-checked='true'] .agent-switch__thumb {
+	transform: translateX(16px);
+}
+
+button.agent-switch:focus {
+	outline: none;
+}
+
+button.agent-switch:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: 2px;
+}

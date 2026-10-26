@@ -104,6 +104,18 @@ describe.each([
 	['warp', SANS_H, { warp: 'wave' }],
 	['grid-snap', SANS_H, {}],
 	['grid-snap', PIXEL_O, { angleStep: 15 }],
+	// Remix moves (PR D, the card deck's ops).
+	['piece-rotate', SANS_H, {}],
+	['piece-rotate', CURVY_O, { strength: -60 }],
+	['piece-shift', SANS_H, {}],
+	['piece-shift', PIXEL_O, { angle: 20 }],
+	['piece-scale', SANS_H, {}],
+	['piece-scale', CURVY_O, { strength: -50 }],
+	['piece-mirror', SANS_H, {}],
+	['kick', SANS_H, {}],
+	['kick', PIXEL_O, { width: 10 }],
+	['gash', CURVY_O, {}],
+	['gash', SANS_H, { angle: -40 }],
 ])('%s on %#', (op, contours, params) => {
 	it('is deterministic, valid, passes the gate and changes the letter', async () => {
 		const first = await run(op, contours, { params });

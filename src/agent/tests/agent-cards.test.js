@@ -304,6 +304,47 @@ describe('<agent-receipt-card>', () => {
 	});
 });
 
+describe('<agent-receipt-card> Remix seeds (PR D)', () => {
+	it('shows a Remix take’s seed and offers Re-roll instead of Retry', () => {
+		const single = mount('agent-receipt-card', {
+			cardId: 'r2',
+			glyphs: [{ char: 'b', status: 'changed', seed: 4821 }],
+			project: false,
+		});
+		expect(single.querySelector('.agent-receipt__seed').textContent).toBe('seed 4821');
+		const labels = [...single.querySelectorAll('.agent-receipt__actions button')].map((b) =>
+			b.textContent.trim()
+		);
+		expect(labels).toEqual(['checkKeep b', 'casinoRe-roll b', 'undoUndo']);
+		const { events } = wire(single);
+		single.querySelector('[data-action="reroll"]').click();
+		expect(events[0]).toEqual({ action: 'reroll', cardId: 'r2', glyphIds: ['glyph-0x62'] });
+	});
+
+	it('names the seed per glyph in a multi-glyph receipt; a plain draft keeps Retry', () => {
+		const card = mount('agent-receipt-card', {
+			cardId: 'r3',
+			glyphs: [
+				{ char: 'b', status: 'changed', seed: 7 },
+				{ char: 'c', status: 'changed' },
+			],
+			project: false,
+		});
+		const [b, c] = card.querySelectorAll('.agent-glyph-pick');
+		expect(b.getAttribute('aria-label')).toBe('b, draft, seed 7');
+		b.click();
+		const row = card.querySelector('.agent-receipt__glyph-actions');
+		expect(row.querySelector('.agent-receipt__seed').textContent).toBe('seed 7');
+		expect(row.querySelector('[data-action="reroll-one"]')).not.toBeNull();
+		expect(row.querySelector('[data-action="retry-one"]')).toBeNull();
+		card.querySelector('.agent-glyph-pick[data-char="c"]').click();
+		const plain = card.querySelector('.agent-receipt__glyph-actions');
+		expect(plain.querySelector('[data-action="retry-one"]')).not.toBeNull();
+		expect(plain.querySelector('.agent-receipt__seed')).toBeNull();
+		expect(c.getAttribute('aria-label')).toBe('c, draft');
+	});
+});
+
 describe('<agent-step-line>', () => {
 	it('renders icon, sr-only status and Mono text; unknown tone falls back to info', () => {
 		const line = mount('agent-step-line', { tone: 'kept', text: 'Style approved · n o H O' });

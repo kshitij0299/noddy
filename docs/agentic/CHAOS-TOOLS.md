@@ -38,6 +38,15 @@ The tab passes UI-minted grants (`grantConsent`) to its own session; the agent t
 | **Grid snap** (`grid-snap`) | Snaps every on-curve point to the nearest node of a seeded lattice over the letter (rotated by multiples of the angle step), curves become straight, outlines that fold back are split at the repeated node and zero-area pieces dropped. | cols 7 (3–12), rows 9 (3–16), angle step 0° (0–45) |
 | **Pixel Life** (`pixel-life`) | For dot and pixel fonts only. Finds the font's own cell grid from its outlines, rasterises the letter onto it, runs Game-of-Life-style generations (each cell follows the rule with a chance set by chaos) with stems protected, and rebuilds square contours. On a drawn font it is off, with a note saying so. | generations 2 (1–6), rule mould (mould B3/S1–8, life B3/S23, coral B3/S4–8, erode B/S2–8), protect stems on |
 
+## Remix moves (PR D)
+
+Six more ops sit in `CHAOS_OPS` for Remix mode's card deck: `piece-rotate`, `piece-shift`,
+`piece-scale`, `piece-mirror` (cut the letter in two and lean, slide, scale or flip one piece),
+`kick` (a spike off a terminal) and `gash` (a slash through the counter). They live in
+`src/agent/chaos/ops/moves.js`, are marked `deck: true` so the tab does not list them, and run through
+the same engine, seeds and guard; `apply_chaos` accepts them like the five tools. See
+[REMIX-MODE.md](REMIX-MODE.md).
+
 ## The legibility guard
 
 Every take goes through `src/agent/chaos/guard.js`:
@@ -74,7 +83,7 @@ chaos; absent `seed` deals one. MCP clients see it in `tools/list` like every ot
 | File | Role |
 |---|---|
 | `src/agent/chaos/engine.js` | Op registry (`CHAOS_OPS`), param resolution, `runChaos` (seeded attempts, guard, re-roll plan) |
-| `src/agent/chaos/ops/*.js` | One file per op |
+| `src/agent/chaos/ops/*.js` | One file per op; `moves.js` holds the six Remix moves (deck only) |
 | `src/agent/chaos/rng.js` | FNV-1a hash + mulberry32 per (seed, glyph, op) |
 | `src/agent/chaos/geometry.js` | Contours ↔ Glyphr shapes, flatten, area, nonzero raster, orientation by depth, cleanup |
 | `src/agent/chaos/guard.js` | The guard above |

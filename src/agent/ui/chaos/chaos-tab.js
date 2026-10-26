@@ -54,7 +54,8 @@ export function resetChaosTabForTests() {
 /** Registers the five tools with the panel's Chaos tab (once; safe to call again). */
 export function registerChaosTools() {
 	const present = new Set(listChaosTools().map((tool) => tool.id));
-	for (const op of CHAOS_OPS.filter((item) => !present.has(item.id)))
+	// Remix moves (deck: true) belong to the card deck, not the tab.
+	for (const op of CHAOS_OPS.filter((item) => !item.deck && !present.has(item.id)))
 		registerChaosTool({
 			id: op.id,
 			label: op.label,

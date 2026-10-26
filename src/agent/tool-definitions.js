@@ -57,7 +57,20 @@ const transformFields = {
 };
 // The chaos tools (src/agent/chaos/engine.js CHAOS_OPS). Mirrored, not imported: the relay loads
 // this file without the editor module graph; a vitest keeps the two lists equal.
-export const CHAOS_OP_NAMES = ['slash-cut', 'glitch-bands', 'warp', 'grid-snap', 'pixel-life'];
+export const CHAOS_OP_NAMES = [
+	'slash-cut',
+	'glitch-bands',
+	'warp',
+	'grid-snap',
+	'pixel-life',
+	// Remix moves (the card deck's own ops, PR D).
+	'piece-rotate',
+	'piece-shift',
+	'piece-scale',
+	'piece-mirror',
+	'kick',
+	'gash',
+];
 export const CHAOS_BASES = ['current', 'before-draft'];
 // Every op's params in one object; each op reads its own keys and ignores the rest. Ranges are
 // the widest any op allows; the engine clamps to the op's own range.
@@ -95,7 +108,13 @@ export const READ_ONLY_TOOLS = [
 	'render_text',
 	'check_outlines',
 	'get_mutation_log',
+	'describe_mark',
 ];
+
+// Remix mode (PR D): the loop both the built-in agent (server/agent/agent.js) and a local
+// agent over MCP (get_context's remixLoop) follow in Remix and Wild. One text, two doors.
+export const REMIX_LOOP =
+	"Remix loop. 1) Read the reference: render_glyphs and read_glyphs the glyph the user styled, then describe_mark the paths of the user's mark (its angle, width, what it crosses, how it cuts). 2) For each target glyph, one at a time: draw_cards (it starts the glyph's job and deals 2-3 seeded move cards; each card's play is a ready apply_chaos call: add expectedRevision and call it, or re-express the card's idea on this glyph's own anatomy with transform_paths, copy_paths and boolean_paths, like a gash through O's counter or a kick off L's foot). Play the cards, then render_glyphs to look. 3) Regret one: op_history with revert true takes back your last move; give the reason, and keep the rest. 4) submit_glyph with a note naming the seed and the moves you kept. TOO_SIMILAR means the glyph repeats a sibling's move: draw_cards again with seed + 1. Never paste the same mark on every glyph. Then the next glyph.";
 
 export const TOOL_DEFINITIONS = [
 	{
@@ -216,7 +235,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'apply_chaos',
 		description:
-			"Run one of the Chaos tab's algorithmic effects (the same engine the user's Chaos tab uses) on up to 8 glyphs, each inside its glyph job: it begins the job if none is open, replaces the draft's outlines with the result, and returns per glyph the seed and chaos it used. Nothing reaches the font until you submit_glyph each one (one undo step per glyph, marked Draft); render_glyphs shows the drafts first. op: slash-cut (sharp kite slashes cut with exclude: through the ink, solid outside; params count 1-4, angle degrees, width % of em, overshoot %), glitch-bands (horizontal slices shifted sideways; bands 2-12, shift % of em), warp (warp arc | bulge | wave | twist, strength -100..100), grid-snap (points snapped to a cols x rows lattice, rotated by multiples of angleStep degrees), pixel-life (dot and pixel fonts only: Game-of-Life generations 1-6 on the font's own cell grid, rule mould | life | coral | erode, protectStems; NOT_PIXEL_FONT otherwise). params null or absent keys = the op's defaults; other ops' keys are ignored. seed (null = a new one) makes the result reproducible: the same seed, chaos and params give the same outlines; change it to re-roll one glyph. chaos 0-100 (null = the panel's chaos) scales every range. A legibility guard rejects takes that break the outline check, lose a counter, or drift too far in ink or bounds, and re-rolls (seed+1 up to 3 times, then lower chaos); the result says which seed and chaos landed. breakRules true turns the legibility rules off, only in Wild mode (the outline check always applies). base 'before-draft' starts from the glyph as it was before its current Draft (to re-roll a chaos draft instead of stacking on it); null = the current outline (the open job's draft if any). Refuses Yours and open glyphs like begin_glyph.",
+			"Run one of the Chaos tab's algorithmic effects (the same engine the user's Chaos tab uses) on up to 8 glyphs, each inside its glyph job: it begins the job if none is open, replaces the draft's outlines with the result, and returns per glyph the seed and chaos it used. Nothing reaches the font until you submit_glyph each one (one undo step per glyph, marked Draft); render_glyphs shows the drafts first. op: slash-cut (sharp kite slashes cut with exclude: through the ink, solid outside; params count 1-4, angle degrees, width % of em, overshoot %), glitch-bands (horizontal slices shifted sideways; bands 2-12, shift % of em), warp (warp arc | bulge | wave | twist, strength -100..100), grid-snap (points snapped to a cols x rows lattice, rotated by multiples of angleStep degrees), pixel-life (dot and pixel fonts only: Game-of-Life generations 1-6 on the font's own cell grid, rule mould | life | coral | erode, protectStems; NOT_PIXEL_FONT otherwise); the Remix moves the card deck plays (draw_cards): piece-rotate, piece-shift, piece-scale (cut the letter in two at angle, lean / slide / scale one piece by strength), piece-mirror (flip one piece), kick (a spike off a terminal; angle turn, width, strength), gash (a slash through the counter; angle, width, overshoot). params null or absent keys = the op's defaults; other ops' keys are ignored. seed (null = a new one) makes the result reproducible: the same seed, chaos and params give the same outlines; change it to re-roll one glyph. chaos 0-100 (null = the panel's chaos) scales every range. A legibility guard rejects takes that break the outline check, lose a counter, or drift too far in ink or bounds, and re-rolls (seed+1 up to 3 times, then lower chaos); the result says which seed and chaos landed. breakRules true turns the legibility rules off, only in Wild mode (the outline check always applies). base 'before-draft' starts from the glyph as it was before its current Draft (to re-roll a chaos draft instead of stacking on it); null = the current outline (the open job's draft if any). Refuses Yours and open glyphs like begin_glyph.",
 		inputSchema: object({
 			glyphIds: { type: 'array', items: glyphId, minItems: 1, maxItems: 8, uniqueItems: true },
 			expectedRevision,
@@ -226,6 +245,33 @@ export const TOOL_DEFINITIONS = [
 			params: chaosParams,
 			breakRules: nullable({ type: 'boolean' }),
 			base: nullable({ type: 'string', enum: CHAOS_BASES }),
+		}),
+	},
+	{
+		name: 'describe_mark',
+		description:
+			"Measure a mark the user drew (pathIndices: a slash, a spike, a blob) relative to the rest of its glyph, so you can re-express its attitude on other glyphs instead of pasting it: angle (degrees counter-clockwise from horizontal), length and width (font units and em), where it sits on the letter (0-1), what its axis crosses end to end (ink = a stem or bar, counter = an enclosed hole, outside), overshoot past the letter at each end, and how it combines (cut: the ink disappears where it overlaps, solid outside, the graffiti slash; solid; apart), with a one-line summary. Reads the job's draft when one is open. The mark becomes the run's reference: draw_cards starts slashes, gashes and kicks from its angle and width. Read-only.",
+		inputSchema: object({ glyphId, pathIndices }),
+	},
+	{
+		name: 'draw_cards',
+		description:
+			"Remix and Wild only (MODE_EXACT otherwise). Start this glyph's Remix take: it begins (or restarts) the glyph job (a re-roll of a Remix Draft starts from before that Draft) and deals 2-3 seeded move cards (count null = 2, or 3 at high chaos and in Wild). Cards: SLASH, DOUBLE-SLASH, GASH (through the counter), KICK (a spike off a terminal), ROTATE-PIECE, SHIFT-STROKE, SCALE-PART, MIRROR-PART, GLITCH-BAND, WAVE, TWIST, BULGE. Each card has an idea, settings scaled by the panel's chaos and the reference mark (describe_mark), and play: a ready apply_chaos input; add expectedRevision and call it. Tabu: no card repeats within the last 3 glyphs. With Telephone on, the hand is the previous glyph's kept moves plus one mutation (telephone.mutation). seed (null = a new one) makes the deal reproducible: the same seed deals the same cards and moves. Afterwards: play, render_glyphs, op_history revert one move (the regret), submit_glyph.",
+		inputSchema: object({
+			glyphId,
+			expectedRevision,
+			seed: nullable({ type: 'integer', minimum: 0, maximum: 2147483646 }),
+			count: nullable({ type: 'integer', minimum: 1, maximum: 3 }),
+		}),
+	},
+	{
+		name: 'op_history',
+		description:
+			"Inside a glyph job: list your moves in this job (every draft edit: apply_chaos, transform_paths, copy_paths, boolean_paths, add/replace/delete paths), oldest first, with the card each one played. revert true takes back the last move that is not reverted yet (the draft goes back to how it was before it; in a draw_cards take the only move left is kept: LAST_MOVE); reason (optional) says why, and goes in the take's log. The Remix regret rule: after you render a glyph, revert the move you like least (revert repeatedly to reach an earlier one, then replay the ones you keep) and say why you kept the rest. Edits the draft only; nothing reaches the font until submit_glyph.",
+		inputSchema: object({
+			glyphId,
+			revert: nullable({ type: 'boolean' }),
+			reason: nullable({ type: 'string', minLength: 0, maxLength: 200 }),
 		}),
 	},
 	{
@@ -256,7 +302,7 @@ export const TOOL_DEFINITIONS = [
 	{
 		name: 'submit_glyph',
 		description:
-			'Finish a glyph job. check_outlines runs on the draft; new structural problems (too few points, duplicate points, self-intersections, specks, counters running the same way as their container) reject the submit with nothing written, and the job stays open so you can fix it; each issue carries a hint. Problems the glyph already had before the job (preExisting) and extents past the ascender/descender come back as warnings, never rejections. On success the whole job lands as one undo step named "Agent · <char>", the glyph is marked Draft, and note (optional; say why it changed) goes in the mutation log. JOB_STALE means the glyph changed since the job began: begin again.',
+			'Finish a glyph job. check_outlines runs on the draft; new structural problems (too few points, duplicate points, self-intersections, specks, counters running the same way as their container) reject the submit with nothing written, and the job stays open so you can fix it; each issue carries a hint. Problems the glyph already had before the job (preExisting) and extents past the ascender/descender come back as warnings, never rejections. On success the whole job lands as one undo step named "Agent · <char>", the glyph is marked Draft, and note (optional; say why it changed) goes in the mutation log. JOB_STALE means the glyph changed since the job began: begin again. In Remix and Wild, a take that changes the glyph the way a sibling was changed (too alike on a 64 px render) is rejected with TOO_SIMILAR: draw_cards again with another seed; a take from draw_cards reports its seed, kept moves and regret (remix).',
 		inputSchema: object({
 			glyphId,
 			expectedRevision,

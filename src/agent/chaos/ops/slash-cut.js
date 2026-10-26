@@ -79,7 +79,7 @@ export default {
 };
 
 /** A long thin kite: two sharp tips and two shoulders, the widest point off-centre. */
-function kite({ cx, cy, angle, length, width, rng, chaos }) {
+export function kite({ cx, cy, angle, length, width, rng, chaos }) {
 	const ux = Math.cos(angle);
 	const uy = Math.sin(angle);
 	const nx = -uy;
