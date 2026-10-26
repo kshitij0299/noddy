@@ -12,7 +12,7 @@ import { boundsOf, rasterize } from '../chaos/geometry.js';
 
 export const MASK_RESOLUTION = 64;
 /** Masks this alike (0–1) are "the same move again": submit_glyph rejects TOO_SIMILAR. */
-export const NOVELTY_LIMIT = 0.72;
+export const NOVELTY_LIMIT = 0.6;
 /** Fewer changed cells than this (of 64 × 64) is no change worth comparing. */
 const MIN_CHANGE = 6;
 
@@ -43,34 +43,24 @@ export function changeMask(before, after, resolution = MASK_RESOLUTION) {
 	return { cols: resolution, rows: resolution, cells, count };
 }
 
-/** Cells of `mask` that have a set cell of `other` within one cell (a small shift is alike). */
-function nearHits(mask, other) {
-	const { cols, rows, cells } = mask;
-	let hits = 0;
-	for (let row = 0; row < rows; row++)
-		for (let col = 0; col < cols; col++) {
-			if (!cells[row * cols + col]) continue;
-			let near = false;
-			for (let dr = -1; dr <= 1 && !near; dr++)
-				for (let dc = -1; dc <= 1 && !near; dc++) {
-					const r = row + dr;
-					const c = col + dc;
-					if (r >= 0 && c >= 0 && r < rows && c < cols && other.cells[r * cols + c]) near = true;
-				}
-			if (near) hits++;
-		}
-	return hits;
-}
-
 /**
- * How alike two change masks are, 0 (nothing in common) to 1 (the same move). Symmetric,
- * tolerant of a one-cell shift. Two takes that changed (almost) nothing count as alike.
+ * How alike two change masks are, 0 (nothing in common) to 1 (the same move): the overlap of
+ * the changed cells (intersection over union). Different moves on letters of the same size
+ * (a lean and a shift of a pixel font's halves) stay well under the limit; the same mark
+ * pasted on two letters lands near 0.8–1. Two takes that changed (almost) nothing count as
+ * alike.
  */
 export function maskSimilarity(a, b) {
 	const small = (mask) => mask.count < MIN_CHANGE;
 	if (small(a) && small(b)) return 1;
 	if (small(a) || small(b)) return 0;
-	return (nearHits(a, b) + nearHits(b, a)) / (a.count + b.count);
+	let both = 0;
+	let either = 0;
+	for (let index = 0; index < a.cells.length; index++) {
+		both += a.cells[index] & b.cells[index];
+		either += a.cells[index] | b.cells[index];
+	}
+	return either ? both / either : 1;
 }
 
 /**

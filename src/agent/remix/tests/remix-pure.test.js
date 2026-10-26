@@ -137,9 +137,10 @@ describe('Telephone', () => {
 });
 
 describe('novelty pressure (change masks)', () => {
+	// The graffiti slash: drawn against the letter, it cuts the ink and stays solid outside.
 	const slashOn = (letter, angle, at = { x: 300, y: 350 }) => [
 		...letter,
-		bar(at.x, at.y, angle, 700, 60),
+		bar(at.x, at.y, angle, 700, 60, { cut: true }),
 	];
 
 	it('finds the same mark pasted on two letters, and lets a different move through', () => {
@@ -147,6 +148,7 @@ describe('novelty pressure (change masks)', () => {
 		const onO = changeMask(CURVY_O, slashOn(CURVY_O, 40));
 		const crossed = changeMask(CURVY_O, slashOn(CURVY_O, -45));
 		const kick = changeMask(CURVY_O, [...CURVY_O, bar(520, 20, -30, 220, 50)]);
+		// A cut changes the same footprint on any letter: pasting it is caught.
 		expect(maskSimilarity(onH, onO)).toBeGreaterThanOrEqual(NOVELTY_LIMIT);
 		expect(maskSimilarity(onO, crossed)).toBeLessThan(NOVELTY_LIMIT);
 		expect(maskSimilarity(onO, kick)).toBeLessThan(NOVELTY_LIMIT);
