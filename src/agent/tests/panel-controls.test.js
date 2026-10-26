@@ -112,6 +112,7 @@ describe('agent controls store', () => {
 		expect(JSON.parse(sessionStorage.getItem(`${CONTROLS_STORAGE_PREFIX}one`))).toEqual({
 			mode: 'wild',
 			chaos: 83,
+			telephone: false,
 		});
 		// A reload reads it back.
 		resetAgentControlsForTests();

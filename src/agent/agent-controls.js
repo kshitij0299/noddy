@@ -3,7 +3,7 @@
  * (this glyph / selected glyphs / whole set). No DOM: the panel chips, the grid and the native
  * tools all read and write this one store.
  *
- * - Mode and chaos are remembered per project for this tab (sessionStorage, keyed by the
+ * - Mode, chaos and Telephone (Remix / Wild only, PR D) are remembered per project for this tab (sessionStorage, keyed by the
  *   project ID that round-trips in `.gs2`). Nothing is written to the project file.
  * - Picks are the glyphs the user Cmd/Ctrl/Shift-clicked in the grid (memory only).
  * - Target defaults from what is selected: the glyph open in the editor, else the picks (one
@@ -36,7 +36,7 @@ export const CONTROLS_EVENT = 'change';
 
 /** One event target for every listener (the chips, the grid). */
 const events = new EventTarget();
-/** @type {Map<String, {mode: String, chaos: Number}>} per project ID, mirrors sessionStorage */
+/** @type {Map<String, {mode: String, chaos: Number, telephone: Boolean}>} per project ID, mirrors sessionStorage */
 const memory = new Map();
 /** @type {Array<String>} picked glyph IDs, in pick order */
 let picks = [];
@@ -82,12 +82,16 @@ function projectKey(editor) {
 
 function settingsFor(key) {
 	if (memory.has(key)) return memory.get(key);
-	let value = { mode: DEFAULT_MODE, chaos: DEFAULT_CHAOS };
+	let value = { mode: DEFAULT_MODE, chaos: DEFAULT_CHAOS, telephone: false };
 	try {
 		const raw = key ? storage()?.getItem(CONTROLS_STORAGE_PREFIX + key) : null;
 		const parsed = raw ? JSON.parse(raw) : null;
 		if (parsed && MODES.includes(parsed.mode))
-			value = { mode: parsed.mode, chaos: clampChaos(parsed.chaos) };
+			value = {
+				mode: parsed.mode,
+				chaos: clampChaos(parsed.chaos),
+				telephone: parsed.telephone === true,
+			};
 	} catch {
 		/* Unreadable: the defaults. */
 	}
@@ -104,7 +108,7 @@ function saveSettings(key, value) {
 	}
 }
 
-/** @returns {{mode: String, chaos: Number}} */
+/** @returns {{mode: String, chaos: Number, telephone: Boolean}} */
 export function getModeSettings(editor) {
 	return { ...settingsFor(projectKey(editor)) };
 }
@@ -120,6 +124,13 @@ export function setChaos(editor, chaos) {
 	const key = projectKey(editor);
 	saveSettings(key, { ...settingsFor(key), chaos: clampChaos(chaos) });
 	notify('chaos');
+}
+
+/** Telephone (PR D): each Remix glyph starts from the previous glyph's moves plus one mutation. */
+export function setTelephone(editor, on) {
+	const key = projectKey(editor);
+	saveSettings(key, { ...settingsFor(key), telephone: on === true });
+	notify('telephone');
 }
 
 // ---- Picks (the grid's multi-selection) ----
@@ -201,12 +212,12 @@ export function getTarget(editor) {
 }
 
 /**
- * The controls as `get_context` reports them.
- * @returns {{mode: String, chaos: Number, target: {scope: String, glyphIds: Array<String>}}}
+ * The controls as `get_context` reports them. Telephone only counts in Remix and Wild.
+ * @returns {{mode: String, chaos: Number, telephone: Boolean, target: {scope: String, glyphIds: Array<String>}}}
  */
 export function readAgentControls(editor) {
-	const { mode, chaos } = getModeSettings(editor);
-	return { mode, chaos, target: getTarget(editor) };
+	const { mode, chaos, telephone } = getModeSettings(editor);
+	return { mode, chaos, telephone: mode !== 'exact' && telephone, target: getTarget(editor) };
 }
 
 /** Test helper. */

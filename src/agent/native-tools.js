@@ -32,8 +32,21 @@ import { fontMetrics, renderRow } from './render.js';
 import { readAgentControls } from './agent-controls.js';
 import { getChaosOp, runChaos } from './chaos/engine.js';
 import { glyphContours, projectCellGrid } from './chaos/project-bridge.js';
+import { randomSeed } from './chaos/rng.js';
+import { describeMutation, drawCards, telephoneCards } from './remix/deck.js';
+import { describeMark } from './remix/describe-mark.js';
+import {
+	previousTake,
+	recordDraw,
+	recordTake,
+	remixRun,
+	siblingTakes,
+	tabuFor,
+} from './remix/remix-run.js';
+import { NOVELTY_LIMIT, changeMask, closestSibling } from './remix/similarity.js';
 import {
 	READ_ONLY_TOOLS,
+	REMIX_LOOP,
 	RENDER_IMAGES_PER_REQUEST,
 	normalizeToolInput,
 	validateToolInput,
@@ -71,10 +84,13 @@ const JOB_TOOLS = [
 	'copy_paths',
 	'boolean_paths',
 	'apply_chaos',
+	'draw_cards',
 ];
 // Legacy write tools edit the job's draft when a job is open for their glyph.
 const DRAFT_TOOLS = ['set_spacing', 'transform_paths', 'add_paths'];
 const MAX_JOBS = 8;
+// op_history keeps this many moves per job (the oldest drop off).
+const MAX_MOVES = 24;
 const cloneGlyph = (glyph) => {
 	const clone = new Glyph(copy(glyph.save(true)));
 	clone.wasCreatedThisSession = glyph.wasCreatedThisSession;
@@ -192,6 +208,9 @@ export function createNativeToolSession({
 			lock: glyphId ? ownershipOf(editor, glyphId, { grant: requestGrant }).locked : null,
 			// The panel's Mode, Chaos and Target chips (PR B): the same for MCP clients.
 			...readAgentControls(editor),
+			// A local agent has no system prompt from Noddy: it reads the Remix loop here (the
+			// built-in agent gets the same text in its instructions, server/agent/agent.js).
+			...(external && readAgentControls(editor).mode !== 'exact' ? { remixLoop: REMIX_LOOP } : {}),
 		};
 	}
 
@@ -344,6 +363,10 @@ export function createNativeToolSession({
 					};
 				});
 				result = { ok: true, context, glyphs };
+			} else if (name === 'describe_mark') {
+				result = describeMarkTool(input, context);
+			} else if (name === 'op_history') {
+				result = opHistory(input, context);
 			} else if (READ_ONLY_TOOLS.includes(name)) {
 				// The envelope's ok always wins: a payload field can never fail a step.
 				result = {
@@ -483,6 +506,10 @@ export function createNativeToolSession({
 			return beginJob(input.glyphId, context);
 		}
 		if (name === 'apply_chaos') return applyChaos(input, context, signal, prepared);
+		if (name === 'draw_cards') {
+			assertInJobScope(input.glyphId);
+			return drawCardsJob(input, context);
+		}
 		const job = jobs.get(input.glyphId);
 		if (!job) fail('NO_JOB', 'Start a glyph job with begin_glyph or create_glyph first.');
 		assertJobLive(job);
@@ -508,6 +535,7 @@ export function createNativeToolSession({
 		} else applyDraftCommand(name, input, next, project);
 		assertGeometry(next);
 		abortIfNeeded(signal);
+		recordMove(job, name, input, job.candidate);
 		job.candidate = next;
 		return {
 			ok: true,
@@ -553,8 +581,10 @@ export function createNativeToolSession({
 				for (const data of chaosShapeData(result.contours, input.op)) next.addOneShape(data);
 				next.changed();
 				assertGeometry(next);
+				recordMove(job, 'apply_chaos', { ...input, landedSeed: result.seed }, job.candidate);
 				job.candidate = next;
-				job.fromPreDraft = input.base === 'before-draft';
+				// A take that began from before its Draft (draw_cards re-roll) stays one.
+				job.fromPreDraft = job.fromPreDraft === true || input.base === 'before-draft';
 				results.push({
 					glyphId: id,
 					ok: true,
@@ -590,6 +620,194 @@ export function createNativeToolSession({
 			results,
 			next: 'Look with render_glyphs, then submit_glyph each glyph to land it as a Draft (one undo step each).',
 		};
+	}
+
+	// ----------------------------------------------------------
+	// Remix mode (PR D): cards, the move log and its regret, describe_mark
+	// ----------------------------------------------------------
+
+	/** A draft edit inside a job, for op_history (`before` is the draft it replaced). */
+	function recordMove(job, tool, input, before) {
+		job.moves ??= [];
+		const card =
+			tool === 'apply_chaos'
+				? job.remix?.cards.find((item) => item.op === input.op && item.seed === input.seed)
+				: null;
+		job.moves.push({
+			index: job.moves.length,
+			tool,
+			card: card?.id ?? null,
+			summary: moveSummary(tool, input),
+			before,
+			reverted: false,
+			reason: '',
+		});
+		if (job.moves.length > MAX_MOVES) job.moves.shift();
+	}
+
+	function describeMove(move) {
+		return {
+			index: move.index,
+			tool: move.tool,
+			card: move.card,
+			summary: move.summary,
+			reverted: move.reverted,
+			...(move.reason ? { reason: move.reason } : {}),
+		};
+	}
+
+	function drawCardsJob(input, context) {
+		const controls = readAgentControls(editor);
+		if (controls.mode === 'exact')
+			fail(
+				'MODE_EXACT',
+				'Cards are for Remix and Wild. In Exact, follow the reference faithfully; the user switches the mode in the panel.'
+			);
+		const id = input.glyphId;
+		assertInSet(project, [id]);
+		const run = remixRun(editor);
+		// A re-roll of this run's Remix Draft starts from the glyph before that Draft.
+		const record = editor.glyphStatus?.get?.(id);
+		const reroll =
+			run.takes.has(id) &&
+			record?.status === 'draft' &&
+			isPreDraft(record.preDraft) &&
+			Boolean(record.preDraft.glyph);
+		beginJob(id, context);
+		const job = jobs.get(id);
+		if (reroll) {
+			const start = new Glyph(copy(record.preDraft.glyph));
+			start.wasCreatedThisSession = job.candidate.wasCreatedThisSession;
+			job.candidate = start;
+			job.fromPreDraft = true;
+		}
+		const seed = input.seed ?? randomSeed();
+		const tabu = tabuFor(run, id);
+		const previous = controls.telephone ? previousTake(run, id) : null;
+		const options = {
+			seed,
+			glyphId: id,
+			count: input.count ?? undefined,
+			chaos: controls.chaos,
+			mode: controls.mode,
+			tabu,
+			mark: run.mark,
+		};
+		const deal = previous?.kept?.length
+			? telephoneCards({ ...options, previous: previous.kept, from: previous.glyphId })
+			: drawCards(options);
+		recordDraw(run, id, { seed, cards: deal.cards });
+		job.remix = {
+			seed,
+			cards: deal.cards,
+			start: glyphContours(job.candidate),
+			telephone: deal.telephone ?? null,
+		};
+		job.moves = [];
+		return {
+			ok: true,
+			context,
+			glyphId: id,
+			seed,
+			startedFrom: reroll ? 'before-draft' : 'current',
+			cards: deal.cards.map((card) => ({
+				id: card.id,
+				title: card.title,
+				idea: card.idea,
+				params: card.params,
+				play: card.play,
+			})),
+			tabu: deal.tabu,
+			...(deal.tabuRelaxed ? { tabuRelaxed: true } : {}),
+			...(deal.telephone
+				? {
+						telephone: {
+							from: glyphChar(deal.telephone.from),
+							mutation: describeMutation(deal.telephone.mutation),
+						},
+				  }
+				: {}),
+			...(run.mark ? { reference: run.mark.summary } : {}),
+			job: describeJob(job),
+			next: 'Play each card (its play input plus expectedRevision), render_glyphs, then op_history revert one move and say why, then submit_glyph.',
+		};
+	}
+
+	function opHistory(input, context) {
+		const job = jobs.get(input.glyphId);
+		if (!job) fail('NO_JOB', 'Start a glyph job with draw_cards or begin_glyph first.');
+		assertJobLive(job);
+		job.moves ??= [];
+		let reverted = null;
+		if (input.revert === true) {
+			const move = [...job.moves].reverse().find((item) => !item.reverted);
+			if (!move) fail('NO_MOVE', 'This job has no move left to revert.');
+			job.candidate = move.before;
+			move.reverted = true;
+			move.reason = input.reason ? String(input.reason).trim().slice(0, 200) : '';
+			reverted = describeMove(move);
+		}
+		return {
+			ok: true,
+			context,
+			glyphId: input.glyphId,
+			moves: job.moves.map(describeMove),
+			...(reverted
+				? {
+						reverted,
+						next: 'Look again with render_glyphs if you like, then submit_glyph and say why you kept the rest.',
+				  }
+				: {}),
+			job: describeJob(job),
+		};
+	}
+
+	function describeMarkTool(input, context) {
+		assertInSet(project, [input.glyphId]);
+		const glyph = glyphFor(input.glyphId);
+		if (!glyph) fail('GLYPH_MISSING', 'This glyph has no outlines yet.');
+		const marked = new Set(input.pathIndices);
+		const mark = [];
+		const rest = [];
+		for (const index of input.pathIndices)
+			if (!glyph.shapes[index])
+				fail('MISSING_PATH', `Path ${index} does not exist. Read the glyph again.`);
+		glyph.shapes.forEach((shape, index) => {
+			if (shape.objType !== 'Path')
+				fail('UNSUPPORTED_COMPONENT', 'describe_mark works on ordinary paths only.');
+			(marked.has(index) ? mark : rest).push(...glyphContours({ shapes: [shape] }));
+		});
+		const measured = describeMark(mark, rest, fontMetrics(project));
+		if (!measured) fail('EMPTY_MARK', 'These paths enclose no ink to measure.');
+		remixRun(editor).mark = { ...measured, glyphId: input.glyphId, pathIndices: input.pathIndices };
+		return {
+			ok: true,
+			context,
+			glyphId: input.glyphId,
+			source: jobs.has(input.glyphId) ? 'draft' : 'font',
+			mark: measured,
+			next: "This is the run's reference mark: draw_cards starts slashes, gashes and kicks from its angle and width. Re-express it on each glyph's anatomy; never paste it.",
+		};
+	}
+
+	/**
+	 * Novelty pressure in Remix and Wild: what this take changed must not look like what a
+	 * sibling's take changed. Returns the take's change mask (null when not checked).
+	 */
+	function assertNovel(job, controls) {
+		if (controls.mode === 'exact' || job.create) return null;
+		const start = job.remix?.start ?? glyphContours(job.baseGlyph);
+		const mask = changeMask(start, glyphContours(job.candidate));
+		const closest = closestSibling(mask, siblingTakes(remixRun(editor), job.id));
+		if (closest && closest.similarity >= NOVELTY_LIMIT)
+			fail(
+				'TOO_SIMILAR',
+				`This take changes ${glyphChar(job.id)} the way ${glyphChar(
+					closest.glyphId
+				)} was changed (${Math.round(closest.similarity * 100)}% alike), so nothing was written. Make it this glyph's own: draw_cards again with another seed (seed + 1), or revert a move with op_history and play another.`,
+				{ sibling: closest.glyphId, similarity: closest.similarity, limit: NOVELTY_LIMIT }
+			);
+		return mask;
 	}
 
 	// Read at execution time: a Take over or a newly opened glyph stops the job.
@@ -687,6 +905,8 @@ export function createNativeToolSession({
 			jobs.delete(job.id);
 			return { ok: true, changed: false, context, glyph: describeGlyph(current, false), warnings };
 		}
+		// Remix and Wild: a take that repeats a sibling's change is rejected (job stays open).
+		const mask = assertNovel(job, readAgentControls(editor));
 		// Re-check right before commit: the lock state is read at execution time.
 		assertJobLive(job);
 		const char = glyphChar(job.id);
@@ -711,6 +931,7 @@ export function createNativeToolSession({
 		} catch {
 			// Status bookkeeping never undoes a committed edit.
 		}
+		const remix = mask ? recordRemixTake(job, mask) : null;
 		const note = input.note ? String(input.note).trim() : '';
 		logAgentWrite(editor, {
 			tool: 'submit_glyph',
@@ -726,9 +947,41 @@ export function createNativeToolSession({
 			glyph: describeGlyph(project.glyphs[job.id], false),
 			warnings,
 			undoAvailable: true,
+			...(remix ? { remix } : {}),
 		};
 		lastEdit = { entry: editor.history.queue[0], state: lastState };
 		return result;
+	}
+
+	/** After a Remix submit: the run remembers the take; the result reports it. */
+	function recordRemixTake(job, mask) {
+		const moves = job.moves || [];
+		const kept = moves.filter((move) => !move.reverted);
+		const regrets = moves.filter((move) => move.reverted);
+		const cards = job.remix?.cards || [];
+		const keptCards = kept
+			.map((move) => cards.find((card) => card.id === move.card))
+			.filter(Boolean)
+			.map((card) => ({ id: card.id, params: card.params }));
+		recordTake(remixRun(editor), job.id, {
+			seed: job.remix?.seed ?? null,
+			cards: cards.map((card) => card.id),
+			kept: keptCards,
+			regret: regrets.map(describeMove),
+			mask,
+		});
+		if (!job.remix) return null;
+		return {
+			seed: job.remix.seed,
+			cards: cards.map((card) => card.id),
+			kept: kept.map((move) => move.card || move.summary),
+			regret: regrets.map((move) => ({ move: move.card || move.summary, reason: move.reason })),
+			...(regrets.length
+				? {}
+				: {
+						nudge: 'Regret rule: before submitting the next glyph, revert one move with op_history and say why you kept the rest.',
+				  }),
+		};
 	}
 
 	function commit(targetId, candidate, title, signal, { create = false } = {}) {
@@ -1708,6 +1961,18 @@ function assertGeometry(glyph) {
 			}
 		}
 	}
+}
+
+/** One line per move for op_history. */
+function moveSummary(tool, input) {
+	if (tool === 'apply_chaos') return `apply_chaos ${input.op} seed ${input.landedSeed ?? input.seed}`;
+	if (tool === 'transform_paths' || tool === 'set_spacing' || tool === 'add_paths')
+		return commandTitle(tool, input);
+	if (tool === 'copy_paths') return `copy_paths from ${glyphChar(input.sourceGlyphId)}`;
+	if (tool === 'boolean_paths') return `boolean_paths ${input.operation}`;
+	if (tool === 'replace_paths') return `replace_paths ${input.paths.length} paths`;
+	if (tool === 'delete_paths') return `delete_paths ${input.pathIndices.length} paths`;
+	return tool;
 }
 
 function commandTitle(name, input) {

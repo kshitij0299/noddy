@@ -1489,11 +1489,46 @@ test('mode, chaos and target are accepted in the context and reach the instructi
 	await generateAgentStep({ ...base, context }, registry, { modelFactory: () => model });
 	const system = JSON.stringify(model.doGenerateCalls[0].prompt[0]);
 	assert.match(system, /Mode: Remix, chaos 70 of 100/);
-	assert.match(system, /vary each glyph through its type anatomy/);
+	assert.match(system, /Vary each glyph through its own anatomy/);
 	assert.match(system, /Target: the selected glyphs \(glyph-0x41, glyph-0x42\)/);
 	assert.match(modeInstructions({ mode: 'exact' }), /faithfully/);
 	assert.match(modeInstructions({ mode: 'wild', chaos: 90 }), /Wild, chaos 90.*readable/s);
 	assert.equal(modeInstructions({}), '');
+});
+
+// ---- PR D: Remix mode's loop reaches the built-in agent (the same text MCP reads) ----
+
+test('Remix and Wild add the Remix loop and Telephone; Exact never does', async () => {
+	const native = await loadNativeRegistry();
+	assert.match(native.remixLoop, /describe_mark.*draw_cards.*render_glyphs.*op_history.*submit_glyph/s);
+	const options = { remixLoop: native.remixLoop };
+	const remix = modeInstructions({ mode: 'remix', chaos: 40, telephone: true }, options);
+	assert.ok(remix.includes(native.remixLoop));
+	assert.match(remix, /Telephone is on/);
+	assert.doesNotMatch(modeInstructions({ mode: 'remix', telephone: false }, options), /Telephone/);
+	assert.ok(modeInstructions({ mode: 'wild' }, options).includes(native.remixLoop));
+	const exact = modeInstructions({ mode: 'exact', telephone: true }, options);
+	assert.doesNotMatch(exact, /draw_cards|Telephone|op_history/);
+	// The real step: the loop is in the system prompt, and telephone passes validation.
+	const model = new MockLanguageModelV4({
+		doGenerate: {
+			content: [{ type: 'text', text: 'ok' }],
+			finishReason: { unified: 'stop' },
+			usage,
+			warnings: [],
+		},
+	});
+	await generateAgentStep(
+		{ ...base, context: { glyphId: 'glyph-0x42', mode: 'remix', chaos: 60, telephone: true } },
+		native,
+		{ modelFactory: () => model }
+	);
+	const system = JSON.stringify(model.doGenerateCalls[0].prompt[0]);
+	assert.ok(system.includes('Remix loop. 1)'));
+	assert.match(system, /Telephone is on/);
+	assert.throws(() =>
+		validateRequest({ ...base, context: { mode: 'remix', telephone: 'yes' } }, native.definitions)
+	);
 });
 
 test('bad mode, chaos or target values are refused before any provider call', () => {

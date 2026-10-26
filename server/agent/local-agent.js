@@ -389,7 +389,7 @@ export function createLocalAgentBridge(options = {}) {
 				instructions:
 					'Noddy font editor tools, running in the user’s open Noddy tab. Read with get_context first and pass the latest revision as expectedRevision. Draw glyphs as jobs (begin_glyph or create_glyph, edit, submit_glyph): each submit lands as a Draft and one undo step. Inside a job, render_glyphs, check_outlines and read_glyphs show the draft. To carry a mark from one glyph to another, copy_paths it into the job and combine it with boolean_paths (exclude: cut through the ink and keep the mark solid outside, the graffiti look; subtract: remove the mark entirely; union: merge). For algorithmic effects (slash-cut, glitch-bands, warp, grid-snap, pixel-life) call apply_chaos: the same engine as the panel’s Chaos tab, seeded and guarded; then submit_glyph each glyph. Gate issues come with a hint; problems the glyph already had are warnings. Optional fields can be left out. If a result says sessionRestarted, unsubmitted drafts were dropped: begin those jobs again. Respect LOCKED_YOURS and LOCKED_OPEN; never work around them. The user can also talk to you from the Noddy panel: ' +
 					LOOP +
-					' get_context reports the panel’s mode, chaos and target.',
+					' get_context reports the panel’s mode, chaos, Telephone and target. In Remix and Wild it also carries remixLoop: follow it for every glyph (describe_mark the reference, then per glyph draw_cards, play the cards, render_glyphs, op_history revert one move and say why, submit_glyph); Exact copies the reference faithfully.',
 			}
 		);
 		server.oninitialized = () => {
