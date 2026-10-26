@@ -1,5 +1,26 @@
 # Morning report: agentic build
 
+## Local session 2026-10-26 (evening) — READ THIS FIRST
+
+**Merged into `dev`:**
+- [#96](https://github.com/kshitij0299/noddy/pull/96) Agent panel: chips (status/Model · Mode · Target) sit in a row above the composer, with chevrons on the ones that open a menu; the box holds only text, attach, send.
+- [#99](https://github.com/kshitij0299/noddy/pull/99) Slim tool replies: only `get_context` carries the context; every other reply has `revision`; whole-set targets are a count; slim glyph summaries; a reply-size budget test.
+
+**Token before/after (tool replies only, measured over MCP):**
+
+| | Before (G–L, 6 glyphs) | After (M–Z, a–z, 0–9, 50 glyphs) |
+|---|---|---|
+| Tool calls | 46 | 249 |
+| Reply tokens (text + images) | ~35.5k | ~34.5k |
+| **Per glyph** | **~5.9k** | **~0.7k (≈8× less)** |
+| apply_chaos / submit_glyph per call | ~850 / ~1,020 | ~53 / ~116 |
+
+**Slash Gothic:** the owner's DotGothic16 remix, all 62 letters and figures, built live over MCP (A is the owner's; every other glyph carries the slash family; extras on about one in three). All are Drafts waiting for Keep. Renamed to "Slash Gothic" (DotGothic16 is a Fontworks trademark; the font stays OFL with its copyright notice). Saved: `tmp/projects/SlashGothic-62-done.gs2` plus the browser autosave. Owner rules learnt: add marks rather than reshape ("a lil" extra is fine); no wave/bulge/twist on pixel fonts; mirror and kick looked bad.
+
+**Open:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs die with the MCP connection (bug 45). New bugs 42–51 in `SMOKE-TEST-BUGS.md` (stale server tool list, reload closes the project, Remix deck cycles and drifts off style, copied marks fail the outline check).
+
+**Next:** #98; then Remix deck fixes (bugs 46, 47, 49: always one card from the reference mark, no warps on pixel fonts, real seed variety, an "add-only" option); bugs 31, 36, 39 still open.
+
 ## Local session 2026-10-23 → 26 (owner + orchestrator on the laptop) — READ THIS FIRST
 
 **Merged into `dev` (in order):**
