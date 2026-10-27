@@ -218,3 +218,7 @@ Draft. Found on the way:
     mark automatically. Also: slash-cut on a thin stem (i, l) only nicks it, even at overshoot 60.
 51. **Restarting an MCP client while a submit failed leaves no trace**: the INVALID_OUTLINES drafts for
     i and l vanished with the session (bug 45) and the panel never said so.
+52. **Export can't limit the glyphs** (owner wanted only the 62 letters and figures, 2026-10-26).
+    Export writes every glyph in the enabled ranges (117 for Latin Kernel); the only filter is
+    "unedited items". Needs an "Export: Letters & figures / All" choice. (Worked around by hiding the
+    other glyphs from `populateExportList` for one export.) Fold into M9 Export.
