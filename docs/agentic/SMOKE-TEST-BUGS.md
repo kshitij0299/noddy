@@ -222,3 +222,7 @@ Draft. Found on the way:
     Export writes every glyph in the enabled ranges (117 for Latin Kernel); the only filter is
     "unedited items". Needs an "Export: Letters & figures / All" choice. (Worked around by hiding the
     other glyphs from `populateExportList` for one export.) Fold into M9 Export.
+53. **Restore (browser autosave) is not durable** (2026-10-27). The Claude browser pane's storage
+    was empty after a session restart, so every auto-saved project (Oblegg, Bakery Sans, DotGothic16
+    copies) was gone from Restore. Autosave lives only in one browser's localStorage. Owner work
+    must also land on disk: a dev-only "save to tmp/projects" route, or nudge to Save project file.

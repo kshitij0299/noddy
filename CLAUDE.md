@@ -3,7 +3,7 @@
 Noddy is a fork of Glyphr Studio 2 (GPL-3.0) being turned into an agentic font editor.
 
 ## Starting a session (do this first, every time)
-1. Check that you are on branch `dev`. On the owner's laptop, work in the `noddy-agent-plan` folder. The other `noddy-*` folders and `Glyphr-Studio-2` are old phase branches, so don't work there.
+1. Check that you are on branch `dev`. On the owner's laptop, work in `font agent/noddy` (the only clone, cleaned up 2026-10-27; remotes `noddy` = this repo, `upstream` = glyphr-studio/Glyphr-Studio-2). Old phase and Codex branches are archived on GitHub (`archive/*` branches, tag `archive/pre-cleanup-2026-10-27`). The owner's dev server: `npx vite serve ./src/ --port 5300 --strictPort` from this folder.
 2. Ask the owner before pulling, then run `git pull --ff-only` on `dev` (cloud sessions push there too).
 3. Read `docs/agentic/MORNING-REPORT.md` and tell the owner in a few lines: what's done, what's open, and the next item you suggest.
 4. Wait for the owner to confirm the next item before starting work.
