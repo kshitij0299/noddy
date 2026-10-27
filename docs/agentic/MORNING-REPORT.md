@@ -25,6 +25,8 @@
 3. **Chaos stacking:** [#103](https://github.com/kshitij0299/noddy/issues/103) apply effect on top of effect; Re-roll only the last (bug 54; overrides "takes never stack").
 4. **History log UI:** [#104](https://github.com/kshitij0299/noddy/issues/104) list of every change (who, glyph, what, when), step back to any point; design first (bug 55).
 5. **Small fixes batch:** 31, 39, 42, 52. Later: 36, then M8/M9 when unparked.
+6. **Issue hygiene:** make `dev` the GitHub default branch so "Closes #N" works (owner OK needed for the setting); close issues already done (56 open, many merged, e.g. #95, #97) with PR links; flag stale ones; open issues for bug-log entries that lack one. Rule from then on: every real bug/feature gets an issue, `SMOKE-TEST-BUGS.md` links to it.
+7. **Release:** PR `dev` → `main` as a release once the owner is happy (`main` is still Sep 12).
 
 Folder cleanup 2026-10-27: the only clone is `font agent/noddy`; old branches archived (`archive/*`, tag `archive/pre-cleanup-2026-10-27`); GitHub repos `Glyphr-Studio-2` and `-Help` archived. `main` is still Sep 12 (dev is 83 commits ahead; fast-forward, offered as a release PR).
 
