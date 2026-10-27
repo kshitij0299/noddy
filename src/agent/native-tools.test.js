@@ -4,10 +4,12 @@ import { Glyph } from '../project_data/glyph.js';
 import { GlyphrStudioProject } from '../project_data/glyphr_studio_project.js';
 import { ProjectEditor } from '../project_editor/project_editor.js';
 import { shouldExportItem } from '../formats_io/otf/font_export.js';
+import { InputNumber } from '../controls/input-number/input_number.js';
 import { createNativeToolSession } from './native-tools.js';
 import { TOOL_DEFINITIONS, validateToolInput } from './tool-definitions.js';
 
 const ID = 'glyph-0x6E';
+if (!customElements.get('input-number')) customElements.define('input-number', InputNumber);
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const points = [
 	{ x: 40, y: 0, h1: null, h2: null },
@@ -179,6 +181,25 @@ describe('native agent tool boundary', () => {
 		inputAfterRedo.value = 75;
 		inputAfterRedo.dispatchEvent(new Event('change'));
 		expect(selected().rightSideBearing).toBe(75);
+	});
+
+	it('records a real numeric inspector edit after agent redo as its own native undo step', () => {
+		document.body.insertAdjacentHTML('beforeend', '<div id="editor-page__panel"></div>');
+		editor.nav.panel = 'Attributes';
+		selected().shapes = [];
+		selected().advanceWidth = 0;
+		const rectangle = points.map((point) => ({ ...point, x: point.x === 40 ? 50 : 590 }));
+		expect(session.execute('add_paths', args({ paths: [{ name: 'Outline', points: rectangle }] })).ok).toBe(true);
+		expect(session.execute('set_spacing', args({ metric: 'advanceWidth', value: 720 })).ok).toBe(true);
+		expect(session.undoLast().ok).toBe(true);
+		editor.history.redoState();
+		expect(selected().rightSideBearing).toBe(130);
+		const input = document.querySelector('.singleInput-rightSideBearing');
+		input.numberInput.value = '150';
+		input.numberInput.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(selected().advanceWidth).toBe(740);
+		editor.history.restoreState();
+		expect(selected().advanceWidth).toBe(720);
 	});
 
 	it('preserves transient export eligibility for glyphs, components, and ligatures across history', () => {
