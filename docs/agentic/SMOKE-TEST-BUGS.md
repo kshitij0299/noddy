@@ -226,3 +226,11 @@ Draft. Found on the way:
     was empty after a session restart, so every auto-saved project (Oblegg, Bakery Sans, DotGothic16
     copies) was gone from Restore. Autosave lives only in one browser's localStorage. Owner work
     must also land on disk: a dev-only "save to tmp/projects" route, or nudge to Save project file.
+54. **Chaos effects can't stack** (owner, 2026-10-28). Applying a second effect (for example Slash
+    then Glitch) replaces the first instead of building on it: Apply and Re-roll always start from
+    before the glyph's Chaos Draft (CHAOS-TOOLS.md "takes never stack", a deliberate v1 rule the
+    owner now overrides). Wanted: apply effect after effect on top of the current Draft; Re-roll
+    re-rolls only the last effect. Issue #103.
+55. **No visible log of changes / undo history** (owner, 2026-10-28). Undo works, but there is no
+    list of what changed (who: you / agent / Chaos, which glyph, which effect or tool, when) to
+    review or step back to. New UI needed. Issue #104.

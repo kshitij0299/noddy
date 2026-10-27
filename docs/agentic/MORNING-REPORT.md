@@ -19,7 +19,14 @@
 
 **Open:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs die with the MCP connection (bug 45). New bugs 42–51 in `SMOKE-TEST-BUGS.md` (stale server tool list, reload closes the project, Remix deck cycles and drifts off style, copied marks fail the outline check).
 
-**Next:** #98; then Remix deck fixes (bugs 46, 47, 49: always one card from the reference mark, no warps on pixel fonts, real seed variety, an "add-only" option); bugs 31, 36, 39 still open.
+**Next (owner-approved order, 2026-10-28):**
+1. **Don't lose work:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs survive reconnects (bugs 45, 51); reload keeps the open project (43); dev saves to `tmp/projects/` on disk, not only browser Restore (53).
+2. **Remix deck:** always one card from the reference mark (47), no warps on pixel fonts (46), real seed variety (49), "add only" option (owner request), copied marks untangle (50).
+3. **Chaos stacking:** [#103](https://github.com/kshitij0299/noddy/issues/103) apply effect on top of effect; Re-roll only the last (bug 54; overrides "takes never stack").
+4. **History log UI:** [#104](https://github.com/kshitij0299/noddy/issues/104) list of every change (who, glyph, what, when), step back to any point; design first (bug 55).
+5. **Small fixes batch:** 31, 39, 42, 52. Later: 36, then M8/M9 when unparked.
+
+Folder cleanup 2026-10-27: the only clone is `font agent/noddy`; old branches archived (`archive/*`, tag `archive/pre-cleanup-2026-10-27`); GitHub repos `Glyphr-Studio-2` and `-Help` archived. `main` is still Sep 12 (dev is 83 commits ahead; fast-forward, offered as a release PR).
 
 ## Local session 2026-10-23 → 26 (owner + orchestrator on the laptop) — READ THIS FIRST
 
