@@ -232,15 +232,31 @@ centre inside it. Phone: 3 stacked 80px rows + 2 × 12px gaps = 264px. */
 	color: var(--color-text-secondary);
 }
 
-/* The recommended start: filled so it stands apart, with a tag at the bottom. */
-#open-project__page .start-card--recommended,
-#open-project__page .start-card--recommended:hover {
+/* The recommended start: filled with the brand orange so it pops (same in both themes),
+   dark text on top for contrast. */
+#open-project__page .start-card--recommended {
 	position: relative;
-	background-color: var(--color-bg-accent-subtle);
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+#open-project__page .start-card--recommended:hover {
+	border-color: var(--color-text-on-accent);
+	background-color: var(--color-bg-accent);
+	color: var(--color-text-on-accent);
+}
+
+#open-project__page .start-card--recommended:active {
+	background-color: var(--color-bg-accent-hover);
 }
 
 .start-card--recommended .start-card__icon {
-	background-color: var(--color-bg-surface);
+	background-color: var(--peach-50);
+	color: var(--color-text-on-accent);
+}
+
+.start-card--recommended .start-card__line {
+	color: var(--color-text-on-accent);
 }
 
 .start-card__tag {
@@ -250,11 +266,11 @@ centre inside it. Phone: 3 stacked 80px rows + 2 × 12px gaps = 264px. */
 	right: var(--space-6);
 	padding: 0 var(--space-2);
 	border-radius: var(--radius-full, 999px);
-	background-color: var(--color-bg-surface);
+	background-color: var(--color-text-on-accent);
 	font-size: 0.75rem;
 	font-weight: 600;
 	line-height: 1.5;
-	color: var(--color-text-secondary);
+	color: var(--peach-50);
 }
 
 /* Licence note: one card in the cards' place. */
