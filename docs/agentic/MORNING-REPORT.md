@@ -19,6 +19,8 @@
 
 **Open:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs die with the MCP connection (bug 45). New bugs 42–51 in `SMOKE-TEST-BUGS.md` (stale server tool list, reload closes the project, Remix deck cycles and drifts off style, copied marks fail the outline check).
 
+**Launch plan (2026-10-28, owner-approved direction):** [`plans/LAUNCH.md`](plans/LAUNCH.md), GitHub milestone "Launch v0.1": L1 foundations [#117](https://github.com/kshitij0299/noddy/issues/117), L2 playbook [#118](https://github.com/kshitij0299/noddy/issues/118), L3 run with Claude Code via one copy-prompt [#119](https://github.com/kshitij0299/noddy/issues/119), L4 hosted mode on the owner's API key [#120](https://github.com/kshitij0299/noddy/issues/120), L5 landing page [#121](https://github.com/kshitij0299/noddy/issues/121), L6 release [#122](https://github.com/kshitij0299/noddy/issues/122). Decisions: repo goes public (after a secret scan), Sonnet for everyone and Opus only for the owner; login and cap have defaults the owner can change. The numbered list below is the L1 detail plus the later items (#103 Chaos stacking, #104 history log).
+
 **How to pick this up in a new session:** follow CLAUDE.md's checklist, read this section, then the issue for the next item. Each item below has an issue with acceptance criteria, except 6–7 which are described here. Owner's suggested start: 6, then 1.
 
 **Next (owner-approved order, 2026-10-28):**
