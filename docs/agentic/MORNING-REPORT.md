@@ -19,18 +19,20 @@
 
 **Open:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs die with the MCP connection (bug 45). New bugs 42–51 in `SMOKE-TEST-BUGS.md` (stale server tool list, reload closes the project, Remix deck cycles and drifts off style, copied marks fail the outline check).
 
+**How to pick this up in a new session:** follow CLAUDE.md's checklist, read this section, then the issue for the next item. Each item below has an issue with acceptance criteria, except 6–7 which are described here. Owner's suggested start: 6, then 1.
+
 **Next (owner-approved order, 2026-10-28):**
-1. **Don't lose work:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs survive reconnects (bugs 45, 51); reload keeps the open project (43); dev saves to `tmp/projects/` on disk, not only browser Restore (53).
-2. **Remix deck:** always one card from the reference mark (47), no warps on pixel fonts (46), real seed variety (49), "add only" option (owner request), copied marks untangle (50).
+1. **Don't lose work:** [#98](https://github.com/kshitij0299/noddy/issues/98) jobs survive reconnects (bugs 45, 51) and [#107](https://github.com/kshitij0299/noddy/issues/107) reload keeps the open project (43), dev saves to `tmp/projects/` on disk (53). Two PRs, one at a time.
+2. **Remix deck** [#108](https://github.com/kshitij0299/noddy/issues/108): always one card from the reference mark (47), no warps on pixel fonts (46), real seed variety (49), "add only" option (owner request), copied marks untangle (50).
 3. **Chaos stacking:** [#103](https://github.com/kshitij0299/noddy/issues/103) apply effect on top of effect; Re-roll only the last (bug 54; overrides "takes never stack").
 4. **History log UI:** [#104](https://github.com/kshitij0299/noddy/issues/104) list of every change (who, glyph, what, when), step back to any point; design first (bug 55).
-5. **Small fixes batch:** 31, 39, 42, 52. Later: 36, then M8/M9 when unparked.
+5. **Small fixes batch** (one PR, open an issue for it first): bug-log 31, 39, 42, 52 (52 = export a chosen glyph set; owner wanted only the 62 letters and figures). Later: 36, then M8/M9 when unparked.
 6. **Issue hygiene:** make `dev` the GitHub default branch so "Closes #N" works (owner OK needed for the setting); close issues already done (56 open, many merged, e.g. #95, #97) with PR links; flag stale ones; open issues for bug-log entries that lack one. Rule from then on: every real bug/feature gets an issue, `SMOKE-TEST-BUGS.md` links to it.
 7. **Release:** PR `dev` → `main` as a release once the owner is happy (`main` is still Sep 12).
 
 Folder cleanup 2026-10-27: the only clone is `font agent/noddy`; old branches archived (`archive/*`, tag `archive/pre-cleanup-2026-10-27`); GitHub repos `Glyphr-Studio-2` and `-Help` archived. `main` is still Sep 12 (dev is 83 commits ahead; fast-forward, offered as a release PR).
 
-## Local session 2026-10-23 → 26 (owner + orchestrator on the laptop) — READ THIS FIRST
+## Local session 2026-10-23 → 26 (owner + orchestrator on the laptop)
 
 **Merged into `dev` (in order):**
 - [#84](https://github.com/kshitij0299/noddy/pull/84) dev-only `.env.local` key: type `env` as the OpenRouter key on the dev server (free models only); per-step 5-min timeout.
