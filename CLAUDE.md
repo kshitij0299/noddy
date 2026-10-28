@@ -2,6 +2,17 @@
 
 Noddy is a fork of Glyphr Studio 2 (GPL-3.0) being turned into an agentic font editor.
 
+## Owner rules (binding; they used to live only in session memory)
+- Subagents NEVER use the Claude browser pane (`mcp__Claude_Browser__*`): it's the owner's live workspace. Headless Playwright only, on your own port.
+- The owner's dev server is port 5300 from this folder. Never use 5187 or 5300 for tests; never kill a server you didn't start without asking.
+- Save the owner's open project to `tmp/projects/` (and tell them) before any dev-server restart or `git pull`: a pull reloads the page and closes the project (bug 43); browser Restore is not durable (bug 53).
+- Never read or print `.env.local` (it's ignored via `.git/info/exclude`). On the dev server, typing `env` as the OpenRouter key uses it.
+- Cost discipline in `docs/agentic/WORKFLOW.md` is binding: one PR per issue → QA → squash-merge into `dev`; code/design subagents on Opus, read-only QA on Sonnet, effort medium set explicitly; no Fable; one heavy run at a time.
+- Log every bug you hit in `docs/agentic/SMOKE-TEST-BUGS.md` and give real ones a GitHub issue.
+- Remix taste: add marks in the owner's reference style; reshape only a little; no mirror/kick/warps on pixel fonts.
+- Driving Noddy yourself over MCP: `plans/LOCAL-AGENT-MCP.md`. Glyph jobs die with the MCP session (#98), so keep ONE session open for a whole run (the local helper `tmp/noddy-mcp/driver.mjs` does this; `tmp/` is git-ignored).
+- Explain things to the owner simply and briefly.
+
 ## Starting a session (do this first, every time)
 1. Check that you are on branch `dev`. On the owner's laptop, work in `font agent/noddy` (the only clone, cleaned up 2026-10-27; remotes `noddy` = this repo, `upstream` = glyphr-studio/Glyphr-Studio-2). Old phase and Codex branches are archived on GitHub (`archive/*` branches, tag `archive/pre-cleanup-2026-10-27`). The owner's dev server: `npx vite serve ./src/ --port 5300 --strictPort` from this folder.
 2. Ask the owner before pulling, then run `git pull --ff-only` on `dev` (cloud sessions push there too).
