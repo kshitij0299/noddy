@@ -10,6 +10,10 @@ Owner request (2026-10-28). Noddy works really well when Claude Code drives it (
    all the goodness of the Claude Code run, powered by the owner's Anthropic API key, with hard
    spending limits and a login.
 
+**Scope (owner, 2026-10-28): make Noddy ready to go public and ready to go live. The owner decides
+later where and how to host;** so build hosting-agnostic (a Dockerfile plus plain env vars that run
+on any Node host), document the steps, and stop before choosing a provider or deploying.
+
 This file is the brief for a cloud agent. Each milestone has a GitHub issue (milestone "Launch v0.1").
 Follow `CLAUDE.md`, `AGENTS.md` and `docs/agentic/WORKFLOW.md` (one PR per issue into `dev`, QA tiers,
 cost discipline). Bugs go in `docs/agentic/SMOKE-TEST-BUGS.md` with an issue.
@@ -20,9 +24,9 @@ cost discipline). Bugs go in `docs/agentic/SMOKE-TEST-BUGS.md` with an issue.
 |---|---|
 | Repo visibility | **Public** (it's a GPL-3.0 fork of Glyphr Studio 2; open source). Flip only after the secret scan in L3 is clean. |
 | Models online | **Sonnet for everyone; Opus only for the owner.** Haiku allowed for cheap sub-steps. |
-| Login online | Default: **email invite via Cloudflare Access** (free up to 50 users, one-time code by email). Owner may switch to a shared password. |
-| Spending cap | Default: **$20/month** hard cap in the Anthropic Console, plus Noddy's own daily caps (L4). Owner may change. |
-| Host | Default: **one small always-on Node service (Fly.io or Render)** serving the built app plus the agent relay, behind Cloudflare. |
+| Login online | **Owner decides at go-live.** Build both: a shared password (signed cookie, works anywhere) and support for an access proxy in front (e.g. Cloudflare Access email invites) via a trusted identity header. |
+| Spending cap | **Owner sets at go-live.** Build the caps as env settings (suggested start: $20/month Console cap, Noddy daily caps below). |
+| Host | **Owner decides at go-live.** Ship a Dockerfile + env docs that run on any Node host (Fly.io, Render, a VPS); nothing provider-specific. |
 
 ## The core idea: one Noddy playbook
 
@@ -56,6 +60,11 @@ Done when a 26-glyph Remix run survives a reconnect and a reload without losing 
   no TOO_SIMILAR loops, the reference card appears in every hand, tool replies stay in budget.
 
 ### L3. Local path: "Run it with Claude Code" in one paste
+Starting point (2026-10-28): the repo already has a `/noddy` Claude Code command
+(`.claude/commands/noddy.md`) that starts the dev server, fetches the pairing token from
+`/api/agent/bridge`, registers the MCP server and opens the browser; the user then turns on Local
+agent once and runs `/mcp` reconnect. L3 removes those two manual steps and makes it work from a
+fresh clone.
 Goal: a user pastes one prompt into Claude Code (anywhere on their machine) and ends up with Noddy
 open in their browser and Claude Code connected.
 - **One command:** `npm run noddy` (new script): `npm ci` if needed, pick a free port (default
@@ -99,7 +108,13 @@ bring a key. Add a **hosted mode** (env `NODDY_HOSTED=1`), protected area: tier-
   output tokens, max tool calls per run, max images per run, max run length.
 - **Models:** Sonnet for everyone; Opus only for the owner's identity; Haiku for cheap sub-steps.
   Use **prompt caching** for the tool definitions and the playbook.
-- **Same goodness as Claude Code:** the built-in agent gets the L2 playbook, renders and looks at
+- **Same goodness as Claude Code: run the hosted agent with the Claude Agent SDK.** Recommended
+  design: keep the tools exactly where they run today (in the user's tab, behind the same bridge the
+  local MCP path uses) and replace the human's Claude Code with a server-side agent built on the
+  **Claude Agent SDK** (the harness Claude Code itself uses), connected to that bridge as an MCP
+  client, with the L2 playbook as its instructions. Then hosted and local share tools, playbook and
+  agent harness; only the model and the caps differ. Compare it with the browser built-in loop on the
+  L2 eval and pick the better one; the fallback is the built-in agent with the L2 playbook, renders and looks at
   every glyph, regrets a move, runs whole-set jobs across messages (L1 #111), and keeps going without
   the user re-prompting. Compare against the local run on the same fixture (the L2 eval) before
   launch.
@@ -108,9 +123,11 @@ bring a key. Add a **hosted mode** (env `NODDY_HOSTED=1`), protected area: tier-
 - **UI changes (hosted only):** no Local agent switch; no provider/key setup; a small credits meter;
   "Out of credits" state; **Save project file** made obvious (browser Restore isn't durable, bug 53);
   a footer link to "Run it yourself with Claude Code".
-- **Deploy:** a Dockerfile or platform config serving `vite build` output plus the relay; health
-  check; env secrets; HTTPS. The cloud agent prepares the config and docs; **the owner creates the
-  accounts, sets secrets and spend caps, and presses deploy**.
+- **Deploy-ready, not deployed:** a Dockerfile serving the `vite build` output plus the relay, a
+  health check, an `.env.example` listing every setting (key, login mode, caps, allowed models,
+  owner identity), and `docs/HOSTING.md` with step-by-step go-live for any Node host. A local
+  `docker run` with a mocked provider must pass the L4 checks. **The owner picks the host, creates
+  accounts, sets secrets and caps, and deploys.**
 
 ### L5. Landing page
 - Two big choices: **Use it online** (to the login, then the app) and **Run it with Claude Code**
@@ -124,8 +141,8 @@ bring a key. Add a **hosted mode** (env `NODDY_HOSTED=1`), protected area: tier-
 
 ### L6. Release and launch
 - Issue hygiene first (#115). Release `dev` → `main` (#116), tag `v0.1.0`, release notes.
-- Hosted app live behind login with caps verified (a deliberately tiny cap test: the panel shows
-  "Out of credits").
+- Hosted build verified locally in Docker behind the login with caps (a deliberately tiny cap test:
+  the panel shows "Out of credits"); going live on a host is the owner's step.
 - The copy prompt verified on a clean account. Landing page live. Owner flips the repo public.
 
 ## What a cloud agent can and can't do
