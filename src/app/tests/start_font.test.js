@@ -182,20 +182,24 @@ describe('New font screen DOM (#23)', () => {
 		expect(page.querySelector('.start__set').textContent).toContain('Latin Kernel · 116');
 
 		const cards = [...page.querySelectorAll('.start-card')];
-		expect(cards.map((card) => card.dataset.start)).toEqual(['agent', 'draw', 'file']);
+		expect(cards.map((card) => card.dataset.start)).toEqual(['file', 'agent', 'draw']);
 		expect(cards.map((card) => card.querySelector('.start-card__title').textContent)).toEqual([
+			'From a font file',
 			'Start with agent',
 			'Draw myself',
-			'From a font file',
 		]);
 		// Real buttons: Tab reaches them after the name field, Enter activates.
 		cards.forEach((card) => expect(card.tagName).toBe('BUTTON'));
 		expect(
 			name.compareDocumentPosition(cards[0]) & Node.DOCUMENT_POSITION_FOLLOWING
 		).toBeTruthy();
-		expect(cards[0].querySelector('.start-card__mark')).not.toBeNull();
-		expect(cards[1].querySelector('.material-symbols-rounded').textContent).toBe('ink_pen');
-		expect(cards[2].querySelector('.material-symbols-rounded').textContent).toBe('upload_file');
+		expect(cards[0].querySelector('.material-symbols-rounded').textContent).toBe('upload_file');
+		expect(cards[1].querySelector('.start-card__mark')).not.toBeNull();
+		expect(cards[2].querySelector('.material-symbols-rounded').textContent).toBe('ink_pen');
+		// Only the file start is recommended: filled, with a tag.
+		expect(cards.map((card) => card.classList.contains('start-card--recommended'))).toEqual([true, false, false]);
+		expect(cards[0].querySelector('.start-card__tag').textContent).toBe('Recommended');
+		expect(page.querySelectorAll('.start-card__tag')).toHaveLength(1);
 		expect(START_CARDS.every((card) => !card.line.includes('.'))).toBe(true);
 	});
 

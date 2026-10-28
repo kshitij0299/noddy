@@ -232,6 +232,31 @@ centre inside it. Phone: 3 stacked 80px rows + 2 × 12px gaps = 264px. */
 	color: var(--color-text-secondary);
 }
 
+/* The recommended start: filled so it stands apart, with a tag at the bottom. */
+#open-project__page .start-card--recommended,
+#open-project__page .start-card--recommended:hover {
+	position: relative;
+	background-color: var(--color-bg-accent-subtle);
+}
+
+.start-card--recommended .start-card__icon {
+	background-color: var(--color-bg-surface);
+}
+
+.start-card__tag {
+	/* Top-right, level with the icon: the titles stay level across cards and nothing collides. */
+	position: absolute;
+	top: calc(var(--space-6) + 16px);
+	right: var(--space-6);
+	padding: 0 var(--space-2);
+	border-radius: var(--radius-full, 999px);
+	background-color: var(--color-bg-surface);
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1.5;
+	color: var(--color-text-secondary);
+}
+
 /* Licence note: one card in the cards' place. */
 .start__note {
 	box-sizing: border-box;

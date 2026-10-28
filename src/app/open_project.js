@@ -50,9 +50,10 @@ export const FONT_FILE_ACCEPT = '.otf,.ttf,.woff,.svg';
 
 /** The three starts, in order. `icon` is a Material Symbol; null uses the Noddy mark. */
 export const START_CARDS = Object.freeze([
+	// The file start comes first and is the recommended one (owner, 2026-10-28).
+	{ id: 'file', title: 'From a font file', line: 'OTF, TTF or SVG', icon: 'upload_file', recommended: true },
 	{ id: 'agent', title: 'Start with agent', line: 'Describe it, approve it', icon: null },
 	{ id: 'draw', title: 'Draw myself', line: 'Pen and points', icon: 'ink_pen' },
-	{ id: 'file', title: 'From a font file', line: 'OTF, TTF or SVG', icon: 'upload_file' },
 ]);
 
 /**
@@ -191,7 +192,7 @@ export function makeStartCards() {
 	START_CARDS.forEach((card) => {
 		const button = makeElement({
 			tag: 'button',
-			className: 'start-card',
+			className: card.recommended ? 'start-card start-card--recommended' : 'start-card',
 			attributes: { type: 'button', 'data-start': card.id },
 			onClick: () => handleStart(card.id),
 		});
@@ -203,6 +204,9 @@ export function makeStartCards() {
 			makeElement({ tag: 'span', className: 'start-card__title', content: card.title }),
 			makeElement({ tag: 'span', className: 'start-card__line', content: card.line }),
 		]);
+		if (card.recommended) {
+			button.appendChild(makeElement({ tag: 'span', className: 'start-card__tag', content: 'Recommended' }));
+		}
 		row.appendChild(button);
 	});
 	return row;
