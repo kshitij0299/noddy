@@ -1,70 +1,83 @@
-# Noddy
+<p align="center">
+  <img src="src/common/graphics/noddy-logo-big.svg" alt="Noddy" width="320">
+</p>
 
-Noddy is an independent fork of Glyphr Studio 2 (GPL-3.0-or-later) by Matt LaGrandeur and contributors.
+<p align="center">
+  An open-source agentic font editor. Talk to your type.
+</p>
 
-Noddy is a web-based font editor, optimized for typeface design beginners or hobbyists.
+<p align="center">
+  <img src="https://res.cloudinary.com/dnsylvhmw/video/upload/w_960,fps_15,e_loop/ux-portfolio-2026/case-studies/noddy/film.gif" alt="Claude Code remixing all 62 letters and figures of a pixel font in Noddy" width="100%">
+</p>
 
-## Native agent (development branch)
+Noddy is a browser font editor with an AI agent built in. The agent draws by calling the editor's own operations (no screen clicking), so you watch the font change live and can open any letter and fix it by hand with the pen tool. Everything the agent draws lands as a **Draft** until you press **Keep**.
 
-Use the **Agent** toggle at the right of the header to edit the current character through fixed native tools. The welcome screen also has an agent composer. Connect your own OpenAI or OpenCode Zen key; both inputs accept pictures and OTF/TTF references.
+Noddy is a fork of [Glyphr Studio 2](https://github.com/glyphr-studio/Glyphr-Studio-2).
 
-See [agent setup and capabilities](docs/agent/README.md), [provider configuration](docs/agent/PROVIDERS.md), and [verification](docs/agent/MILESTONE-1.md). The normal editor still works as a static app; agent requests require the local Node relay.
+> [!NOTE]
+> Noddy is in development. Editing an existing font works best right now; other features are still rough.
 
-## Links
+## Features
 
-| Website     | [glyphrstudio.com](https://www.glyphrstudio.com)                    |
-| :---------- | :------------------------------------------------------------------ |
-| Email       | [mail@glyphrstudio.com](mailto:mail@glyphrstudio.com)               |
-| App         | [glyphrstudio.com/app](https://www.glyphrstudio.com/app)            |
-| Help & Docs | [glyphrstudio.com/help](https://www.glyphrstudio.com/help/)         |
-| Blog        | [glyphrstudio.com/blog](https://www.glyphrstudio.com/blog/)         |
-| Mastodon    | [@glyphrstudio@typo.social](https://typo.social/@glyphrstudio)      |
-| Bluesky     | [@glyphrstudio.com](https://bsky.app/profile/glyphrstudio.com)      |
-| Reddit      | [reddit.com/r/GlyphrStudio](https://www.reddit.com/r/GlyphrStudio/) |
-| GitHub      | [github.com/glyphr-studio](https://github.com/glyphr-studio)        |
+- **Agent panel.** Ask for changes in plain words ("give every letter a slash like the A"). Big jobs stop for your approval after the first few control glyphs (n o H O).
+- **Remix mode.** Style one letter yourself, and the agent carries that idea across the set with a different move on each glyph. Every take has a seed, so it can be reproduced or re-rolled.
+- **Chaos tools.** Algorithmic effects with no AI: slash cut, glitch bands, warp, grid snap and Pixel Life. Seeded, previewed, and checked by a legibility guard.
+- **Works with Claude Code.** Noddy runs a local MCP server, so Claude Code can drive the editor as its agent. Other models work through API keys (OpenAI, OpenCode Zen).
+- **Glyphr Studio compatible.** Projects use the same `.gs2` format. Import and export OTF/TTF.
 
-## Approach
+## Run it with Claude Code
 
-So, here at Glyphr Studio, we've always had a very strong DIY attitude - this means:
+Requirements: git, Node 22 or newer, and [Claude Code](https://claude.com/claude-code).
 
-- The only external library we will use _for the UI_ is FontFlux JS, for importing and
-  exporting OTF files.
-  - This means no UI Frameworks like React or Vue, and no helper libraries like Paper.js.
-  - For boolean (combine) path operations, we use [bezier-boolean](https://www.npmjs.com/package/bezier-boolean).
-- The app build will output HTML, JavaScript, CSS, and asset files:
-  - Continuing the ability to run on a local server (or online) without a back-end.
-  - Build process using Vite for modules.
+Paste this into Claude Code from any folder. It clones the repo, installs, starts Noddy, opens it in your browser and connects itself as the agent.
 
-## Timeline / Retrospective
+```text
+Set up Noddy for me, one step at a time, and talk to me in plain words. Noddy is an open-source font editor with an AI agent, forked from Glyphr Studio 2.
 
-While most user scenarios and functionality are the same as v1, the one main
-functionality improvement for v2 was **multi-project editing** that allows for
-cross-project copy/paste and merging fonts.
+1. Ask me which folder to save it in. Clone https://github.com/kshitij0299/noddy there with --branch dev.
+2. Check that git and Node 22 or newer are installed. If not, tell me how to install them and wait for me.
+3. Run npm ci in the clone.
+4. Read .claude/commands/noddy.md in the clone and follow its steps 1 to 5. Start the dev server in the background. Use port 5300 unless it is busy. If it is busy, tell me and ask before using another free port (never 5187), then use that port everywhere the file says 5300. Run claude mcp add from the folder this chat started in, not from the clone.
+5. Open Noddy in my browser and walk me through each click: open a project, press Local agent (the terminal button) in the agent panel, then type /mcp here and reconnect noddy.
+6. Check the connection by calling get_context.
 
-The overall goal for v2 is codebase modernization. Much of the v1 code hasn't been
-worked on since 2010, so it was time to do an all-up scrub.
+If any step fails, say sorry plainly, try to fix it, and tell me honestly if you can't.
 
-Preliminary investigations started in 2019... but Covid slowed things way down.
-Things picked back up in 2021/2022. Alphas and Betas were released in late 2022
-/ early 2023, and v2.0.0 was released in December 2023.
+When it works, say "You can start chatting with Noddy." Suggest I open an existing font and edit it, because the other features are still rough. Remind me that Noddy is still in development.
+```
 
-On January 15th, 2024, the default experience was switched from v1 to v2. V1 will continue
-to exist in a /v1/ sub-directory, but it will be deprecated (only very major bugs will be fixed).
+### Manual setup
 
-## Contributing
+```bash
+git clone --branch dev https://github.com/kshitij0299/noddy.git
+cd noddy
+npm ci
+npx vite serve ./src/ --port 5300 --strictPort
+```
 
-This project uses Vite for bundling and testing. Current working source code is in the
-`/src` directory, and the latest stable release is bundled and put in the `/dist` directory.
-Read more about how the code is structured and how to contribute features in: [/src/README.md](./src/README.md).
+Open http://localhost:5300. To connect Claude Code, run `/noddy` from inside the clone ([`.claude/commands/noddy.md`](.claude/commands/noddy.md)). It fetches a pairing token, registers the `noddy` MCP server and opens the browser. Then turn on **Local agent** in the agent panel and reconnect `noddy` with `/mcp`.
 
-## License
+The default branch, `main`, is an older version without the agent. Use `dev`.
 
-Copyright (C) 2010 - 2026 Matthew LaGrandeur, released under
-[GPL 3.0](https://github.com/mattlag/Glyphr-Studio/blob/master/LICENSE-gpl-3.0.txt)
+## Made with Noddy
 
-## Author
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/slash-gothic-dark.svg">
+  <img src="docs/readme/slash-gothic-light.svg" alt="Slash Gothic specimen: talk to your type, A to Z, a to z, 0 to 9" width="100%">
+</picture>
 
-| ![Matthew LaGrandeur's picture](https://1.gravatar.com/avatar/f6f7b963adc54db7e713d7bd5f4903ec?s=70) |
-| ---------------------------------------------------------------------------------------------------- |
-| [Matthew LaGrandeur](http://mattlag.com/)                                                            |
-| matt[at]mattlag[dot]com                                                                              |
+Slash Gothic, a remix of DotGothic16 (OFL). One hand-drawn 51° slash on the A, then Claude Code carried it across all 62 letters and figures over MCP.
+
+## Docs
+
+- [Product decisions](docs/agentic/PRODUCT.md)
+- [Chaos tools](docs/agentic/CHAOS-TOOLS.md)
+- [Remix mode](docs/agentic/REMIX-MODE.md)
+- [Architecture](docs/agentic/ARCHITECTURE.md)
+- [Launch plan](docs/agentic/plans/LAUNCH.md)
+
+## Credits and license
+
+Noddy is an independent fork of [Glyphr Studio 2](https://github.com/glyphr-studio/Glyphr-Studio-2) by Matt LaGrandeur and contributors, released under GPL-3.0-or-later. Noddy stays under the same license. See [NOTICE](NOTICE) for what changed and [LICENSE-gpl-3.0.txt](LICENSE-gpl-3.0.txt) for the full text.
+
+Fonts you make with Noddy belong to you.
