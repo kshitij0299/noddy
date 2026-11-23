@@ -226,7 +226,8 @@
 	selectors (#app__top-bar, #open-project__page), so every rule here weighs at least
 	(1,2,0). That beats the components' pinned `button.x:active` / `:hover` rules (pinned
 	against the old reset) without !important and without touching each file. Selected and
-	disabled controls are excluded, so pressing one never repaints it. */
+	disabled controls are excluded, so pressing one never repaints it; a toggle button
+	(aria-pressed, like the theme switch) still shows the press. */
 :is(
 		#app__top-bar .top-bar__mark,
 		#app__top-bar .icon-button,
@@ -259,7 +260,7 @@
 		[aria-disabled='true'],
 		[aria-checked='true'],
 		[aria-selected='true'],
-		[aria-pressed='true'],
+		.segmented-pill__segment[aria-pressed='true'],
 		.is-active
 	) {
 	background-color: var(--state-pressed-bg);

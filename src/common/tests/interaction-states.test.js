@@ -83,7 +83,13 @@ describe('shared lists for existing controls', () => {
 
 	it('never repaints a selected control on press', () => {
 		const pressed = stripComments(interaction).match(/\):active:not\(([^{]*)\)\s*\{\s*background-color: var\(--state-pressed-bg\)/);
-		for (const state of ["[aria-checked='true']", "[aria-selected='true']", "[aria-pressed='true']", '.is-active', ':disabled'])
+		for (const state of [
+			"[aria-checked='true']",
+			"[aria-selected='true']",
+			".segmented-pill__segment[aria-pressed='true']",
+			'.is-active',
+			':disabled',
+		])
 			expect(pressed?.[1]).toContain(state);
 	});
 
