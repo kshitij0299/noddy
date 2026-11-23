@@ -5,7 +5,7 @@ import { agentRelayPlugin } from '../server/agent/vite-plugin.js';
 
 export default defineConfig({
 	// React only renders islands (the agent composer, #126); the app itself is vanilla JS + lit.
-	plugins: [react(), agentRelayPlugin()],
+	plugins: [react({ include: /\.jsx$/ }), agentRelayPlugin()],
 	build: {
 		outDir: '../dist/',
 		manifest: false,
