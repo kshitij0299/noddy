@@ -73,6 +73,10 @@
 	border-color: var(--border-resting);
 	border-right-color: transparent;
 	border-radius: var(--radius-sm, 4px) 0px 0px var(--radius-sm, 4px);
+	/* Shared timing on paint properties only (#128), not the legacy `all 80ms`. */
+	transition: border-color var(--state-duration, 120ms) var(--state-easing, ease),
+		background-color var(--state-duration, 120ms) var(--state-easing, ease),
+		color var(--state-duration, 120ms) var(--state-easing, ease);
 	grid-column: 1;
 	/* min-width:0 lets paired inputs shrink to their 1fr cell instead of
 	pushing the card grid wider; the value still scrolls inside the input. */
