@@ -417,7 +417,7 @@ describe('New chat (bug 20)', () => {
 	});
 });
 
-describe('Agent | Chaos tabs shell', () => {
+describe('Agent | Tools tabs shell', () => {
 	it('no tab row ships without a chaos tool; the plain title shows', () => {
 		const panel = panelFixture({ controller: fakeController() });
 		expect(panel.tabs.root.hidden).toBe(true);
@@ -435,7 +435,7 @@ describe('Agent | Chaos tabs shell', () => {
 		expect(panel.tabs.root.hidden).toBe(false);
 		expect(panel.panel.querySelector('.agent-panel__title').hidden).toBe(true);
 		const tabs = [...panel.tabs.root.querySelectorAll('[role="tab"]')];
-		expect(tabs.map((t) => t.textContent)).toEqual(['Agent', 'Chaos']);
+		expect(tabs.map((t) => t.textContent)).toEqual(['Agent', 'Tools']);
 		expect(tabs[0].getAttribute('aria-selected')).toBe('true');
 		tabs[0].focus();
 		keyDown(tabs[0], 'ArrowRight');

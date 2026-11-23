@@ -594,7 +594,7 @@ export function createChaosTab({ getEditor }) {
 	const root = el('div', 'chaos-tab');
 	const tools = el('div', 'chaos-tab__tools');
 	tools.setAttribute('role', 'radiogroup');
-	tools.setAttribute('aria-label', 'Chaos tools');
+	tools.setAttribute('aria-label', 'Tools');
 	const body = el('section', 'chaos-tab__tool agent-chaos-tool');
 	root.append(tools, body);
 	const shared = { chaosDrafts: new Set() };
