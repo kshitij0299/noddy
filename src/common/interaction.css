@@ -223,8 +223,8 @@
 	disabled look and one motion timing.
 
 	Specificity: :is() takes the weight of its heaviest argument, and the list holds ID-scoped
-	selectors (#app__top-bar, #open-project__page), so every rule here weighs at least
-	(1,2,0). That beats the components' pinned `button.x:active` / `:hover` rules (pinned
+	selectors (#app__top-bar, #open-project__page), so every rule here has ID weight
+	(1,1,0) plus its pseudo-classes. That beats the components' pinned `button.x:active` / `:hover` rules (pinned
 	against the old reset) without !important and without touching each file. Selected and
 	disabled controls are excluded, so pressing one never repaints it; a toggle button
 	(aria-pressed, like the theme switch) still shows the press. */
