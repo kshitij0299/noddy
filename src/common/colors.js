@@ -206,14 +206,15 @@ export const designTokens = {
 		muted: 'oklch(0.9702 0 0)',
 		mutedForeground: 'oklch(0.5931 0.0295 44.5478)',
 		border: 'oklch(0.9055 0.0111 54.4854)',
-		ring: 'oklch(0.8141 0.1261 58.1544)',
+		ring: '#bd712d', // = --color-focus-ring, peach/600 (#128)
 		destructive: 'oklch(0.6137 0.2039 25.5645)',
 	},
 	dark: {
 		background: 'oklch(0.1979 0.0107 39.2759)',
 		foreground: 'oklch(0.9799 0.0076 48.6561)',
 		card: 'oklch(0.1979 0.0107 39.2759)',
-		// primary / primaryForeground / ring unchanged from light (peach passes on both)
+		// primary / primaryForeground unchanged from light (peach passes on both)
+		ring: '#ffad6c', // = --color-focus-ring, peach/300 (#128)
 		secondary: 'oklch(0.2404 0.0153 39.2562)',
 		muted: 'oklch(0.2572 0.015 39.2662)',
 		mutedForeground: 'oklch(0.6848 0.0223 48.3765)',

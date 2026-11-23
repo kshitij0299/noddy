@@ -193,7 +193,8 @@ describe('CSS typography guard (Contract 2 §2)', () => {
 			'--background: oklch(1 0 0);',
 			'--foreground: oklch(0.2707 0.054 44.1725);',
 			'--primary: oklch(0.8141 0.1261 58.1544);',
-			'--ring: oklch(0.8141 0.1261 58.1544);',
+			// --ring follows the focus-ring token since #128 (AA ring; see FIGMA-SPEC §1).
+			'--ring: var(--color-focus-ring);',
 			'--destructive: oklch(0.6137 0.2039 25.5645);',
 			'--background: oklch(0.1979 0.0107 39.2759);',
 			'--foreground: oklch(0.9799 0.0076 48.6561);',
