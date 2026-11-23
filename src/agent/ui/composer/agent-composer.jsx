@@ -7,7 +7,7 @@
  * Telephone and Target are read from and written to ../../agent-controls.js, which stays the
  * source of truth for readAgentControls().
  */
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
 	Menu,
 	MenuCheckboxItem,
@@ -38,7 +38,12 @@ import {
 	SliderValue,
 } from '@ui-sdk/react/slider';
 import { Textarea } from '@ui-sdk/react/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@ui-sdk/react/tooltip';
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+	createTooltipController,
+} from '@ui-sdk/react/tooltip';
 import {
 	TriggerMenu,
 	TriggerMenuContent,
@@ -152,6 +157,91 @@ export function composerCommands({ busy, settings, starters }) {
 	return list;
 }
 
+/**
+ * Runs a command from the + menu or the `/` list.
+ * @param {String} value - a command value from composerCommands()
+ * @param {'menu'|'slash'} from
+ * @param {Object} context
+ * @param {() => any} context.getEditor
+ * @param {{telephone: Boolean}} context.settings - the settings the list was drawn with
+ * @param {{openChooser: () => void, useStarter: (text: String) => void}} context.actions
+ * @param {() => void} context.openChaos
+ * @param {(after: () => void) => void} context.afterMenuClose - runs `after` once the + menu has
+ *   closed and handed focus back (opening a popover or moving focus before that loses it)
+ */
+export function runComposerCommand(
+	value,
+	from,
+	{ getEditor, settings, actions, openChaos, afterMenuClose }
+) {
+	if (value === 'attach') actions.openChooser();
+	else if (value.startsWith('mode:')) setMode(getEditor(), value.slice(5));
+	else if (value === 'telephone') setTelephone(getEditor(), !settings.telephone);
+	else if (value === 'chaos') {
+		if (from === 'menu') afterMenuClose(openChaos);
+		else openChaos();
+	} else if (value.startsWith('starter:') && from === 'menu') {
+		const text = value.slice(8);
+		afterMenuClose(() => actions.useStarter(text));
+	}
+}
+
+/**
+ * The `/` list's onSelect: replaces the typed `/word` with the starter (or with nothing for the
+ * other commands), then runs the command.
+ * @param {String|Number} value
+ * @param {{insert: (text: String) => void}} details - ui-sdk's select details
+ * @param {Parameters<typeof runComposerCommand>[2]} context
+ */
+export function selectFromSlash(value, details, context) {
+	const text = String(value);
+	details.insert(text.startsWith('starter:') ? `${text.slice(8)} ` : '');
+	runComposerCommand(text, 'slash', context);
+}
+
+/** A tooltip controller the facade can close on Esc (see agent-panel-composer.js). */
+function useEscapableTooltip(registry) {
+	const [controller] = useState(() => createTooltipController());
+	useEffect(() => {
+		registry.add(controller);
+		return () => {
+			registry.delete(controller);
+		};
+	}, [registry, controller]);
+	return controller;
+}
+
+/** One attachment chip: the name truncates, the × always shows. */
+function AttachmentChip({ attachment, busy, container, tooltips, onRemove }) {
+	const tip = useEscapableTooltip(tooltips);
+	return (
+		<li className="agent-attachment text-label">
+			<Icon name={attachment.kind === 'font' ? 'font_download' : 'image'} />
+			<span className="agent-attachment__name" title={attachment.name}>
+				{attachment.name}
+			</span>
+			<Tooltip controller={tip}>
+				<TooltipTrigger
+					render={
+						<button
+							type="button"
+							className="nd-control nd-control--icon agent-attachment__remove"
+							aria-label={`Remove ${attachment.name}`}
+							disabled={busy}
+							onClick={onRemove}
+						/>
+					}
+				>
+					<Icon name="close" />
+				</TooltipTrigger>
+				<TooltipContent container={container} className="agent-tooltip text-label">
+					Remove
+				</TooltipContent>
+			</Tooltip>
+		</li>
+	);
+}
+
 function groupsOf(commands) {
 	const groups = [];
 	for (const command of commands) {
@@ -168,14 +258,28 @@ function groupsOf(commands) {
  * @param {() => any} props.getEditor
  * @param {Element} props.container - where popups render (inside the panel, so its key guard holds)
  * @param {Object} props.inputController - from createInputController()
+ * @param {Object} props.slashMenu - from createTriggerMenuController()
+ * @param {Set<Object>} props.tooltips - tooltip controllers, for the facade's Esc
  * @param {Object} props.actions
  */
-export function AgentComposer({ store, getEditor, container, inputController, actions }) {
+export function AgentComposer({
+	store,
+	getEditor,
+	container,
+	inputController,
+	slashMenu,
+	tooltips,
+	actions,
+}) {
 	const state = useSyncExternalStore(store.subscribe, store.get);
 	const [chaosPopover] = useState(() => createPopoverController());
 	const [plus, setPlus] = useState(/** @type {HTMLElement|null} */ (null));
 	const [box, setBox] = useState(/** @type {HTMLElement|null} */ (null));
-	const chaosAfterClose = useRef(false);
+	/** @type {React.MutableRefObject<(() => void) | null>} */
+	const afterClose = useRef(null);
+	const plusTip = useEscapableTooltip(tooltips);
+	const modelTip = useEscapableTooltip(tooltips);
+	const sendTip = useEscapableTooltip(tooltips);
 
 	const editor = getEditor();
 	const settings = getModeSettings(editor);
@@ -189,18 +293,13 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 		chaosPopover.open({ anchor: box || plus || undefined });
 	}
 
-	/** @param {String} value @param {'menu'|'slash'} from */
-	function run(value, from) {
-		if (value === 'attach') actions.openChooser();
-		else if (value.startsWith('mode:')) setMode(getEditor(), value.slice(5));
-		else if (value === 'telephone') setTelephone(getEditor(), !settings.telephone);
-		else if (value === 'chaos') {
-			// From the + menu, wait until it has closed and handed focus back.
-			if (from === 'menu') chaosAfterClose.current = true;
-			else openChaos();
-		} else if (value.startsWith('starter:') && from === 'menu')
-			actions.useStarter(value.slice(8));
-	}
+	const commandContext = {
+		getEditor,
+		settings,
+		actions,
+		openChaos,
+		afterMenuClose: (after) => (afterClose.current = after),
+	};
 
 	const modeLabel = modeShort(settings);
 	const plusName =
@@ -211,28 +310,14 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 			{attachments.length > 0 && (
 				<ul className="agent-composer__attachments" aria-label="Attachments">
 					{attachments.map((attachment) => (
-						<li key={attachment.id} className="agent-attachment text-label">
-							<Icon name={attachment.kind === 'font' ? 'font_download' : 'image'} />
-							<span className="agent-attachment__name">{attachment.name}</span>
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<button
-											type="button"
-											className="nd-control nd-control--icon agent-attachment__remove"
-											aria-label={`Remove ${attachment.name}`}
-											disabled={busy}
-											onClick={() => actions.removeAttachment(attachment.id)}
-										/>
-									}
-								>
-									<Icon name="close" />
-								</TooltipTrigger>
-								<TooltipContent container={container} className="agent-tooltip text-label">
-									Remove
-								</TooltipContent>
-							</Tooltip>
-						</li>
+						<AttachmentChip
+							key={attachment.id}
+							attachment={attachment}
+							busy={busy}
+							container={container}
+							tooltips={tooltips}
+							onRemove={() => actions.removeAttachment(attachment.id)}
+						/>
 					))}
 				</ul>
 			)}
@@ -240,12 +325,9 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 			<TriggerMenu
 				triggers={[{ char: '/', maxLength: 40, spaces: 3 }]}
 				container={container}
-				onSelect={(value, details) => {
-					const text = String(value);
-					if (text.startsWith('starter:')) details.insert(`${text.slice(8)} `);
-					else details.insert('');
-					run(text, 'slash');
-				}}
+				controller={slashMenu}
+				onOpenChange={(open, details) => actions.slashOpenChange(open, details)}
+				onSelect={(value, details) => selectFromSlash(value, details, commandContext)}
 			>
 				<TriggerMenuInput
 					render={
@@ -311,15 +393,14 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 
 			<div className="agent-composer__bar">
 				<Menu
-					onAction={(value) => run(String(value), 'menu')}
+					onAction={(value) => runComposerCommand(String(value), 'menu', commandContext)}
 					onOpenChangeComplete={(open) => {
-						if (!open && chaosAfterClose.current) {
-							chaosAfterClose.current = false;
-							openChaos();
-						}
+						const after = afterClose.current;
+						afterClose.current = null;
+						if (!open && after) after();
 					}}
 				>
-					<Tooltip>
+					<Tooltip controller={plusTip}>
 						<TooltipTrigger
 							render={
 								<MenuTrigger
@@ -409,7 +490,9 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 							<>
 								<MenuSeparator className="agent-menu__separator" />
 								<MenuGroup className="agent-menu__group">
-									<MenuGroupLabel className="agent-menu__label text-meta">Start with</MenuGroupLabel>
+									<MenuGroupLabel className="agent-menu__label text-meta">
+										Start with
+									</MenuGroupLabel>
 									{starters.map((text) => (
 										<MenuItem
 											key={text}
@@ -471,9 +554,7 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 											<span className="agent-menu__hint text-body-small">{row.hint}</span>
 										)}
 									</span>
-									{row.meta && (
-										<span className="agent-menu__meta text-mono-small">{row.meta}</span>
-									)}
+									{row.meta && <span className="agent-menu__meta text-mono-small">{row.meta}</span>}
 								</MenuRadioItem>
 							))}
 						</MenuRadioGroup>
@@ -482,7 +563,7 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 
 				<span className="agent-composer__spacer" />
 
-				<Tooltip type="description">
+				<Tooltip type="description" controller={modelTip}>
 					<TooltipTrigger
 						render={
 							<button
@@ -512,7 +593,7 @@ export function AgentComposer({ store, getEditor, container, inputController, ac
 					</TooltipContent>
 				</Tooltip>
 
-				<Tooltip disabled={sendDisabled}>
+				<Tooltip disabled={sendDisabled} controller={sendTip}>
 					<TooltipTrigger
 						render={
 							<button

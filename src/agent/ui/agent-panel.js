@@ -317,8 +317,9 @@ export function createAgentPanel({
 		onAttachError: (message) => addError({ message }),
 		getEditor,
 	});
-	// Dropping an image anywhere on the panel attaches it.
-	composer.bindDropZone(panel);
+	// Dropping an image anywhere on the panel attaches it. A drop on the Tools tab shows the Agent
+	// tab, so the attachment is never added out of sight (`tabs` is built further down).
+	composer.bindDropZone(panel, { onDrop: () => tabs.select('agent') });
 
 	// ---- Model chip (in the composer's row): its list opens in a popover (PR B) ----
 	const modelChip = composer.model;

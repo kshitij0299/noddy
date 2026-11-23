@@ -14,6 +14,7 @@ import { createElement } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { createInputController } from '@ui-sdk/react/textarea';
+import { createTriggerMenuController } from '@ui-sdk/react/trigger-menu';
 import { onControlsChange } from '../agent-controls.js';
 import { ATTACHMENT_ACCEPT, prepareAttachment, validateAttachmentSet } from '../attachments.js';
 import { el, icon } from './cards/card-shell.js';
@@ -86,7 +87,15 @@ export function createPanelComposer({
 		version: 0,
 	});
 	const inputController = createInputController();
-	let generation = 0;
+	// The `/` list and the tooltips, so Esc and Enter can reach them from here (see onKey below).
+	const slashMenu = createTriggerMenuController();
+	/** @type {Set<{isOpen: () => boolean, close: (options?: Object) => boolean}>} */
+	const tooltips = new Set();
+	// clear() and dispose() bump `epoch`: files still being read then are dropped. Each addFiles
+	// call holds a token in `reading` while it reads, so overlapping batches all land.
+	let epoch = 0;
+	/** @type {Set<Object>} */
+	const reading = new Set();
 
 	/** Store writes land in the DOM before the call returns (the panel and tests read it). */
 	function update(patch) {
@@ -99,12 +108,18 @@ export function createPanelComposer({
 			update({ attachments: store.get().attachments.filter((item) => item.id !== id) });
 			input.focus();
 		},
+		/** A starter from the + menu goes in at the caret; the draft stays (and Cmd-Z works). */
 		useStarter(text) {
-			setValue(text);
-			input.focus();
+			insertAtCaret(text);
 		},
 		submitFromKeyboard() {
 			if (!store.get().busy) root.requestSubmit();
+		},
+		/** The `/` list wants to open or close: keep a match Esc dismissed closed while typing. */
+		slashOpenChange(open, details) {
+			if (!open || dismissedAt === null || details?.reason !== 'input-change') return;
+			if (input.value[dismissedAt] !== '/') dismissedAt = null;
+			else if (slashMenu.getMatch()?.start === dismissedAt) details.cancel?.();
 		},
 	};
 
@@ -116,6 +131,8 @@ export function createPanelComposer({
 				getEditor,
 				container: popups,
 				inputController,
+				slashMenu,
+				tooltips,
 				actions,
 			})
 		)
@@ -129,19 +146,93 @@ export function createPanelComposer({
 		mount.querySelector('.agent-composer__model')
 	);
 
-	// Esc while the `/` list is open only closes the list. ui-sdk does not mark that Esc as
-	// handled, so note it before it runs (capture) and let the panel ask.
+	// ui-sdk closes the `/` list and tooltips from a `keydown` listener on `document`, but the
+	// panel's key guard stops keys at the panel, so that listener never hears them. Handle the
+	// two keys here, first (capture), through the controllers:
+	// - Esc closes the open `/` list (ui-sdk then dismisses the match, so typing on does not
+	//   reopen it), or else a tooltip opened by keyboard focus. Only that: the panel is told the
+	//   Esc was used (handledEscape) and does not blur the input or minimize.
+	// - Enter with nothing matching closes the list, so the message sends.
+	// Menus and the chaos popover handle their own Esc on their content; they are left alone.
 	/** @type {WeakSet<Event>} */
-	const listEscapes = new WeakSet();
-	root.addEventListener(
-		'keydown',
-		(event) => {
-			if (event.key === 'Escape' && input.hasAttribute('data-open')) listEscapes.add(event);
-		},
-		true
-	);
+	const usedEscapes = new WeakSet();
+	// Where the `/` match Esc closed starts: typing on in that same match keeps it closed, as
+	// ui-sdk's own Esc does (the controller can close a match but not dismiss it).
+	/** @type {Number|null} */
+	let dismissedAt = null;
+	function onKey(event) {
+		if (event.isComposing || event.keyCode === 229) return;
+		if (event.key === 'Escape') {
+			if (slashMenu.isOpen()) {
+				dismissedAt = slashMenu.getMatch()?.start ?? null;
+				slashMenu.close({ reason: 'escape-key', event });
+				usedEscapes.add(event);
+				return;
+			}
+			// The next Esc leaves the field, as it does with no `/` typed (ui-sdk would otherwise
+			// take it to dismiss the match it still thinks is live).
+			if (event.target === input && dismissedAt !== null) {
+				input.blur();
+				usedEscapes.add(event);
+				return;
+			}
+			// Focus inside a popup (a menu) means that popup owns this Esc.
+			if (popups.contains(/** @type {Node} */ (event.target))) return;
+			for (const tooltip of tooltips) {
+				if (tooltip.isOpen()) {
+					tooltip.close({ reason: 'escape-key', event });
+					usedEscapes.add(event);
+				}
+			}
+			return;
+		}
+		const plainEnter =
+			event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+		// `data-empty` is ui-sdk's documented mark on TriggerMenuEmpty while nothing matches.
+		if (plainEnter && slashMenu.isOpen() && popups.querySelector('.agent-menu--slash [data-empty]'))
+			slashMenu.close({ reason: 'escape-key', event });
+	}
+	root.addEventListener('keydown', onKey, true);
+
+	// The box's focus ring is for keyboard focus. A text field matches :focus-visible on a click
+	// too (and on focus from code after a click, like opening the panel from its pill), so note
+	// whether the last input was a pointer or a key and drop the ring for a pointer's focus.
+	let lastPointer = false;
+	const onAnyPointer = () => (lastPointer = true);
+	const onAnyKey = () => (lastPointer = false);
+	document.addEventListener('pointerdown', onAnyPointer, true);
+	document.addEventListener('keydown', onAnyKey, true);
+	// ui-sdk menu triggers open on press and cancel the press's default, so the browser never
+	// sets :active on + or Target. Mark the pressed control (interaction.css styles
+	// [data-pressed] like :active) until the pointer lifts.
+	/** @type {Element|null} */
+	let pressed = null;
+	const release = () => {
+		pressed?.removeAttribute('data-pressed');
+		pressed = null;
+	};
+	const onPointerDown = (event) => {
+		release();
+		const control = /** @type {Element} */ (event.target)?.closest?.('.nd-control');
+		if (
+			control &&
+			mount.contains(control) &&
+			!control.matches(':disabled, [aria-disabled="true"]')
+		) {
+			pressed = control;
+			control.setAttribute('data-pressed', '');
+		}
+	};
+	root.addEventListener('pointerdown', onPointerDown, true);
+	window.addEventListener('pointerup', release, true);
+	window.addEventListener('pointercancel', release, true);
+	const onFocusIn = () => root.toggleAttribute('data-pointer-focus', lastPointer);
+	const onFocusOut = () => root.removeAttribute('data-pointer-focus');
+	input.addEventListener('focus', onFocusIn);
+	input.addEventListener('blur', onFocusOut);
 
 	function syncText() {
+		if (dismissedAt !== null && input.value[dismissedAt] !== '/') dismissedAt = null;
 		const hasText = !!input.value.trim();
 		if (hasText !== store.get().hasText) update({ hasText });
 	}
@@ -157,33 +248,65 @@ export function createPanelComposer({
 		});
 	}
 
+	/** Inserts `text` at the caret, with a space before it when it would touch a word. */
+	function insertAtCaret(text) {
+		input.focus();
+		const start = input.selectionStart ?? input.value.length;
+		const end = input.selectionEnd ?? start;
+		const before = input.value.slice(0, start);
+		const piece = (before && !/\s$/.test(before) ? ' ' : '') + text;
+		// execCommand keeps the browser's undo stack; jsdom and old engines fall back.
+		let done = false;
+		try {
+			done = !!document.execCommand?.('insertText', false, piece);
+		} catch {
+			done = false;
+		}
+		if (!done) {
+			input.setRangeText(piece, start, end, 'end');
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+		}
+		syncText();
+	}
+
 	function openChooser() {
 		if (!store.get().busy && !store.get().disposed) chooser.click();
 	}
 
+	/**
+	 * Reads `files` one by one and commits each to the live list as soon as it is read, so a
+	 * removal or another batch while this one reads is kept.
+	 */
 	async function addFiles(files) {
 		const { busy, disposed } = store.get();
 		if (busy || disposed) return;
-		const run = ++generation;
+		const run = epoch;
+		const token = {};
+		reading.add(token);
 		update({ preparing: true });
-		const next = [...store.get().attachments];
 		try {
 			for (const file of Array.from(files || [])) {
 				try {
-					validateAttachmentSet([...getReferences(), ...next, { kind: 'pending' }]);
+					validateAttachmentSet([
+						...getReferences(),
+						...store.get().attachments,
+						{ kind: 'pending' },
+					]);
 					const attachment = await readAttachment(file);
-					if (run !== generation || store.get().disposed) return;
-					validateAttachmentSet([...getReferences(), ...next, attachment]);
-					next.push(attachment);
+					if (run !== epoch) return;
+					const current = store.get().attachments;
+					validateAttachmentSet([...getReferences(), ...current, attachment]);
+					update({ attachments: [...current, attachment] });
 				} catch (error) {
-					if (run !== generation || store.get().disposed) return;
+					if (run !== epoch) return;
 					onAttachError(error.message);
 				}
 			}
 		} finally {
-			if (run === generation) {
+			reading.delete(token);
+			if (run === epoch && !reading.size) {
 				chooser.value = '';
-				update({ preparing: false, attachments: next });
+				update({ preparing: false });
 			}
 		}
 	}
@@ -228,7 +351,9 @@ export function createPanelComposer({
 		model: {
 			button: modelButton,
 			get label() {
-				return /** @type {HTMLElement} */ (modelButton.querySelector('.agent-composer__chip-label'));
+				return /** @type {HTMLElement} */ (
+					modelButton.querySelector('.agent-composer__chip-label')
+				);
 			},
 			/** @param {{label: String, tier?: 'free'|'paid', local?: Boolean}} view */
 			render({ label, tier, local = false }) {
@@ -236,9 +361,11 @@ export function createPanelComposer({
 			},
 		},
 		addFiles,
-		/** True for an Esc the composer used itself (it closed the `/` list). */
+		/** The `/` list's ui-sdk controller (isOpen, open, close). */
+		slashMenu,
+		/** True for an Esc the composer used itself (it closed the `/` list or a tooltip). */
 		handledEscape(event) {
-			return event.defaultPrevented || listEscapes.has(event);
+			return event.defaultPrevented || usedEscapes.has(event);
 		},
 		/** Re-read Mode and Target (the open glyph changed, which sends no controls event). */
 		refresh,
@@ -251,8 +378,11 @@ export function createPanelComposer({
 		/**
 		 * Dropping files anywhere on `zone` attaches them, with an overlay while dragging.
 		 * @param {HTMLElement} zone
+		 * @param {Object} [options]
+		 * @param {() => void} [options.onDrop] - runs before the files are read (the panel shows
+		 *   its Agent tab, so a drop on the Tools tab lands where the user can see it)
 		 */
-		bindDropZone(zone) {
+		bindDropZone(zone, { onDrop: beforeDrop = () => {} } = {}) {
 			const overlay = el('div', 'agent-drop-overlay');
 			overlay.hidden = true;
 			overlay.setAttribute('aria-hidden', 'true');
@@ -284,6 +414,8 @@ export function createPanelComposer({
 				event.preventDefault();
 				event.stopPropagation();
 				show(false);
+				if (store.get().busy || store.get().disposed) return;
+				beforeDrop();
 				addFiles(event.dataTransfer?.files);
 			};
 			zone.addEventListener('dragenter', onEnter);
@@ -312,7 +444,8 @@ export function createPanelComposer({
 			setValue(prompt, files);
 		},
 		clear() {
-			generation++;
+			epoch++;
+			reading.clear();
 			input.value = '';
 			input.dispatchEvent(new Event('input', { bubbles: true }));
 			update({ preparing: false, attachments: [], hasText: false });
@@ -322,10 +455,21 @@ export function createPanelComposer({
 		},
 		dispose() {
 			if (store.get().disposed) return;
-			generation++;
+			epoch++;
+			reading.clear();
 			offControls();
 			dropZones.splice(0).forEach((unbind) => unbind());
 			input.removeEventListener('input', syncText);
+			input.removeEventListener('focus', onFocusIn);
+			input.removeEventListener('blur', onFocusOut);
+			root.removeEventListener('keydown', onKey, true);
+			root.removeEventListener('pointerdown', onPointerDown, true);
+			window.removeEventListener('pointerup', release, true);
+			window.removeEventListener('pointercancel', release, true);
+			document.removeEventListener('pointerdown', onAnyPointer, true);
+			document.removeEventListener('keydown', onAnyKey, true);
+			release();
+			tooltips.clear();
 			input.value = '';
 			update({ disposed: true, attachments: [], hasText: false });
 			reactRoot.unmount();

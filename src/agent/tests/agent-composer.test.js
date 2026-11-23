@@ -1,10 +1,14 @@
 // #126: the agent composer island on ui-sdk (agent-panel-composer.js + composer/agent-composer.jsx).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetAgentControlsForTests } from '../agent-controls.js';
+import { getModeSettings, resetAgentControlsForTests, setMode } from '../agent-controls.js';
 import { createPanelComposer } from '../ui/agent-panel-composer.js';
-import { composerCommands } from '../ui/composer/agent-composer.jsx';
+import {
+	composerCommands,
+	runComposerCommand,
+	selectFromSlash,
+} from '../ui/composer/agent-composer.jsx';
 import { createAgentPanel } from '../ui/agent-panel.js';
-import { resetChaosToolsForTests } from '../ui/agent-panel-tabs.js';
+import { registerChaosTool, resetChaosToolsForTests } from '../ui/agent-panel-tabs.js';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 async function settle() {
@@ -21,7 +25,9 @@ function type(input, text) {
 	input.focus();
 	input.value += text;
 	input.setSelectionRange(input.value.length, input.value.length);
-	input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+	input.dispatchEvent(
+		new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' })
+	);
 }
 
 function fakeController() {
@@ -36,6 +42,8 @@ function fakeController() {
 		clear: vi.fn(),
 	};
 }
+
+const file = (name) => new File(['x'], name, { type: 'image/png' });
 
 const cleanups = [];
 function composerFixture(options = {}) {
@@ -95,6 +103,19 @@ describe('textarea', () => {
 		expect(onSubmit).toHaveBeenCalledWith({ prompt: 'Hello', attachments: [] });
 	});
 
+	it('Enter while an IME is composing does not send', async () => {
+		const onSubmit = vi.fn();
+		const { input } = composerFixture({ onSubmit });
+		type(input, 'にほん');
+		keyDown(input, 'Enter', { isComposing: true });
+		keyDown(input, 'Enter', { keyCode: 229 });
+		await flush();
+		expect(onSubmit).not.toHaveBeenCalled();
+		keyDown(input, 'Enter');
+		await flush();
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
 	it('the placeholder follows the local agent', () => {
 		const composer = composerFixture();
 		composer.setPlaceholder('Message Claude Code');
@@ -149,7 +170,12 @@ describe('Send and Stop', () => {
 });
 
 describe('attachments', () => {
-	const sketch = { id: 's1', kind: 'image', name: 'sketch.png', dataURL: 'data:image/png;base64,AA==' };
+	const sketch = {
+		id: 's1',
+		kind: 'image',
+		name: 'sketch.png',
+		dataURL: 'data:image/png;base64,AA==',
+	};
 
 	it('show above the input with an always-visible, labelled remove button', async () => {
 		const composer = composerFixture({ readAttachment: vi.fn(async () => sketch) });
@@ -167,6 +193,62 @@ describe('attachments', () => {
 		expect(composer.root.querySelector('.agent-attachment')).toBe(null);
 		expect(document.activeElement).toBe(composer.input);
 		expect(composer.send.disabled).toBe(true);
+	});
+
+	/** A reader whose reads finish when the test says. */
+	function deferredReader() {
+		const pending = new Map();
+		const read = vi.fn(
+			(file) =>
+				new Promise((resolve) => {
+					pending.set(file.name, () =>
+						resolve({ id: file.name, kind: 'image', name: file.name, dataURL: 'data:,' })
+					);
+				})
+		);
+		return { read, finish: (name) => pending.get(name)() };
+	}
+	const names = (composer) => composer.getDraft().attachments.map((item) => item.name);
+
+	it('removing a file while another is read keeps it removed', async () => {
+		const { read, finish } = deferredReader();
+		const composer = composerFixture({ readAttachment: read });
+		const first = composer.addFiles([file('a.png')]);
+		finish('a.png');
+		await first;
+		const second = composer.addFiles([file('b.png')]);
+		composer.root.querySelector('[aria-label="Remove a.png"]').click();
+		expect(names(composer)).toEqual([]);
+		finish('b.png');
+		await second;
+		expect(names(composer)).toEqual(['b.png']);
+	});
+
+	it('two batches that overlap both land, and Send waits for both', async () => {
+		const { read, finish } = deferredReader();
+		const composer = composerFixture({ readAttachment: read });
+		const first = composer.addFiles([file('a.png'), file('c.png')]);
+		const second = composer.addFiles([file('b.png')]);
+		finish('b.png');
+		await flush();
+		finish('a.png');
+		await flush();
+		// The first batch is still reading c.png.
+		expect(composer.send.disabled).toBe(true);
+		finish('c.png');
+		await Promise.all([first, second]);
+		expect(names(composer)).toEqual(['b.png', 'a.png', 'c.png']);
+		expect(composer.send.disabled).toBe(false);
+	});
+
+	it('clear() drops a file still being read', async () => {
+		const { read, finish } = deferredReader();
+		const composer = composerFixture({ readAttachment: read });
+		const pending = composer.addFiles([file('a.png')]);
+		composer.clear();
+		finish('a.png');
+		await pending;
+		expect(names(composer)).toEqual([]);
 	});
 
 	it('dropping an image anywhere on the panel attaches it, with an overlay while dragging', async () => {
@@ -200,6 +282,22 @@ describe('attachments', () => {
 		expect(panel.panel.querySelector('.agent-drop-overlay')).not.toBe(null);
 	});
 
+	it('a drop on the Tools tab shows the Agent tab, so the file is not attached out of sight', async () => {
+		registerChaosTool({ id: 'test-tool', label: 'Test tool', mount() {} });
+		const panel = panelFixture();
+		panel.tabs.select('chaos');
+		const agentTab = panel.panel.querySelector('.agent-panel__tab--agent');
+		expect(agentTab.hidden).toBe(true);
+		const event = new Event('drop', { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'dataTransfer', {
+			value: { types: ['Files'], files: [file('sketch.png')] },
+		});
+		panel.panel.querySelector('.agent-panel__tab--chaos').dispatchEvent(event);
+		expect(panel.tabs.current).toBe('agent');
+		expect(agentTab.hidden).toBe(false);
+		await settle();
+	});
+
 	it('a text drag is not a file drop: no overlay', () => {
 		const composer = composerFixture();
 		const zone = document.createElement('div');
@@ -212,8 +310,62 @@ describe('attachments', () => {
 	});
 });
 
-// Opening the `/` list needs real typing (jsdom cannot drive ui-sdk's trigger menu); the browser
-// check in the PR covers typing, filtering, Enter and Esc. Here: the wiring and the shared list.
+// jsdom cannot open the `/` list by typing, but the controller opens it for real (it types the
+// `/`). The panel's key guard stops keys at the panel, so these run inside the real panel.
+describe('the / list keys inside the panel', () => {
+	it('Esc closes the list and only the list; typing on keeps it closed; the next Esc leaves the field', async () => {
+		const panel = panelFixture();
+		const { composer } = panel;
+		composer.input.focus();
+		composer.slashMenu.open({ trigger: '/' });
+		await settle();
+		expect(composer.slashMenu.isOpen()).toBe(true);
+		keyDown(composer.input, 'Escape');
+		await settle();
+		expect(composer.slashMenu.isOpen()).toBe(false);
+		expect(panel.mode).toBe('open');
+		expect(document.activeElement).toBe(composer.input);
+		type(composer.input, 'x');
+		await settle();
+		expect(composer.slashMenu.isOpen()).toBe(false);
+		keyDown(composer.input, 'Escape');
+		expect(document.activeElement).not.toBe(composer.input);
+		expect(panel.mode).toBe('open');
+	});
+
+	it('Enter sends when nothing matches', async () => {
+		const onSubmit = vi.fn();
+		const composer = composerFixture({ onSubmit });
+		// The panel's guard: keys stop at the panel and never reach `document`.
+		composer.root.addEventListener('keydown', (event) => event.stopPropagation());
+		composer.input.focus();
+		composer.slashMenu.open({ trigger: '/' });
+		await settle();
+		const empty = composer.root.querySelector('.agent-menu--slash .agent-menu__empty');
+		empty.setAttribute('data-empty', '');
+		keyDown(composer.input, 'Enter');
+		await flush();
+		expect(composer.slashMenu.isOpen()).toBe(false);
+		expect(onSubmit).toHaveBeenCalledWith({ prompt: '/', attachments: [] });
+	});
+
+	it('Esc on a keyboard-opened tooltip closes the tooltip, not the panel', async () => {
+		const panel = panelFixture();
+		const { composer } = panel;
+		composer.plus.focus();
+		composer.plus.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		await settle();
+		const tip = document.getElementById(composer.plus.getAttribute('aria-describedby'));
+		expect(tip.hasAttribute('data-open')).toBe(true);
+		const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+		composer.plus.dispatchEvent(event);
+		await settle();
+		expect(composer.handledEscape(event)).toBe(true);
+		expect(panel.mode).toBe('open');
+		expect(tip.hasAttribute('data-open')).toBe(false);
+	});
+});
+
 describe('the / list (same commands as the + menu)', () => {
 	it('the textarea is the trigger menu input', () => {
 		const { input } = composerFixture();
@@ -257,6 +409,74 @@ describe('the / list (same commands as the + menu)', () => {
 	});
 });
 
+describe('running a command from the + menu or the / list', () => {
+	function context(overrides = {}) {
+		const queued = [];
+		return {
+			queued,
+			getEditor: () => null,
+			settings: getModeSettings(null),
+			actions: { openChooser: vi.fn(), useStarter: vi.fn() },
+			openChaos: vi.fn(),
+			afterMenuClose: (after) => queued.push(after),
+			...overrides,
+		};
+	}
+
+	it('from /, a starter replaces the typed word; other commands leave nothing behind', () => {
+		const insert = vi.fn();
+		const ctx = context();
+		selectFromSlash('starter:Make it bolder', { insert }, ctx);
+		expect(insert).toHaveBeenLastCalledWith('Make it bolder ');
+		expect(ctx.actions.useStarter).not.toHaveBeenCalled();
+		selectFromSlash('mode:wild', { insert }, ctx);
+		expect(insert).toHaveBeenLastCalledWith('');
+		expect(getModeSettings(null).mode).toBe('wild');
+		selectFromSlash('attach', { insert }, ctx);
+		expect(ctx.actions.openChooser).toHaveBeenCalledTimes(1);
+	});
+
+	it('Telephone toggles from what the list showed; Chaos opens at once from /', () => {
+		setMode(null, 'remix');
+		const insert = vi.fn();
+		selectFromSlash('telephone', { insert }, context({ settings: getModeSettings(null) }));
+		expect(getModeSettings(null).telephone).toBe(true);
+		selectFromSlash('telephone', { insert }, context({ settings: getModeSettings(null) }));
+		expect(getModeSettings(null).telephone).toBe(false);
+		const ctx = context();
+		selectFromSlash('chaos', { insert }, ctx);
+		expect(ctx.openChaos).toHaveBeenCalledTimes(1);
+	});
+
+	it('from the + menu, Chaos and starters wait until the menu has closed', () => {
+		const ctx = context();
+		runComposerCommand('chaos', 'menu', ctx);
+		runComposerCommand('starter:Fix spacing', 'menu', ctx);
+		expect(ctx.openChaos).not.toHaveBeenCalled();
+		expect(ctx.actions.useStarter).not.toHaveBeenCalled();
+		ctx.queued.forEach((after) => after());
+		expect(ctx.openChaos).toHaveBeenCalledTimes(1);
+		expect(ctx.actions.useStarter).toHaveBeenCalledWith('Fix spacing');
+	});
+});
+
+describe('starters from the + menu', () => {
+	it('go in at the caret and keep the draft', async () => {
+		const composer = composerFixture();
+		composer.setStarters(['Make it bolder']);
+		type(composer.input, 'Draw A with');
+		composer.plus.click();
+		await settle();
+		const row = [...document.querySelectorAll('[role="menuitem"]')].find((item) =>
+			item.textContent.includes('Make it bolder')
+		);
+		row.click();
+		await settle();
+		expect(composer.input.value).toBe('Draw A with Make it bolder');
+		expect(composer.send.disabled).toBe(false);
+	});
+});
+
 describe('icon-only buttons', () => {
 	it('are named and have a tooltip', () => {
 		const composer = composerFixture();
@@ -276,5 +496,35 @@ describe('dispose', () => {
 		expect(composer.root.querySelector('textarea')).toBe(null);
 		// A controls change after dispose must not throw (no React root left).
 		expect(() => resetAgentControlsForTests()).not.toThrow();
+	});
+
+	it('removes the drop zone and its overlay, drops reads in flight, and never submits after', async () => {
+		const read = vi.fn(async () => ({ id: 'a', kind: 'image', name: 'a.png', dataURL: 'data:,' }));
+		const onSubmit = vi.fn();
+		const composer = createPanelComposer({ onSubmit, readAttachment: read });
+		document.body.append(composer.root);
+		const zone = document.createElement('div');
+		document.body.append(zone);
+		composer.bindDropZone(zone);
+		const remove = vi.spyOn(zone, 'removeEventListener');
+		composer.dispose();
+		expect(zone.querySelector('.agent-drop-overlay')).toBe(null);
+		expect(remove.mock.calls.map(([type]) => type).sort()).toEqual([
+			'dragenter',
+			'dragleave',
+			'dragover',
+			'drop',
+		]);
+		const drop = new Event('drop', { bubbles: true, cancelable: true });
+		Object.defineProperty(drop, 'dataTransfer', {
+			value: { types: ['Files'], files: [file('a.png')] },
+		});
+		zone.dispatchEvent(drop);
+		expect(drop.defaultPrevented).toBe(false);
+		await composer.addFiles([file('a.png')]);
+		expect(read).not.toHaveBeenCalled();
+		composer.root.requestSubmit();
+		await flush();
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 });
