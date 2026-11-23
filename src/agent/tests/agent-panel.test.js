@@ -104,46 +104,30 @@ describe('agent panel shell (#19)', () => {
 		const panel = panelFixture({ controller: fakeController({ connected: false }) });
 		expect(panel.thread.textContent).toContain('What are we drawing?');
 		expect(panel.thread.querySelector('.agent-connect').hidden).toBe(false);
-		expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
 	});
 
-	it('suggestion chips fill the composer; Add a sketch opens the file chooser', () => {
+	it('no suggestion pills or chip row outside the composer (#126)', () => {
 		const panel = panelFixture({ controller: fakeController({ connected: true }) });
-		const chips = [...panel.thread.querySelectorAll('.agent-suggestion')];
-		expect(chips.map((chip) => chip.textContent)).toEqual([
-			'Clean simple sans',
-			'Geometric',
-			'imageAdd a sketch',
-		]);
-		chips[0].click();
-		expect(panel.composer.input.value).toBe('Clean simple sans');
-		const chooser = panel.composer.root.querySelector('input[type=file]');
-		const click = vi.spyOn(chooser, 'click').mockImplementation(() => {});
-		chips[2].click();
-		expect(click).toHaveBeenCalled();
+		expect(panel.panel.querySelector('.agent-suggestion, .agent-panel__chips')).toBe(null);
+		expect(panel.panel.querySelector('.agent-composer__tools')).toBe(null);
+		// Everything the composer has sits inside its one box.
+		const { root, input, plus, target, model, send } = panel.composer;
+		for (const node of [input, plus, target, model.button, send]) expect(root.contains(node)).toBe(true);
 	});
 
-	it('chips sit in their own row above the composer box; Tab order is chips, input, attach, send (#95)', () => {
+	it('one box: attachments, then the input, then + · Target · Model · Send in Tab order (#126)', () => {
 		const panel = panelFixture({ controller: fakeController() });
-		const { tools, root, input, attach, send } = panel.composer;
-		expect(root.contains(tools)).toBe(false);
-		expect(tools.nextElementSibling).toBe(root);
-		const chips = [...tools.querySelectorAll('button.agent-chip-button')];
-		expect(chips.map((chip) => chip.classList.contains('agent-panel__model'))).toEqual([
-			true,
-			false,
-			false,
-		]);
-		// Each chip opens a menu: a decorative trailing chevron.
-		for (const chip of chips) {
-			const chevron = chip.lastElementChild;
-			expect(chevron.textContent).toBe('expand_more');
-			expect(chevron.getAttribute('aria-hidden')).toBe('true');
-		}
+		const { input, plus, target, model, send } = panel.composer;
 		const order = [...panel.panel.querySelectorAll('button, textarea')].filter((node) =>
-			[...chips, input, attach, send].includes(node)
+			[input, plus, target, model.button, send].includes(node)
 		);
-		expect(order).toEqual([...chips, input, attach, send]);
+		expect(order).toEqual([input, plus, target, model.button, send]);
+		// Target and Model open menus: a decorative trailing caret.
+		for (const chip of [target, model.button]) {
+			const caret = chip.lastElementChild;
+			expect(caret.textContent).toBe('expand_more');
+			expect(caret.getAttribute('aria-hidden')).toBe('true');
+		}
 	});
 
 	it('thread content is anchored at the bottom of the scroller', () => {
@@ -323,7 +307,7 @@ describe('controller wiring (#21)', () => {
 		panel = panelFixture({ controller });
 		controller.connect({ provider: 'openai', model: 'gpt-5', apiKey: 'sk-secret-123' });
 		expect(
-			panel.panel.querySelector('.agent-panel__model .agent-chip-button__label').textContent
+			panel.panel.querySelector('.agent-composer__model .agent-composer__chip-label').textContent
 		).toBe('GPT-5');
 		panel.composer.setValue('Tighten a');
 		panel.composer.root.requestSubmit();
@@ -492,7 +476,6 @@ describe('controller wiring (#21)', () => {
 			expect(host(panel).querySelector('.agent-connect__title').textContent).toBe(
 				'Choose a provider'
 			);
-			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
 			expect(
 				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
 			).toBe(true);
@@ -526,7 +509,7 @@ describe('controller wiring (#21)', () => {
 			expect(setItem).not.toHaveBeenCalled();
 		});
 
-		it('once connected the card steps aside as one Connected row; the suggestions appear', async () => {
+		it('once connected the card steps aside as one Connected row', async () => {
 			const { panel } = await connectedPanel();
 			expect(panel.controller.connected).toBe(true);
 			expect(panel.model).toBe('vendor/free-one:free');
@@ -534,13 +517,12 @@ describe('controller wiring (#21)', () => {
 			expect(row.querySelector('.agent-connected__head').textContent).toContain('OpenRouter');
 			expect(row.querySelector('.agent-connected__model').textContent).toBe('vendor/free-one:free');
 			expect(host(panel).querySelector('form')).toBe(null);
-			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(false);
 			expect(
 				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
 			).toBe(false);
 			// The chip drops the vendor prefix; the Connected row keeps the whole ID.
 			expect(
-				panel.panel.querySelector('.agent-panel__model .agent-chip-button__label').textContent
+				panel.panel.querySelector('.agent-composer__model .agent-composer__chip-label').textContent
 			).toBe('free-one');
 			// No step line is added: the Connected row is the feedback.
 			expect(panel.thread.querySelectorAll('agent-step-line')).toHaveLength(0);
@@ -563,25 +545,22 @@ describe('controller wiring (#21)', () => {
 			expect(panel.controller.connected).toBe(true);
 			expect(panel.model).toBe('vendor/paid-two');
 			expect(
-				panel.panel.querySelector('.agent-panel__model .agent-chip-button__label').textContent
+				panel.panel.querySelector('.agent-composer__model .agent-composer__chip-label').textContent
 			).toBe('paid-two');
 			expect(host(panel).querySelector('.agent-connected').textContent).toContain(
 				'vendor/paid-two'
 			);
 		});
 
-		it('Change brings the card back and the suggestions step aside until a model is connected again', async () => {
+		it('Change brings the card back until a model is connected again', async () => {
 			const { panel } = await connectedPanel();
-			const chips = panel.thread.querySelector('.agent-panel__chips');
-			expect(chips.hidden).toBe(false);
+			const empty = panel.thread.querySelector('.agent-panel__empty');
+			expect(empty.hasAttribute('data-connecting')).toBe(false);
 			host(panel).querySelector('.agent-connected button').click();
-			expect(chips.hidden).toBe(true);
-			expect(
-				panel.thread.querySelector('.agent-panel__empty').hasAttribute('data-connecting')
-			).toBe(true);
+			expect(empty.hasAttribute('data-connecting')).toBe(true);
 			primary(panel).click();
 			await flush();
-			expect(chips.hidden).toBe(false);
+			expect(empty.hasAttribute('data-connecting')).toBe(false);
 		});
 
 		it('a disconnect returns the card: the key is gone, the remembered model waits for a new key', async () => {
@@ -594,7 +573,6 @@ describe('controller wiring (#21)', () => {
 			);
 			expect(host(panel).querySelector('input.agent-field__input').value).toBe('');
 			expect(host(panel).querySelector('[role="listbox"]')).toBe(null);
-			expect(panel.thread.querySelector('.agent-panel__chips').hidden).toBe(true);
 		});
 
 		it('after the first message the card leaves the thread; clearing the chat brings the Connected row back', async () => {

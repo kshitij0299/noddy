@@ -1,4 +1,4 @@
-// PR B: agent panel controls (Model, Mode, Target chips, New chat, tabs shell, empty state,
+// PR B: agent panel controls (Model, Mode, Target, New chat, tabs shell, empty state,
 // per-glyph receipts) and what they put in get_context.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setCurrentProjectEditor } from '../../app/main.js';
@@ -284,108 +284,167 @@ describe('switching models keeps the conversation (bugs 1, 14)', () => {
 	});
 });
 
-describe('Mode chip', () => {
-	it('opens a radio group; arrows choose; chaos shows only in Remix and Wild', () => {
+/** Lets ui-sdk finish opening, closing and moving focus. */
+async function settle() {
+	for (let i = 0; i < 4; i++) await flush();
+}
+
+/** Opens a menu from its trigger and returns the menu element. */
+async function openMenu(trigger) {
+	trigger.click();
+	await settle();
+	const menu = document.getElementById(trigger.getAttribute('aria-controls'));
+	expect(menu?.getAttribute('role')).toBe('menu');
+	return menu;
+}
+
+describe('Mode in the + menu (#126)', () => {
+	it('lists the sketch, Mode and starters; Mode radios drive readAgentControls', async () => {
 		const editor = makeEditor();
 		const panel = panelFixture({ getEditor: () => editor });
-		const chip = panel.modeChip.button;
-		expect(chip.textContent).toContain('Exact');
-		chip.click();
-		const popover = panel.modeChip.popover.root;
-		expect(popover.hidden).toBe(false);
-		const radios = [...popover.querySelectorAll('[role="radio"]')];
-		expect(radios.map((r) => r.textContent)).toEqual([
+		const { plus } = panel.composer;
+		expect(plus.getAttribute('aria-label')).toBe('Add and settings');
+		const menu = await openMenu(plus);
+		expect(panel.composer.root.contains(menu)).toBe(true);
+		const items = [...menu.querySelectorAll('[role^="menuitem"]')];
+		expect(items.map((item) => item.textContent)).toEqual([
+			expect.stringContaining('Add a sketch or image'),
 			expect.stringContaining('Exact'),
 			expect.stringContaining('Remix'),
 			expect.stringContaining('Wild'),
+			expect.stringContaining('Clean simple sans'),
+			expect.stringContaining('Geometric'),
 		]);
-		expect(document.activeElement).toBe(radios[0]);
-		const chaos = popover.querySelector('.agent-chaos');
-		expect(chaos.hidden).toBe(true);
-		keyDown(document.activeElement, 'ArrowDown');
+		// Mode is a radio group right in the menu: no flyout to fall off a narrow panel.
+		expect(menu.querySelector('[aria-haspopup="menu"]')).toBe(null);
+		const sub = menu;
+		const radios = [...sub.querySelectorAll('[role="menuitemradio"]')];
+		expect(radios.map((radio) => radio.getAttribute('aria-checked'))).toEqual([
+			'true',
+			'false',
+			'false',
+		]);
+		// No chaos or Telephone in Exact.
+		expect(sub.textContent).not.toContain('Telephone');
+		radios[1].click();
+		await settle();
 		expect(readAgentControls(editor).mode).toBe('remix');
-		expect(chaos.hidden).toBe(false);
-		expect(document.activeElement.textContent).toContain('Remix');
-		const slider = popover.querySelector('input[type="range"]');
-		slider.value = '80';
-		slider.dispatchEvent(new Event('input'));
-		expect(readAgentControls(editor).chaos).toBe(80);
-		expect(chip.textContent).toContain('Remix 80');
-		expect(chip.getAttribute('aria-label')).toBe('Mode: Remix, chaos 80');
-		// Enter closes it, back on the chip.
-		keyDown(document.activeElement, 'Enter');
-		expect(popover.hidden).toBe(true);
-		expect(document.activeElement).toBe(chip);
+		expect(plus.getAttribute('aria-label')).toBe('Add and settings, Remix 50 mode');
+		expect(plus.querySelector('.agent-composer__plus-dot')).not.toBe(null);
+		expect(sub.textContent).toContain('Chaos');
+		expect(sub.textContent).toContain('Telephone');
 	});
 
-	it('Esc from the chaos slider closes the menu; Exact hides chaos again', () => {
+	it('Telephone toggles the store (Remix and Wild only) and reaches get_context', async () => {
 		const editor = makeEditor();
 		setMode(editor, 'wild');
 		const panel = panelFixture({ getEditor: () => editor });
-		panel.modeChip.button.click();
-		const popover = panel.modeChip.popover.root;
-		const slider = popover.querySelector('input[type="range"]');
-		slider.focus();
-		keyDown(slider, 'Escape');
-		expect(popover.hidden).toBe(true);
-		expect(panel.mode).toBe('open');
-		setMode(editor, 'exact');
-		panel.modeChip.button.click();
-		expect(popover.querySelector('.agent-chaos').hidden).toBe(true);
-	});
-});
-
-describe('Telephone switch (PR D)', () => {
-	it('shows only in Remix and Wild, toggles the store, and reaches get_context', () => {
-		const editor = makeEditor();
-		const panel = panelFixture({ getEditor: () => editor });
-		panel.modeChip.button.click();
-		const popover = panel.modeChip.popover.root;
-		const row = popover.querySelector('.agent-telephone');
-		const toggle = row.querySelector('[role="switch"]');
-		expect(row.hidden).toBe(true);
-		setMode(editor, 'remix');
-		expect(row.hidden).toBe(false);
-		expect(toggle.getAttribute('aria-checked')).toBe('false');
-		expect(toggle.getAttribute('aria-labelledby')).toBeTruthy();
-		toggle.click();
-		expect(toggle.getAttribute('aria-checked')).toBe('true');
+		const sub = await openMenu(panel.composer.plus);
+		const telephone = sub.querySelector('[role="menuitemcheckbox"]');
+		expect(telephone.getAttribute('aria-checked')).toBe('false');
+		telephone.click();
+		await settle();
 		expect(readAgentControls(editor).telephone).toBe(true);
-		expect(panel.modeChip.button.getAttribute('aria-label')).toBe(
-			'Mode: Remix, chaos 50, Telephone on'
-		);
+		expect(telephone.getAttribute('aria-checked')).toBe('true');
 		// Exact never reports it, but remembers it for the next Remix.
 		setMode(editor, 'exact');
 		expect(readAgentControls(editor).telephone).toBe(false);
-		setMode(editor, 'wild');
+		setMode(editor, 'remix');
 		expect(readAgentControls(editor).telephone).toBe(true);
+	});
+
+	it('Chaos opens a slider popover; arrow keys set chaos in steps of 5', async () => {
+		const editor = makeEditor();
+		setMode(editor, 'remix');
+		const panel = panelFixture({ getEditor: () => editor });
+		const sub = await openMenu(panel.composer.plus);
+		const chaosItem = [...sub.querySelectorAll('[role="menuitem"]')].find((item) =>
+			item.textContent.includes('Chaos')
+		);
+		chaosItem.click();
+		await settle();
+		const popover = panel.composer.root.querySelector('.agent-chaos-popover');
+		expect(popover).not.toBe(null);
+		expect(popover.getAttribute('role')).toBe('dialog');
+		const thumb = popover.querySelector('input[type="range"]');
+		expect(thumb.getAttribute('aria-label')).toBe('Chaos');
+		thumb.focus();
+		keyDown(thumb, 'ArrowRight');
+		await settle();
+		expect(readAgentControls(editor).chaos).toBe(55);
+		// Esc closes it without minimizing the panel.
+		keyDown(document.activeElement, 'Escape');
+		await settle();
+		expect(panel.composer.root.querySelector('.agent-chaos-popover[data-open]')).toBe(null);
+		expect(panel.mode).toBe('open');
+	});
+
+	it('Esc closes the + menu and gives focus back to +, without minimizing', async () => {
+		const panel = panelFixture({ getEditor: () => makeEditor() });
+		const { plus } = panel.composer;
+		plus.focus();
+		const menu = await openMenu(plus);
+		keyDown(document.activeElement || menu, 'Escape');
+		await settle();
+		expect(plus.getAttribute('aria-expanded')).toBe('false');
+		expect(document.activeElement).toBe(plus);
+		expect(panel.mode).toBe('open');
+	});
+
+	it('a starter fills the input; Add a sketch opens the file chooser', async () => {
+		const panel = panelFixture({ getEditor: () => makeEditor() });
+		let menu = await openMenu(panel.composer.plus);
+		[...menu.querySelectorAll('[role="menuitem"]')]
+			.find((item) => item.textContent.includes('Geometric'))
+			.click();
+		await settle();
+		expect(panel.composer.input.value).toBe('Geometric');
+		expect(panel.composer.send.disabled).toBe(false);
+		const chooser = panel.composer.root.querySelector('input[type=file]');
+		const click = vi.spyOn(chooser, 'click').mockImplementation(() => {});
+		menu = await openMenu(panel.composer.plus);
+		menu.querySelector('[role="menuitem"]').click();
+		await settle();
+		expect(click).toHaveBeenCalled();
 	});
 });
 
-describe('Target chip', () => {
-	it('shows the count, defaults from the selection and disables empty scopes', () => {
+describe('Target chip (#126)', () => {
+	it('shows the count, defaults from the selection and disables empty scopes', async () => {
 		const editor = makeEditor();
 		const panel = panelFixture({ getEditor: () => editor });
-		const chip = panel.targetChip.button;
+		const chip = panel.composer.target;
 		expect(chip.textContent).toContain('Whole set');
-		chip.click();
-		const radios = () => [...panel.targetChip.popover.root.querySelectorAll('[role="radio"]')];
+		expect(chip.getAttribute('aria-label')).toBe('Target: Whole set, 116 glyphs');
+		const menu = await openMenu(chip);
+		const radios = () => [...menu.querySelectorAll('[role="menuitemradio"]')];
 		expect(radios().map((r) => r.getAttribute('aria-disabled'))).toEqual(['true', 'true', null]);
 		expect(radios()[2].textContent).toContain('116');
 		expect(radios()[1].textContent).toContain('Cmd-click');
 		setPicks([A, B]);
+		await settle();
 		expect(chip.textContent).toContain('2 glyphs');
 		expect(radios()[1].getAttribute('aria-checked')).toBe('true');
-		expect(radios()[1].textContent).toContain('2');
-		// Arrows skip the disabled "This glyph".
-		radios()[1].focus();
-		keyDown(radios()[1], 'ArrowDown');
-		expect(getTarget(editor).scope).toBe('set');
-		keyDown(document.activeElement, 'ArrowDown');
+		// A disabled scope cannot be chosen.
+		radios()[0].click();
+		await settle();
 		expect(getTarget(editor).scope).toBe('selected');
+		radios()[2].click();
+		await settle();
+		expect(getTarget(editor).scope).toBe('set');
 		setPicks([A]);
+		await settle();
 		expect(chip.textContent).toContain('A');
 		expect(chip.getAttribute('aria-label')).toBe('Target: This glyph, A');
+	});
+
+	it('the open glyph reaches the chip on refresh (no controls event)', () => {
+		const editor = makeEditor();
+		const panel = panelFixture({ getEditor: () => editor });
+		editor.nav.focus = true;
+		editor.selectedGlyphID = A;
+		panel.refreshStatus();
+		expect(panel.composer.target.getAttribute('aria-label')).toBe('Target: This glyph, A');
 	});
 });
 
@@ -452,14 +511,18 @@ describe('Agent | Tools tabs shell', () => {
 });
 
 describe('empty state on a loaded font (bug 16)', () => {
-	it('suggests edits, not "What are we drawing?", when the set already has glyphs', () => {
+	it('suggests edits, not "What are we drawing?", when the set already has glyphs', async () => {
 		const editor = makeEditor({ glyphs: [A, B] });
 		const panel = panelFixture({ getEditor: () => editor, controller: fakeController() });
 		expect(panel.thread.querySelector('.agent-panel__empty-title').textContent).toBe(
 			'What should we change?'
 		);
-		const chips = [...panel.thread.querySelectorAll('.agent-suggestion')].map((b) => b.textContent);
-		expect(chips).toEqual(['Make it bolder', 'Restyle from A', 'Fix spacing', 'imageAdd a sketch']);
+		// The starters are the + menu's "Start with" rows (#126).
+		const menu = await openMenu(panel.composer.plus);
+		const starters = [...menu.querySelectorAll('[role="group"] [role="menuitem"]')].map(
+			(item) => item.querySelector('.agent-menu__title').textContent
+		);
+		expect(starters).toEqual(['Make it bolder', 'Restyle from A', 'Fix spacing']);
 	});
 
 	it('an empty font still asks what we are drawing', () => {

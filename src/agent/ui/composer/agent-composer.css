@@ -1,0 +1,473 @@
+/* --------------------------------------------------------------
+	Agent composer (#126). One box: attachments, the textarea, then one row
+	(+ · Target · spacer · Model · Send). Noddy tokens and the shared state classes in
+	src/common/interaction.css only; every rule is scoped to the composer and its popups.
+-------------------------------------------------------------- */
+
+form.agent-composer {
+	position: relative;
+	flex: none;
+	box-sizing: border-box;
+	margin: 0;
+	padding: var(--space-1);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-xl);
+	background-color: var(--color-bg-surface);
+	box-shadow: var(--shadow-sm);
+	transition: border-color var(--state-duration) var(--state-easing);
+}
+
+form.agent-composer:focus-within {
+	border-color: var(--color-border-strong);
+}
+
+/* The box carries the ring for the textarea (a text field shows it on click too). */
+form.agent-composer:has(.agent-composer__input:focus-visible) {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+.agent-composer__box {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	min-width: 0;
+}
+
+/* ---- Attachments: chips with an always-visible × ---- */
+.agent-composer__attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-1);
+	margin: 0;
+	padding: var(--space-1) var(--space-1) 0;
+	list-style: none;
+}
+
+.agent-attachment {
+	--state-hover-bg: var(--color-bg-surface);
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	box-sizing: border-box;
+	height: 32px;
+	max-width: 100%;
+	padding: 0 var(--space-1) 0 var(--space-3);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-subtle);
+	color: var(--color-text-primary);
+}
+
+.agent-attachment > .nd-icon {
+	font-size: 16px;
+	color: var(--color-text-secondary);
+}
+
+.agent-attachment__name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 24px to the eye, a 40px target. */
+.nd-control--icon.nd-control--icon.agent-attachment__remove {
+	position: relative;
+	width: 24px;
+	height: 24px;
+	color: var(--color-text-secondary);
+}
+
+.agent-attachment__remove::after {
+	content: '';
+	position: absolute;
+	inset: -8px;
+}
+
+.agent-attachment__remove .nd-icon {
+	font-size: 16px;
+}
+
+/* ---- Textarea: 16px, 1 to 5 lines, then it scrolls ---- */
+textarea.agent-composer__input,
+textarea.agent-composer__input:focus {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	/* resets.css fixes textarea height at 24px, which stops field-sizing from growing it. */
+	height: auto;
+	min-height: 40px;
+	max-height: calc(5 * 24px + 2 * var(--space-2));
+	margin: 0;
+	padding: var(--space-2) var(--space-3);
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	font-size: 16px;
+	line-height: 24px;
+	resize: none;
+	overflow-y: auto;
+	outline: none;
+	box-shadow: none;
+}
+
+textarea.agent-composer__input::placeholder {
+	color: var(--color-text-secondary);
+	opacity: 1;
+}
+
+/* ---- The bottom row ---- */
+.agent-composer__bar {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	min-width: 0;
+}
+
+.agent-composer__spacer {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.nd-control.agent-composer__plus {
+	position: relative;
+	color: var(--color-text-primary);
+}
+
+.agent-composer__plus .nd-icon {
+	font-size: 22px;
+}
+
+/* Remix or Wild is on: a small mark, so the mode is never a surprise. */
+.agent-composer__plus-dot {
+	position: absolute;
+	top: 7px;
+	right: 7px;
+	width: 8px;
+	height: 8px;
+	border: 2px solid var(--color-bg-surface);
+	border-radius: var(--radius-full);
+	background-color: var(--color-status-draft);
+	pointer-events: none;
+}
+
+/* Chips: 32px to the eye, a 40px target. */
+.nd-control.agent-composer__chip {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	box-sizing: border-box;
+	height: 32px;
+	min-height: 0;
+	min-width: 0;
+	padding: 0 var(--space-2) 0 var(--space-3);
+	border-radius: var(--radius-full);
+	color: var(--color-text-primary);
+	white-space: nowrap;
+}
+
+.agent-composer__chip::after {
+	content: '';
+	position: absolute;
+	inset: -4px 0;
+}
+
+.nd-control.agent-composer__target {
+	flex: 0 1 auto;
+	padding-left: var(--space-2);
+	box-shadow: inset 0 0 0 1px var(--color-border-default);
+}
+
+.nd-control.agent-composer__model {
+	flex: 0 1 auto;
+	color: var(--color-text-secondary);
+}
+
+@media (hover: hover) {
+	.nd-control.agent-composer__model:hover:not([data-local]) {
+		color: var(--color-text-primary);
+	}
+}
+
+.nd-control.agent-composer__model[aria-expanded='true'] {
+	color: var(--color-text-primary);
+}
+
+/* With a local agent on, the chip is a status, not a menu. */
+.nd-control.nd-control.agent-composer__model[data-local],
+.nd-control.nd-control.agent-composer__model[data-local]:hover,
+.nd-control.nd-control.agent-composer__model[data-local]:active {
+	padding-right: var(--space-3);
+	background-color: var(--color-status-kept-subtle);
+	color: var(--color-text-primary);
+	cursor: default;
+}
+
+.agent-composer__chip-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-composer__chip-icon,
+.agent-composer__caret,
+.agent-composer__badge .nd-icon {
+	flex: none;
+	font-size: 16px;
+}
+
+.agent-composer__chip-icon,
+.agent-composer__caret {
+	color: var(--color-text-secondary);
+}
+
+.agent-composer__badge {
+	display: inline-flex;
+	flex: none;
+	color: var(--color-text-secondary);
+}
+
+.agent-composer__badge[data-badge='free'] {
+	color: var(--color-status-kept);
+}
+
+.agent-composer__send .nd-icon {
+	font-size: 22px;
+}
+
+/* Stop: the same place, the same size; a quieter fill. */
+.nd-control--accent.nd-control--accent.agent-composer__send.is-stop {
+	background-color: var(--color-text-primary);
+	color: var(--color-bg-surface);
+}
+
+@media (hover: hover) {
+	.nd-control--accent.nd-control--accent.agent-composer__send.is-stop:hover {
+		background-color: var(--color-text-secondary);
+		color: var(--color-bg-surface);
+	}
+}
+
+/* ---- Popups (rendered into .agent-composer__popups) ---- */
+.agent-menu.nd-popup {
+	display: flex;
+	flex-direction: column;
+	min-width: 240px;
+	max-width: min(320px, calc(100vw - 2 * var(--space-4)));
+	max-height: min(420px, var(--available-height, 420px));
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.agent-menu__list,
+.agent-menu__group {
+	display: flex;
+	flex-direction: column;
+}
+
+.agent-menu__label {
+	padding: var(--space-2) var(--space-2) var(--space-1);
+	color: var(--color-text-secondary);
+}
+
+.agent-menu__separator {
+	height: 1px;
+	margin: var(--space-1) calc(-1 * var(--space-1));
+	background-color: var(--color-border-default);
+}
+
+.nd-item.agent-menu__item {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	box-sizing: border-box;
+	min-height: 40px;
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-md);
+	user-select: none;
+}
+
+.agent-menu__icon,
+.agent-menu__check,
+.agent-menu__chevron {
+	display: inline-flex;
+	flex: none;
+	color: var(--color-text-secondary);
+}
+
+.agent-menu__icon .nd-icon,
+.agent-menu__check .nd-icon,
+.nd-icon.agent-menu__chevron {
+	font-size: 20px;
+}
+
+.agent-menu__check {
+	width: 20px;
+	color: var(--color-text-primary);
+}
+
+.agent-menu__check[data-unchecked] {
+	visibility: hidden;
+}
+
+.agent-menu__text {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-menu__title {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: var(--color-text-primary);
+}
+
+.agent-menu__hint {
+	color: var(--color-text-secondary);
+}
+
+.agent-menu__meta {
+	flex: none;
+	margin-left: auto;
+	color: var(--color-text-secondary);
+}
+
+.agent-menu__empty {
+	padding: var(--space-2);
+	color: var(--color-text-secondary);
+}
+
+.agent-menu__empty:not([data-empty]) {
+	display: none;
+}
+
+/* Tooltips: short labels, dark on light and light on dark. */
+.agent-tooltip {
+	box-sizing: border-box;
+	max-width: 240px;
+	margin: 0;
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-md);
+	background-color: var(--color-text-primary);
+	color: var(--color-bg-surface);
+	pointer-events: none;
+	transition: opacity var(--state-duration) var(--state-easing);
+}
+
+.agent-tooltip[data-starting-style],
+.agent-tooltip[data-ending-style] {
+	opacity: 0;
+}
+
+.agent-tooltip[data-instant] {
+	transition: none;
+}
+
+/* ---- Chaos popover ---- */
+.agent-chaos-popover.nd-popup {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	width: 280px;
+	max-width: calc(100vw - 2 * var(--space-4));
+	padding: var(--space-4);
+}
+
+.agent-chaos-popover__title {
+	margin: 0;
+	color: var(--color-text-primary);
+}
+
+.agent-chaos-popover__hint {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+.agent-slider {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+.agent-slider__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	color: var(--color-text-primary);
+}
+
+.agent-slider__value {
+	color: var(--color-text-secondary);
+}
+
+.agent-slider__control {
+	display: flex;
+	align-items: center;
+	height: 32px;
+	cursor: pointer;
+	touch-action: none;
+}
+
+.agent-slider__track {
+	position: relative;
+	flex: 1 1 auto;
+	height: 4px;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-track);
+}
+
+.agent-slider__indicator {
+	height: 100%;
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-accent);
+}
+
+.agent-slider__thumb {
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
+	border: 2px solid var(--color-bg-accent);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface-raised);
+	box-shadow: var(--shadow-sm);
+	transition: background-color var(--state-duration) var(--state-easing);
+}
+
+.agent-slider__thumb:hover,
+.agent-slider__thumb[data-dragging] {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+.agent-slider__thumb:has(:focus-visible) {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+/* ---- Drop overlay: anywhere on the panel ---- */
+.agent-drop-overlay {
+	position: absolute;
+	inset: var(--space-2);
+	z-index: 5;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	border: 2px dashed var(--color-border-accent);
+	border-radius: var(--radius-xl);
+	background-color: var(--color-bg-accent-subtle);
+	color: var(--color-text-primary);
+	pointer-events: none;
+}
+
+.agent-drop-overlay[hidden] {
+	display: none;
+}
+
+.agent-drop-overlay .material-symbols-rounded {
+	font-size: 32px;
+}
