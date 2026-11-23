@@ -83,8 +83,8 @@ button.chaos-tab__pick:focus-visible {
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	/* Room for focus rings at the edges of the scroller. */
-	padding: 2px;
-	margin: -2px;
+	padding: var(--state-ring-room);
+	margin: calc(-1 * var(--state-ring-room));
 }
 
 .chaos-tool__hint {
@@ -211,6 +211,7 @@ input.chaos-knob__slider {
 	width: 100%;
 	margin: 0;
 	accent-color: var(--color-bg-accent);
+	cursor: pointer;
 }
 
 input.chaos-knob__slider:focus {

@@ -88,6 +88,25 @@ specimen-card .specimen__size-slider::-moz-range-thumb {
 	background: var(--color-bg-accent, var(--primary));
 }
 
+/* Thumb states (#128): paint only, the thumb never changes size. */
+@media (hover: hover) {
+	specimen-card .specimen__size-slider:hover::-webkit-slider-thumb {
+		background: var(--state-accent-hover-bg);
+	}
+
+	specimen-card .specimen__size-slider:hover::-moz-range-thumb {
+		background: var(--state-accent-hover-bg);
+	}
+}
+
+specimen-card .specimen__size-slider:active::-webkit-slider-thumb {
+	background: var(--state-accent-pressed-bg);
+}
+
+specimen-card .specimen__size-slider:active::-moz-range-thumb {
+	background: var(--state-accent-pressed-bg);
+}
+
 specimen-card .specimen__size-slider:focus-visible {
 	outline: var(--focus-ring, 2px solid var(--ring));
 	outline-offset: var(--focus-ring-offset, 2px);
@@ -133,7 +152,7 @@ specimen-card .specimen__letter {
 
 specimen-card .specimen__hit {
 	fill: transparent;
-	transition: fill 120ms ease;
+	transition: fill var(--state-duration, 120ms) var(--state-easing, ease);
 }
 
 specimen-card .specimen__letter:hover .specimen__hit,
@@ -145,6 +164,11 @@ specimen-card .specimen__letter:focus-visible .specimen__hit {
 	stroke: var(--color-focus-ring, var(--ring));
 	stroke-width: 2px;
 	vector-effect: non-scaling-stroke;
+}
+
+/* Pressed: the hit area behind the letter darkens; the glyph ink never changes (#128). */
+specimen-card .specimen__letter:active .specimen__hit {
+	fill: var(--state-pressed-bg, var(--color-bg-track));
 }
 
 /* Ghost: 1.5px dashed glyph/ghost box, radius/sm corners (set in JS) */

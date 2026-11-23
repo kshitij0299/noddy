@@ -1246,8 +1246,12 @@ button.agent-pill:focus-visible {
 }
 
 .agent-panel__tab--chaos {
-	/* The Chaos tab scrolls inside its tool block, so its footer stays put (chaos-tab.css). */
+	/* The Chaos tab scrolls inside its tool block, so its footer stays put (chaos-tab.css).
+	   The padding / negative margin pair gives focus rings at its edges room without moving
+	   anything (#128). */
 	overflow: hidden;
+	padding: var(--state-ring-room);
+	margin: calc(-1 * var(--state-ring-room));
 }
 
 /* Agent | Tools: a pill track like the grid's segmented switch. */
@@ -1280,6 +1284,12 @@ button.agent-tab:active {
 	box-shadow: none;
 	cursor: pointer;
 	transition: background-color 120ms ease;
+}
+
+/* Hover on an unselected tab: text colour only, like the segmented switch (the track is
+   already bg/subtle, so a hover fill would not show). */
+button.agent-tab:hover:not([aria-selected='true']) {
+	color: var(--color-text-primary);
 }
 
 button.agent-tab[aria-selected='true'] {
