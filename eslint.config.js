@@ -37,5 +37,12 @@ export default tseslint.config(
 				},
 			],
 		},
+	},
+	{
+		// React islands (#126): linted like the rest, with JSX on.
+		files: ['**/*.jsx'],
+		languageOptions: {
+			parserOptions: { ecmaFeatures: { jsx: true } },
+		},
 	}
 );
