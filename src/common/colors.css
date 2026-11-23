@@ -78,7 +78,7 @@
 	--color-border-default: var(--warm-200);
 	--color-border-strong: var(--warm-300);
 	--color-border-accent: var(--peach-300);
-	--color-focus-ring: var(--peach-300);
+	--color-focus-ring: var(--peach-600); /* Figma deviation (AA, #128): peach/300 is under 3:1 on white */
 	--color-glyph-ink: var(--warm-900);
 	--color-glyph-ghost: var(--warm-300); /* missing glyph outline */
 	--color-glyph-guide: var(--blue-300); /* metric lines */

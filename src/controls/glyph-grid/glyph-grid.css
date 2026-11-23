@@ -118,7 +118,7 @@ glyph-grid-tile[selected],
 glyph-grid-tile[aria-selected='true'] {
 	background: var(--color-bg-surface);
 	color: var(--color-glyph-ink);
-	box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+	box-shadow: inset 0 0 0 2px var(--color-border-accent);
 }
 
 glyph-grid-tile[selected]:hover,

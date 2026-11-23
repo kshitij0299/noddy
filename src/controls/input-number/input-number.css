@@ -6,7 +6,7 @@
 	transition: var(--global-transition);
 
 	--border-resting: var(--border, oklch(0.9055 0.0111 54.4854));
-	--border-focus: var(--ring, oklch(0.8141 0.1261 58.1544));
+	--border-focus: var(--state-focus-color, var(--ring, oklch(0.8141 0.1261 58.1544)));
 	--border-disabled: var(--border, oklch(0.9055 0.0111 54.4854));
 
 	--background-resting: var(--card, oklch(1 0 0));
@@ -60,7 +60,7 @@
 .upArrow:focus-visible,
 .downArrow:focus-visible,
 .lock:focus-visible {
-	outline: 2px solid var(--ring, oklch(0.8141 0.1261 58.1544));
+	outline: 2px solid var(--state-focus-color, var(--ring, oklch(0.8141 0.1261 58.1544)));
 	outline-offset: 2px;
 }
 
