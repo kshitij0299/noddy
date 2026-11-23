@@ -1,36 +1,22 @@
 /**
- * The composer's chips (PR B): Model, Mode and Target, in their own row above the composer box
- * (#95). Each is a small pill button with a trailing chevron that opens its popover
- * (agent-popover.js) above the chip.
+ * The Target chip (PR B) as the Tools tab still uses it: a pill button with a trailing chevron
+ * that opens a radio-group popover (agent-popover.js): This glyph / Selected glyphs / Whole set,
+ * with counts; a scope with nothing in it is disabled and says how to fill it.
  *
- *   Model   the connected model, short, with a Free / Paid mark; opens the model list
- *           (wired in agent-panel.js, which owns the connect card). With a local agent on it
- *           reads "<client> · connected" and opens nothing.
- *   Mode    Exact / Remix / Wild as a radio group; Remix and Wild show a Chaos slider (0–100)
- *           and the Telephone switch (PR D: each glyph starts from the last glyph's moves).
- *   Target  This glyph / Selected glyphs / Whole set as a radio group with counts; a scope with
- *           nothing in it is disabled and says how to fill it.
- *
- * Mode, chaos and target live in ../agent-controls.js (per project, this tab), which is also
- * what get_context reports.
+ * The agent composer's Model, Mode and Target moved to the ui-sdk composer in #126
+ * (composer/agent-composer.jsx). The Tools tab layout is the next issue; until then this stays.
+ * Target lives in ../agent-controls.js, which is also what get_context reports.
  */
 import {
-	MODES,
-	MODE_HINTS,
-	MODE_LABELS,
 	SCOPES,
 	SCOPE_LABELS,
-	getModeSettings,
 	getTarget,
 	onControlsChange,
 	scopeOptions,
-	setChaos,
-	setMode,
 	setScope,
-	setTelephone,
 } from '../agent-controls.js';
 import { charOf } from '../run/review.js';
-import { el, icon, srOnly } from './cards/card-shell.js';
+import { el, icon } from './cards/card-shell.js';
 import { createPopover } from './agent-popover.js';
 
 /**
@@ -141,107 +127,6 @@ function createRadioGroup({ label, onChoose, onDone = () => {} }) {
 	};
 }
 
-/**
- * The Mode chip and its menu (Exact / Remix / Wild, Chaos in Remix and Wild).
- * @param {{getEditor: () => any}} options
- */
-export function createModeChip({ getEditor }) {
-	const { button, label } = chipButton('agent-chip-button--mode');
-	button.setAttribute('aria-label', 'Mode');
-	const popover = createPopover({
-		anchor: button,
-		label: 'Mode',
-		className: 'agent-popover--mode',
-		onOpen: () => draw(),
-		focus: () => group.focus(),
-	});
-	const group = createRadioGroup({
-		label: 'Mode',
-		onChoose: (value) => setMode(getEditor(), value),
-		onDone: () => popover.close(),
-	});
-
-	const chaosRow = el('div', 'agent-chaos');
-	const chaosId = `agent-chaos-${Math.random().toString(36).slice(2, 8)}`;
-	const chaosLabel = /** @type {HTMLLabelElement} */ (
-		el('label', 'agent-chaos__label text-label', 'Chaos')
-	);
-	chaosLabel.htmlFor = chaosId;
-	const chaosValue = el('output', 'agent-chaos__value text-mono-small');
-	chaosValue.setAttribute('for', chaosId);
-	const slider = /** @type {HTMLInputElement} */ (el('input', 'agent-chaos__slider'));
-	slider.type = 'range';
-	slider.id = chaosId;
-	slider.min = '0';
-	slider.max = '100';
-	slider.step = '5';
-	slider.addEventListener('input', () => setChaos(getEditor(), slider.value));
-	// Arrows belong to the slider here, not the radio group.
-	slider.addEventListener('keydown', (event) => {
-		if (event.key !== 'Escape' && event.key !== 'Tab') event.stopPropagation();
-	});
-	const chaosHead = el('div', 'agent-chaos__head');
-	chaosHead.append(chaosLabel, chaosValue);
-	chaosRow.append(chaosHead, slider);
-
-	// Telephone (Remix and Wild): each glyph starts from the previous glyph's moves plus one
-	// mutation, so the set drifts like a story.
-	const telephoneRow = el('div', 'agent-telephone');
-	const telephoneId = `agent-telephone-${Math.random().toString(36).slice(2, 8)}`;
-	const telephoneText = el('span', 'agent-telephone__text');
-	const telephoneLabel = el('span', 'text-label', 'Telephone');
-	telephoneLabel.id = telephoneId;
-	const telephoneHint = el(
-		'span',
-		'agent-telephone__hint text-body-small',
-		'Each glyph riffs on the last'
-	);
-	telephoneHint.id = `${telephoneId}-hint`;
-	telephoneText.append(telephoneLabel, telephoneHint);
-	const telephone = /** @type {HTMLButtonElement} */ (el('button', 'agent-switch'));
-	telephone.type = 'button';
-	telephone.setAttribute('role', 'switch');
-	telephone.setAttribute('aria-labelledby', telephoneId);
-	telephone.setAttribute('aria-describedby', telephoneHint.id);
-	telephone.append(el('span', 'agent-switch__thumb'));
-	telephone.addEventListener('click', () =>
-		setTelephone(getEditor(), telephone.getAttribute('aria-checked') !== 'true')
-	);
-	telephoneRow.append(telephoneText, telephone);
-	popover.body.append(group.root, chaosRow, telephoneRow);
-
-	function draw() {
-		const { mode, chaos, telephone: telephoneOn } = getModeSettings(getEditor());
-		group.render(
-			MODES.map((value) => ({ value, title: MODE_LABELS[value], hint: MODE_HINTS[value] })),
-			mode
-		);
-		chaosRow.hidden = mode === 'exact';
-		telephoneRow.hidden = mode === 'exact';
-		telephone.setAttribute('aria-checked', String(telephoneOn));
-		slider.value = String(chaos);
-		slider.setAttribute('aria-valuetext', `${chaos} of 100`);
-		chaosValue.textContent = String(chaos);
-	}
-
-	function render() {
-		const { mode, chaos, telephone: telephoneOn } = getModeSettings(getEditor());
-		label.textContent = mode === 'exact' ? MODE_LABELS[mode] : `${MODE_LABELS[mode]} ${chaos}`;
-		button.setAttribute(
-			'aria-label',
-			mode === 'exact'
-				? `Mode: Exact`
-				: `Mode: ${MODE_LABELS[mode]}, chaos ${chaos}${telephoneOn ? ', Telephone on' : ''}`
-		);
-		button.dataset.mode = mode;
-		if (popover.isOpen) draw();
-	}
-
-	const off = onControlsChange(render);
-	render();
-	return { button, popover, render, dispose: off };
-}
-
 /** 'A', '3 glyphs', 'Whole set' */
 function targetShort(target) {
 	if (target.scope === 'glyph') return charOf(target.glyphIds[0]) || 'This glyph';
@@ -312,36 +197,4 @@ export function createTargetChip({ getEditor }) {
 	const off = onControlsChange(render);
 	render();
 	return { button, popover, render, dispose: off };
-}
-
-/**
- * The Model chip (its popover is wired by the panel, which owns the connect card).
- */
-export function createModelChip() {
-	const { button, label, chevron } = chipButton('agent-panel__model');
-	const badge = el('span', 'agent-chip-button__badge');
-	button.insertBefore(badge, chevron);
-	/**
-	 * @param {{label: String, tier?: 'free'|'paid', local?: Boolean}} view
-	 */
-	function render({ label: text, tier, local = false }) {
-		label.textContent = text;
-		badge.replaceChildren();
-		badge.hidden = !tier || local;
-		if (tier && !local) {
-			badge.dataset.badge = tier;
-			badge.append(
-				icon(tier === 'free' ? 'money_off' : 'paid', 'agent-chip-button__badge-icon'),
-				srOnly(tier === 'free' ? ', Free' : ', Paid')
-			);
-		}
-		button.toggleAttribute('data-local', local);
-		button.setAttribute(
-			'aria-label',
-			local ? text : `Model: ${text}${tier ? (tier === 'free' ? ', Free' : ', Paid') : ''}`
-		);
-		button.title = local ? 'Turn off Local agent to use a model' : text;
-	}
-	render({ label: 'No model' });
-	return { button, label, render };
 }

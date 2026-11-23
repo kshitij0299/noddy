@@ -305,55 +305,6 @@ button.agent-icon-button:focus-visible {
 	color: var(--color-text-primary);
 }
 
-.agent-panel__chips {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: center;
-	gap: var(--space-2);
-	max-width: 280px;
-}
-
-.agent-panel__chips[hidden] {
-	display: none;
-}
-
-button.agent-suggestion,
-button.agent-suggestion:hover,
-button.agent-suggestion:focus,
-button.agent-suggestion:active {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--space-1);
-	height: 32px;
-	min-height: 0;
-	margin: 0;
-	padding: 0 var(--space-3);
-	border: 0;
-	border-radius: var(--radius-full);
-	background-color: var(--color-bg-subtle);
-	color: var(--color-text-primary);
-	box-shadow: none;
-	cursor: pointer;
-	transition: background-color 120ms ease;
-}
-
-button.agent-suggestion:hover {
-	background-color: var(--color-bg-accent-subtle);
-}
-
-button.agent-suggestion:focus {
-	outline: none;
-}
-
-button.agent-suggestion:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
-}
-
-.agent-suggestion .material-symbols-rounded {
-	font-size: 18px;
-}
-
 /* ---- Connect flow (M4, #82): one form grid for all three steps ----
    The card is 352px in the 384px panel, padding 16px, so the content is 320px. Every field,
    list, provider row, primary and Back button is 100% of that width, in one column, at one
@@ -1063,185 +1014,6 @@ button.agent-card__button.is-checking {
 	color: var(--color-text-secondary);
 }
 
-/* ---- Composer: pinned bottom, 50px min ---- */
-.agent-composer {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-2);
-	flex: none;
-	margin: 0;
-	padding: var(--space-2);
-	border: 1px solid var(--color-border-default);
-	border-radius: var(--radius-lg);
-	background: var(--color-bg-surface);
-	transition: border-color 120ms ease;
-}
-
-.agent-composer:focus-within {
-	border-color: var(--color-border-strong);
-}
-
-.agent-composer__chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--space-2);
-}
-
-.agent-composer__chips[hidden] {
-	display: none;
-}
-
-.agent-attachment {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--space-1);
-	height: 28px;
-	max-width: 100%;
-	padding: 0 var(--space-1) 0 var(--space-2);
-	border-radius: var(--radius-full);
-	background: var(--color-bg-subtle);
-	color: var(--color-text-primary);
-}
-
-.agent-attachment > .material-symbols-rounded {
-	font-size: 16px;
-}
-
-.agent-attachment__name {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-button.agent-attachment__remove,
-button.agent-attachment__remove:hover,
-button.agent-attachment__remove:focus,
-button.agent-attachment__remove:active,
-button.agent-attachment__remove:disabled {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 20px;
-	height: 20px;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: var(--radius-full);
-	background-color: transparent;
-	color: var(--color-text-secondary);
-	box-shadow: none;
-	cursor: pointer;
-}
-
-button.agent-attachment__remove:hover:not(:disabled) {
-	background-color: var(--color-bg-surface);
-	color: var(--color-text-primary);
-}
-
-button.agent-attachment__remove:focus {
-	outline: none;
-}
-
-button.agent-attachment__remove:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 1px;
-}
-
-.agent-attachment__remove .material-symbols-rounded {
-	font-size: 16px;
-}
-
-.agent-composer__row {
-	display: flex;
-	align-items: flex-end;
-	gap: var(--space-1);
-}
-
-textarea.agent-composer__input,
-textarea.agent-composer__input:focus {
-	flex: 1 1 auto;
-	min-width: 0;
-	box-sizing: border-box;
-	min-height: 32px;
-	margin: 0;
-	padding: 6px var(--space-1);
-	border: 0;
-	background: transparent;
-	color: var(--color-text-primary);
-	resize: none;
-	overflow-y: hidden;
-	outline: none;
-	box-shadow: none;
-}
-
-textarea.agent-composer__input::placeholder {
-	color: var(--color-text-secondary);
-}
-
-/* The composer border carries the focus ring for the input. */
-.agent-composer:has(textarea.agent-composer__input:focus-visible) {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
-}
-
-button.agent-composer__attach,
-button.agent-composer__attach:hover,
-button.agent-composer__attach:focus,
-button.agent-composer__attach:active,
-button.agent-composer__attach:disabled {
-	width: 32px;
-	height: 32px;
-	color: var(--color-text-secondary);
-}
-
-button.agent-composer__send,
-button.agent-composer__send:hover,
-button.agent-composer__send:focus,
-button.agent-composer__send:active,
-button.agent-composer__send:disabled,
-button.agent-composer__send:disabled:hover {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: none;
-	width: 32px;
-	height: 32px;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: var(--radius-full);
-	background-color: var(--color-bg-accent);
-	color: var(--color-text-on-accent);
-	box-shadow: none;
-	cursor: pointer;
-	transition: background-color 120ms ease, opacity 120ms ease;
-}
-
-button.agent-composer__send:hover:not(:disabled) {
-	background-color: var(--color-bg-accent-hover);
-}
-
-button.agent-composer__send:disabled {
-	cursor: default;
-	opacity: 0.4;
-}
-
-button.agent-composer__send:focus {
-	outline: none;
-}
-
-button.agent-composer__send:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
-}
-
-.agent-composer__send .material-symbols-rounded {
-	font-size: 20px;
-}
-
 /* ---- Minimized pill: 300×52 ---- */
 button.agent-pill,
 button.agent-pill:hover,
@@ -1456,7 +1228,7 @@ button.agent-pill:focus-visible {
 	white-space: nowrap;
 }
 
-/* ---- PR B: tabs, composer chips, popovers, per-glyph receipts ----
+/* ---- PR B: tabs, the model popover, per-glyph receipts ----
    Tokens only. Every button state is pinned so the legacy `button` reset can change paint,
    never geometry. */
 
@@ -1478,7 +1250,7 @@ button.agent-pill:focus-visible {
 	overflow: hidden;
 }
 
-/* Agent | Chaos: a pill track like the grid's segmented switch. */
+/* Agent | Tools: a pill track like the grid's segmented switch. */
 .agent-tabs {
 	display: inline-flex;
 	gap: 2px;
@@ -1524,35 +1296,9 @@ button.agent-tab:focus-visible {
 	outline-offset: 2px;
 }
 
-/* Composer: the input on top, attach (left) and send (right) under it. */
-.agent-composer__tool-row {
-	display: flex;
-	align-items: flex-end;
-	justify-content: space-between;
-	gap: var(--space-1);
-	min-width: 0;
-}
-
-/* Chip row (#95): one line above the box, on the panel surface. Narrow panels scroll it
-   sideways with no scrollbar; the 4px pad (cancelled by the margin) keeps focus rings unclipped. */
-.agent-composer__tools {
-	display: flex;
-	align-items: center;
-	gap: var(--space-1);
-	flex: none;
-	min-width: 0;
-	margin: calc(-1 * var(--space-1));
-	padding: var(--space-1);
-	overflow-x: auto;
-	overflow-y: hidden;
-	scrollbar-width: none;
-}
-
-.agent-composer__tools::-webkit-scrollbar {
-	display: none;
-}
-
-/* Chips: 28px pills, label weight, paint-only hover. The model chip gives up width first. */
+/* The Tools tab's Target chip and its menu (agent-composer-chips.js). The composer's own
+   chips and menus are in composer/agent-composer.css (#126). */
+/* Chips: 28px pills, label weight, paint-only hover. */
 button.agent-chip-button,
 button.agent-chip-button:hover,
 button.agent-chip-button:focus,
@@ -1593,24 +1339,6 @@ button.agent-chip-button:focus-visible {
 	outline-offset: 2px;
 }
 
-button.agent-chip-button.agent-panel__model {
-	flex: 0 1 auto;
-	min-width: 48px;
-}
-
-/* With a local agent on, its chip says "<client> · connected" in full: the row scrolls
-   rather than cut it. */
-button.agent-chip-button.agent-panel__model[data-local] {
-	flex: none;
-}
-
-/* With a local agent on the model chip is a status, not a menu. */
-button.agent-chip-button.agent-panel__model[data-local],
-button.agent-chip-button.agent-panel__model[data-local]:hover {
-	background-color: var(--color-status-kept-subtle);
-	cursor: default;
-}
-
 .agent-chip-button__label {
 	min-width: 0;
 	overflow: hidden;
@@ -1631,23 +1359,73 @@ button.agent-chip-button.agent-panel__model[data-local]:hover {
 	color: var(--color-text-secondary);
 }
 
-/* The local agent's status chip opens nothing: no chevron. */
-.agent-panel__model[data-local] .agent-chip-button__chevron {
-	display: none;
+/* Radio rows (Mode, Target): the whole row is the target, 44px tall. */
+.agent-radio-group {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
-.agent-chip-button__badge {
-	display: inline-flex;
-	flex: none;
+.agent-radio {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 44px;
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+.agent-radio:hover:not([aria-disabled='true']) {
+	background-color: var(--color-bg-subtle);
+}
+
+.agent-radio[aria-checked='true'] {
+	background-color: var(--color-bg-accent-subtle);
+}
+
+.agent-radio:focus {
+	outline: none;
+}
+
+.agent-radio:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: -2px;
+}
+
+.agent-radio[aria-disabled='true'],
+.agent-radio[aria-disabled='true']:hover {
+	background-color: transparent;
+	cursor: default;
 	color: var(--color-text-secondary);
 }
 
-.agent-chip-button__badge[hidden] {
-	display: none;
+.agent-radio__mark {
+	flex: none;
+	font-size: 20px;
+	color: var(--color-text-secondary);
 }
 
-.agent-chip-button__badge[data-badge='free'] {
-	color: var(--color-status-kept);
+.agent-radio[aria-checked='true'] .agent-radio__mark {
+	color: var(--color-text-primary);
+}
+
+.agent-radio__text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.agent-radio__title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--space-2);
+}
+
+.agent-radio__meta,
+.agent-radio__hint {
+	color: var(--color-text-secondary);
 }
 
 /* Popovers float above the composer, inside the panel (never over the font). */
@@ -1722,106 +1500,6 @@ button.agent-chip-button.agent-panel__model[data-local]:hover {
 	padding: var(--space-2);
 }
 
-/* Radio rows (Mode, Target): the whole row is the target, 44px tall. */
-.agent-radio-group {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.agent-radio {
-	display: flex;
-	align-items: center;
-	gap: var(--space-2);
-	min-height: 44px;
-	padding: var(--space-1) var(--space-2);
-	border-radius: var(--radius-md);
-	cursor: pointer;
-	transition: background-color 120ms ease;
-}
-
-.agent-radio:hover:not([aria-disabled='true']) {
-	background-color: var(--color-bg-subtle);
-}
-
-.agent-radio[aria-checked='true'] {
-	background-color: var(--color-bg-accent-subtle);
-}
-
-.agent-radio:focus {
-	outline: none;
-}
-
-.agent-radio:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: -2px;
-}
-
-.agent-radio[aria-disabled='true'],
-.agent-radio[aria-disabled='true']:hover {
-	background-color: transparent;
-	cursor: default;
-	color: var(--color-text-secondary);
-}
-
-.agent-radio__mark {
-	flex: none;
-	font-size: 20px;
-	color: var(--color-text-secondary);
-}
-
-.agent-radio[aria-checked='true'] .agent-radio__mark {
-	color: var(--color-text-primary);
-}
-
-.agent-radio__text {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-}
-
-.agent-radio__title {
-	display: flex;
-	align-items: baseline;
-	gap: var(--space-2);
-}
-
-.agent-radio__meta,
-.agent-radio__hint {
-	color: var(--color-text-secondary);
-}
-
-/* Chaos: label and value on one line, the slider under it. */
-.agent-chaos {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-1);
-	padding: var(--space-2) var(--space-2) var(--space-1);
-}
-
-.agent-chaos[hidden] {
-	display: none;
-}
-
-.agent-chaos__head {
-	display: flex;
-	justify-content: space-between;
-}
-
-input.agent-chaos__slider {
-	width: 100%;
-	margin: 0;
-	accent-color: var(--color-bg-accent);
-}
-
-input.agent-chaos__slider:focus {
-	outline: none;
-}
-
-input.agent-chaos__slider:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
-}
 
 /* Per-glyph receipts: each glyph in a multi-glyph strip is a button. */
 button.agent-glyph-pick,
@@ -1872,75 +1550,4 @@ button.agent-glyph-pick:focus-visible {
 /* Remix (PR D): a take's seed on its receipt, quiet next to the summary or the glyph label. */
 .agent-receipt__seed {
 	color: var(--color-text-secondary);
-}
-
-/* Telephone: a switch row under Chaos in the Mode menu (Remix and Wild only). */
-.agent-telephone {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--space-3);
-	padding: var(--space-1) var(--space-2) var(--space-2);
-}
-
-.agent-telephone[hidden] {
-	display: none;
-}
-
-.agent-telephone__text {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.agent-telephone__hint {
-	color: var(--color-text-secondary);
-}
-
-button.agent-switch,
-button.agent-switch:hover,
-button.agent-switch:focus,
-button.agent-switch:active {
-	position: relative;
-	flex: none;
-	box-sizing: border-box;
-	width: 36px;
-	height: 20px;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: var(--radius-full);
-	background-color: var(--color-bg-track);
-	box-shadow: none;
-	cursor: pointer;
-	transition: background-color 120ms ease;
-}
-
-button.agent-switch[aria-checked='true'] {
-	background-color: var(--color-bg-accent);
-}
-
-.agent-switch__thumb {
-	position: absolute;
-	top: 2px;
-	left: 2px;
-	width: 16px;
-	height: 16px;
-	border-radius: var(--radius-full);
-	background: var(--color-bg-surface);
-	transition: transform 120ms ease;
-}
-
-button.agent-switch[aria-checked='true'] .agent-switch__thumb {
-	transform: translateX(16px);
-}
-
-button.agent-switch:focus {
-	outline: none;
-}
-
-button.agent-switch:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
 }

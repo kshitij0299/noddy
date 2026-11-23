@@ -187,8 +187,8 @@ describe('agent panel: Local agent switch', () => {
 	}
 
 	const toggle = () => panel.panel.querySelector('button[aria-label="Local agent"]');
-	const chip = () => panel.panel.querySelector('.agent-panel__model');
-	const label = () => chip().querySelector('.agent-chip-button__label').textContent;
+	const chip = () => panel.panel.querySelector('.agent-composer__model');
+	const label = () => chip().querySelector('.agent-composer__chip-label').textContent;
 	const steps = () =>
 		[...panel.thread.querySelectorAll('agent-step-line')].map((line) => line.textContent.trim());
 	const type = async (text) => {

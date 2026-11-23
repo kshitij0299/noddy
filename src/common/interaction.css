@@ -1,0 +1,213 @@
+/* --------------------------------------------------------------
+	Interaction states (#126; rolled out app-wide in #128).
+
+	One set of hover, pressed, open, selected, disabled and focus values so every control
+	reacts the same way. Use the tokens in component CSS, or put the classes on a control:
+
+	  .nd-control            ghost control: transparent, hover / pressed / open fills
+	  .nd-control--accent    filled accent control (a primary action such as Send)
+	  .nd-control--icon      square icon button with a 40px target, round
+	  .nd-item               a row in a menu or list (ui-sdk sets data-highlighted)
+	  .nd-popup              a floating surface (menus, popovers, tooltips use their own)
+
+	Rules: paint-only (colours, never geometry, so nothing shifts on hover); hover only where
+	a pointer can hover; the focus ring only for keyboard focus (:focus-visible) and never
+	clipped (outline, not box-shadow inside overflow); disabled reads as disabled (dimmed, no
+	hover, default cursor); motion off with prefers-reduced-motion.
+
+	The classes are doubled (.nd-control.nd-control) so they beat the legacy `button`,
+	`button:hover` and `button[disabled]:hover` resets in resets.css and the global
+	`[disabled]` / `[aria-disabled]` / `[aria-selected]` states, without !important.
+-------------------------------------------------------------- */
+
+/* ui-sdk adds its own behaviour CSS in this layer; unlayered app CSS always wins over it. */
+@layer ui-sdk;
+
+:root,
+.dark,
+[data-theme='dark'] {
+	--state-duration: 120ms;
+	--state-easing: cubic-bezier(0.2, 0, 0, 1);
+
+	--state-hover-bg: var(--color-bg-subtle);
+	--state-pressed-bg: var(--color-bg-track);
+	--state-open-bg: var(--color-bg-subtle);
+	--state-selected-bg: var(--color-bg-accent-subtle);
+
+	--state-accent-bg: var(--color-bg-accent);
+	--state-accent-hover-bg: var(--color-bg-accent-hover);
+	--state-accent-pressed-bg: var(--peach-600);
+	--state-on-accent: var(--color-text-on-accent);
+
+	--state-disabled-opacity: 0.4;
+	--state-target-size: 40px;
+
+	/* peach/300 is under 3:1 on white, so light mode rings in peach/600 (about 3.8:1). */
+	--state-focus-color: var(--peach-600);
+	--state-focus-ring: var(--focus-ring-width) solid var(--state-focus-color);
+	--state-focus-offset: var(--focus-ring-offset);
+}
+
+.dark,
+[data-theme='dark'] {
+	--state-pressed-bg: var(--warm-700);
+	--state-accent-pressed-bg: var(--peach-100);
+	--state-focus-color: var(--peach-300);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root,
+	.dark,
+	[data-theme='dark'] {
+		--state-duration: 0ms;
+	}
+}
+
+/* ---- Control ---- */
+.nd-control.nd-control {
+	appearance: none;
+	margin: 0;
+	border: 0;
+	box-shadow: none;
+	background-color: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: inherit;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+	transition: background-color var(--state-duration) var(--state-easing),
+		color var(--state-duration) var(--state-easing),
+		opacity var(--state-duration) var(--state-easing);
+}
+
+@media (hover: hover) {
+	.nd-control.nd-control:hover:not(:disabled, [aria-disabled='true'], [data-disabled]) {
+		background-color: var(--state-hover-bg);
+		color: inherit;
+	}
+}
+
+.nd-control.nd-control[aria-expanded='true'],
+.nd-control.nd-control[data-open] {
+	background-color: var(--state-open-bg);
+}
+
+.nd-control.nd-control:active:not(:disabled, [aria-disabled='true'], [data-disabled]),
+.nd-control.nd-control[data-pressed] {
+	background-color: var(--state-pressed-bg);
+}
+
+.nd-control.nd-control:focus {
+	outline: none;
+}
+
+.nd-control.nd-control:focus-visible {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+.nd-control.nd-control:disabled,
+.nd-control.nd-control[aria-disabled='true'],
+.nd-control.nd-control[data-disabled] {
+	background-color: transparent;
+	color: inherit;
+	opacity: var(--state-disabled-opacity);
+	cursor: default;
+}
+
+/* ---- Accent control ---- */
+.nd-control--accent.nd-control--accent,
+.nd-control--accent.nd-control--accent:disabled,
+.nd-control--accent.nd-control--accent[aria-disabled='true'] {
+	background-color: var(--state-accent-bg);
+	color: var(--state-on-accent);
+}
+
+@media (hover: hover) {
+	.nd-control--accent.nd-control--accent:hover:not(:disabled, [aria-disabled='true']) {
+		background-color: var(--state-accent-hover-bg);
+		color: var(--state-on-accent);
+	}
+}
+
+.nd-control--accent.nd-control--accent:active:not(:disabled, [aria-disabled='true']) {
+	background-color: var(--state-accent-pressed-bg);
+}
+
+/* ---- Icon control: 40px square target, round ---- */
+.nd-control--icon.nd-control--icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	box-sizing: border-box;
+	width: var(--state-target-size);
+	height: var(--state-target-size);
+	min-height: 0;
+	padding: 0;
+	border-radius: var(--radius-full);
+}
+
+/* ---- Menu / list row ---- */
+.nd-item.nd-item {
+	outline: none;
+	cursor: pointer;
+	background-color: transparent;
+	color: var(--color-text-primary);
+	transition: background-color var(--state-duration) var(--state-easing);
+}
+
+.nd-item.nd-item[data-highlighted],
+.nd-item.nd-item[data-open] {
+	background-color: var(--state-hover-bg);
+}
+
+.nd-item.nd-item:active:not([data-disabled], [aria-disabled='true']) {
+	background-color: var(--state-pressed-bg);
+}
+
+.nd-item.nd-item:focus-visible {
+	outline: var(--state-focus-ring);
+	outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.nd-item.nd-item[data-disabled],
+.nd-item.nd-item[aria-disabled='true'] {
+	background-color: transparent;
+	color: var(--color-text-primary);
+	opacity: var(--state-disabled-opacity);
+	cursor: default;
+}
+
+.nd-item.nd-item[data-disabled][data-highlighted],
+.nd-item.nd-item[aria-disabled='true'][data-highlighted] {
+	background-color: var(--state-hover-bg);
+}
+
+/* ---- Floating surface ---- */
+.nd-popup.nd-popup {
+	box-sizing: border-box;
+	margin: 0;
+	padding: var(--space-1);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-lg);
+	background-color: var(--color-bg-surface-raised);
+	color: var(--color-text-primary);
+	box-shadow: var(--shadow-float);
+	transition: opacity var(--state-duration) var(--state-easing),
+		transform var(--state-duration) var(--state-easing);
+	transform-origin: var(--transform-origin);
+}
+
+.nd-popup.nd-popup[data-starting-style],
+.nd-popup.nd-popup[data-ending-style] {
+	opacity: 0;
+	transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.nd-popup.nd-popup[data-starting-style],
+	.nd-popup.nd-popup[data-ending-style] {
+		transform: none;
+	}
+}

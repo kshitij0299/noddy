@@ -4,10 +4,11 @@
  * One module-level panel lives in the persistent slot
  * (src/app/agent_panel_slot.js), so a run survives page navigation.
  *
- *   header   mark · "Agent" (or the Agent | Chaos tabs once a chaos tool exists) · status dot ·
+ *   header   mark · "Agent" (or the Agent | Tools tabs once a chaos tool exists) · status dot ·
  *            [Local agent] · New chat · minimize (no close)
  *   thread   anchored at the bottom: bubbles, step lines, message cards
- *   composer "Ask the agent", then attach · Model · Mode · Target chips · send (PR B)
+ *   composer one box on ui-sdk (#126): attachments, "Ask the agent", then + menu (sketch,
+ *            Mode, starters; `/` opens the same list) · Target · Model · send
  *   pill     the minimized form (agent-pill.js)
  *
  * Minimizing, Esc and focus mode never stop a run: nothing here calls
@@ -59,7 +60,6 @@ import {
 import { describeRunError } from '../connect-flow.js';
 import { createPanelComposer } from './agent-panel-composer.js';
 import { createAgentPill, derivePillPhase } from './agent-pill.js';
-import { createModeChip, createModelChip, createTargetChip } from './agent-composer-chips.js';
 import { closeAllPopovers, createPopover } from './agent-popover.js';
 import { createPanelTabs, listChaosTools, onChaosToolsChange } from './agent-panel-tabs.js';
 import { createChaosTab, registerChaosTools } from './chaos/chaos-tab.js';
@@ -315,13 +315,14 @@ export function createAgentPanel({
 		onStop: () => (localAgent?.on ? localAgent.stop() : controller.stop()),
 		getReferences: () => controller.references || [],
 		onAttachError: (message) => addError({ message }),
+		getEditor,
 	});
+	// Dropping an image anywhere on the panel attaches it. A drop on the Tools tab shows the Agent
+	// tab, so the attachment is never added out of sight (`tabs` is built further down).
+	composer.bindDropZone(panel, { onDrop: () => tabs.select('agent') });
 
-	// ---- Composer chips: Model · Mode · Target (PR B) ----
-	const modelChip = createModelChip();
-	const modeChip = createModeChip({ getEditor });
-	const targetChip = createTargetChip({ getEditor });
-	composer.tools.append(modelChip.button, modeChip.button, targetChip.button);
+	// ---- Model chip (in the composer's row): its list opens in a popover (PR B) ----
+	const modelChip = composer.model;
 	const modelPopover = createPopover({
 		anchor: modelChip.button,
 		label: 'Model',
@@ -427,42 +428,22 @@ export function createAgentPanel({
 	const emptyMark = el('span', 'agent-mark agent-mark--48');
 	emptyMark.setAttribute('aria-hidden', 'true');
 	const emptyTitle = el('h2', 'agent-panel__empty-title text-heading', 'What are we drawing?');
-	const chips = el('div', 'agent-panel__chips');
-	/** 'new' (an empty font) or 'edit' (a loaded font): which suggestions are drawn. */
+	/** 'new' (an empty font) or 'edit' (a loaded font): which starters the + menu offers. */
 	let emptyKind = '';
 	function drawSuggestions(kind) {
 		emptyKind = kind;
 		emptyTitle.textContent = kind === 'edit' ? 'What should we change?' : 'What are we drawing?';
-		const buttons = (kind === 'edit' ? EDIT_SUGGESTIONS : SUGGESTIONS).map((text) => {
-			const button = /** @type {HTMLButtonElement} */ (
-				el('button', 'agent-suggestion text-label', text)
-			);
-			button.type = 'button';
-			button.addEventListener('click', () => {
-				composer.setValue(text);
-				composer.input.focus();
-			});
-			return button;
-		});
-		const sketch = /** @type {HTMLButtonElement} */ (el('button', 'agent-suggestion text-label'));
-		sketch.type = 'button';
-		sketch.append(icon('image'), el('span', '', 'Add a sketch'));
-		sketch.addEventListener('click', () => composer.openChooser());
-		chips.replaceChildren(...buttons, sketch);
+		// The starters live in the composer's + menu (and `/`), not in a pill row (#126).
+		composer.setStarters(kind === 'edit' ? EDIT_SUGGESTIONS : SUGGESTIONS);
 	}
 	drawSuggestions('new');
-	empty.append(emptyMark, emptyTitle, chips, connect.root);
+	empty.append(emptyMark, emptyTitle, connect.root);
 
 	function renderEmptyState() {
 		const kind = fontHasGlyphs(getEditor()) ? 'edit' : 'new';
 		if (kind !== emptyKind) drawSuggestions(kind);
-		// A local agent needs no model: its suggestions show while it is on.
-		const ready = controller.connected || !!localAgent?.on;
 		const cardHere = connect.root.parentElement === empty && connect.showsCard;
-		// The suggestions come once a model is connected and the card has stepped aside as the
-		// Connected row. While the card shows, the block anchors to the top so it never moves
-		// between steps.
-		chips.hidden = !(ready && !cardHere);
+		// While the card shows, the block anchors to the top so it never moves between steps.
 		empty.toggleAttribute('data-connecting', cardHere && !localAgent?.on);
 		connect.root.hidden = !!localAgent?.on && connect.root.parentElement === empty;
 	}
@@ -1293,6 +1274,8 @@ export function createAgentPanel({
 	host.addEventListener('keydown', (event) => {
 		guardPanelKey(event);
 		if (event.key !== 'Escape' || event.ctrlKey || event.metaKey || event.altKey) return;
+		// A composer menu, the `/` list or a tooltip took this Esc.
+		if (composer.handledEscape(event)) return;
 		if (event.target === composer.input) {
 			composer.input.blur();
 			event.preventDefault();
@@ -1353,17 +1336,9 @@ export function createAgentPanel({
 				/* No Local agent: the panel works as before. */
 			});
 	}
-	// ---- Tabs: Agent | Chaos (the Chaos tab shows once a chaos tool is registered, PR C) ----
+	// ---- Tabs: Agent | Tools (the Tools tab shows once a chaos tool is registered, PR C) ----
 	const agentTab = el('div', 'agent-panel__tab agent-panel__tab--agent');
-	agentTab.append(
-		thread,
-		runBar.root,
-		composer.tools,
-		composer.root,
-		modelPopover.root,
-		modeChip.popover.root,
-		targetChip.popover.root
-	);
+	agentTab.append(thread, runBar.root, composer.root, modelPopover.root);
 	const chaosTab = el('div', 'agent-panel__tab agent-panel__tab--chaos');
 	const tabs = createPanelTabs({
 		panels: { agent: agentTab, chaos: chaosTab },
@@ -1415,14 +1390,12 @@ export function createAgentPanel({
 		restore,
 		/** Re-read counts (review store), the chips and the empty state; redraw the pill and dot. */
 		refreshStatus() {
-			modeChip.render();
-			targetChip.render();
+			composer.refresh();
 			if (empty.isConnected) renderEmptyState();
 			renderStatus();
 		},
+		/** The composer's Model chip (`button`, `label`, `render`). */
 		modelChip,
-		modeChip,
-		targetChip,
 		tabs,
 		newChatButton,
 		/**
@@ -1443,8 +1416,6 @@ export function createAgentPanel({
 			offChaos();
 			offControls();
 			chaos.dispose();
-			modeChip.dispose();
-			targetChip.dispose();
 			localAgent?.dispose();
 			document.removeEventListener('keydown', onDocumentKey);
 			document.removeEventListener(RETRY_GLYPHS_EVENT, onRetryGlyphs);
@@ -1472,7 +1443,7 @@ export function getAgentPanel() {
  * @returns {ReturnType<typeof createAgentPanel>}
  */
 export function ensureAgentPanel(options) {
-	// The Chaos tab's tools (PR C): registering them shows the Agent | Chaos tabs.
+	// The Tools tab's tools (PR C): registering them shows the Agent | Tools tabs.
 	registerChaosTools();
 	if (!singleton) singleton = createAgentPanel(options);
 	// Never replace something else already mounted in the slot.

@@ -1,5 +1,6 @@
 /**
- * The agent panel's tabs: Agent | Chaos (owner decision 2026-10-24, PR B shell).
+ * The agent panel's tabs: Agent | Tools (owner decision 2026-10-24, PR B shell). The tab was
+ * called "Chaos" until #126; the id and the code names (`chaos`, registerChaosTool) stay.
  *
  * The Chaos tab holds algorithmic tools that run without AI (PR C). PR B ships only the shell:
  * the tab row appears once at least one chaos tool is registered, so no empty tab ships. Until
@@ -62,7 +63,7 @@ export function resetChaosToolsForTests() {
 
 export const PANEL_TABS = Object.freeze([
 	{ id: 'agent', label: 'Agent' },
-	{ id: 'chaos', label: 'Chaos' },
+	{ id: 'chaos', label: 'Tools' },
 ]);
 
 let tabsCount = 0;

@@ -24,6 +24,7 @@
 		"@eslint/js": "^9.39.4",
 		"@modelcontextprotocol/sdk": "1.32.1",
 		"@types/jest": "^29.5.12",
+		"@vitejs/plugin-react": "^6.3.0",
 		"@vitest/browser": "^4.1.10",
 		"buffer": "^6.0.3",
 		"eslint-config-prettier": "^8.5.0",
@@ -58,11 +59,15 @@
 		"@ai-sdk/openai": "^4.0.83",
 		"@ai-sdk/openai-compatible": "^3.0.62",
 		"@mattlag/xmltojson": "^2.0.2",
+		"@ui-sdk/core": "0.1.0-beta.13",
+		"@ui-sdk/react": "0.1.0-beta.13",
 		"ai": "^7.0.127",
 		"bezier-boolean": "^1.0.6",
 		"eslint": "^10.8.0",
 		"font-flux-js": "^2.7.1",
-		"paper": "0.12.18"
+		"paper": "0.12.18",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
 	},
 	"engines": {
 		"node": ">=22"

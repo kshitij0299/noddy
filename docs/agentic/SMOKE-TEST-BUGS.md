@@ -234,3 +234,13 @@ Draft. Found on the way:
 55. **No visible log of changes / undo history** (owner, 2026-10-28). Undo works, but there is no
     list of what changed (who: you / agent / Chaos, which glyph, which effect or tool, when) to
     review or step back to. New UI needed. Issue #104.
+
+## Found while building the ui-sdk composer (#126, 2026-11-23)
+
+56. **The legacy `textarea { height: 24px }` reset stops text fields from growing** (resets.css).
+    A textarea with `field-sizing: content` (ui-sdk's `autoResize`) stays at its min height and
+    scrolls from the second line. The composer sets `height: auto` for itself; any other
+    auto-growing field needs the same until #128 retires the reset.
+57. **Light-mode focus rings are under 3:1** (`--color-focus-ring` is peach/300, about 1.9:1 on
+    white). The composer uses the new `--state-focus-color` (peach/600 in light, about 3.8:1);
+    #128 should move the rest of the app onto it.

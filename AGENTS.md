@@ -107,3 +107,8 @@ Every verification packet must include:
 ## 8. Completion bar
 
 Do not claim completion unless: lint + relevant tests + production build pass; regression matrix smoke-tested; responsive + typography contracts validated; independent reviewer assessed protected-domain risk; Noddy branding/versioning documented + verified; GPL/upstream attribution intact.
+
+## 9. ui-sdk (React islands)
+
+- Before using ui-sdk, follow the ui-sdk skill if it's installed (`.claude/skills/ui-sdk/`), and read `node_modules/@ui-sdk/react/docs/llms.txt`. To build a new component, also search `node_modules/@ui-sdk/react/docs/core.md` by heading, and read `rendering.md` next to it.
+- React is only used as small islands inside the vanilla app (the first is the agent composer, `src/agent/ui/composer/`). The rest of the app stays vanilla JS + lit. Do not import `@ui-sdk/core/web.css`: style ui-sdk parts with Noddy tokens and the shared state classes in `src/common/interaction.css`.
