@@ -278,8 +278,7 @@ input[type='number'] {
 /* Contract 1 §2 + Contract 2 §4 — sentence case everywhere by default;
 .label--meta uppercase is reserved for super-titles (eyebrow labels above
 titles), never for buttons or body copy. */
-label,
-:where(label:focus, label:active) {
+label {
 	display: inline;
 	font-family: var(--font-sans);
 	font-weight: 500;
@@ -424,8 +423,11 @@ label,
 	color: black;
 }
 
-input,
-textarea {
+/* Wrapped like its hover / focus / [disabled] rules below (#128): if this rest rule kept
+element weight (0,0,1) it would beat those zero-weight state rules, and plain fields would
+lose their hover and focus paint and look enabled when disabled. All four sit at zero, so
+source order decides, as it did when they were all element-weight. */
+:where(input, textarea) {
 	border: none;
 	padding: 0px 0px 0px 4px;
 	height: 24px;
