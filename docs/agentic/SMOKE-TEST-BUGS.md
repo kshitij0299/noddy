@@ -244,7 +244,17 @@ Draft. Found on the way:
 57. **Light-mode focus rings are under 3:1** (`--color-focus-ring` is peach/300, about 1.9:1 on
     white). The composer uses the new `--state-focus-color` (peach/600 in light, about 3.8:1);
     #128 should move the rest of the app onto it. **Fixed in #128** (`--color-focus-ring` is
-    peach/600 in light; every ring follows it).
+    peach/600 in light). The first round of #128 only moved the new UI: the legacy `--ring` token
+    stayed peach/300, so about 30 rings that use `var(--ring)` (the dialog close button, the edit
+    canvas, the legacy panels and pages) still drew 1.8:1 (QA B1 on PR #133). The fix round
+    points `--ring` at `--color-focus-ring` in light and dark, moves the few hover and selected
+    borders that borrowed `--ring` onto `--primary` (same peach/300 as before), and adds a contract
+    test that `--ring` is only used for focus rings and that the ring is at least 3:1 on every
+    surface token.
+65. **Legacy text fields lost hover and focus paint, and disabled ones looked enabled** (PR #133,
+    first round). The field state rules were wrapped in `:where()` but the `input, textarea` rest
+    rule was not, so it outranked them. **Fixed in the #133 fix round** (rest rule wrapped too,
+    plus a specificity test that fails if a rest rule outranks its state rules).
 
 ## Found in the interaction-state audit (#128, 2026-11-23)
 
