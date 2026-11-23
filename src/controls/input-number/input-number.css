@@ -23,8 +23,8 @@
 
 	--selected_border-resting: var(--primary, oklch(0.8141 0.1261 58.1544));
 	--selected_fill-resting: var(--primary, oklch(0.8141 0.1261 58.1544));
-	--selected_border-focus: var(--ring, oklch(0.8141 0.1261 58.1544));
-	--selected_fill-focus: var(--ring, oklch(0.8141 0.1261 58.1544));
+	--selected_border-focus: var(--primary, oklch(0.8141 0.1261 58.1544));
+	--selected_fill-focus: var(--primary, oklch(0.8141 0.1261 58.1544));
 }
 
 :host {
@@ -90,7 +90,14 @@
 	opacity: 1;
 }
 
-.numberInput:hover,
+/* Hover is a quieter border than focus (#128), so the field you type into stays the one in
+the focus colour. Focus / active come after, so a hovered focused field keeps the focus border. */
+.numberInput:hover {
+	background-color: var(--background-focus);
+	border-color: var(--state-field-hover-border, var(--border-resting));
+	color: var(--text-focus);
+}
+
 .numberInput:active,
 .numberInput:focus {
 	background-color: var(--background-focus);

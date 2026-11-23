@@ -212,6 +212,7 @@ input.chaos-knob__slider {
 	margin: 0;
 	accent-color: var(--color-bg-accent);
 	cursor: pointer;
+	transition: background-color var(--state-duration) var(--state-easing);
 }
 
 input.chaos-knob__slider:focus {
@@ -236,6 +237,14 @@ input.chaos-seed:focus {
 	background: var(--color-bg-surface);
 	color: var(--color-text-primary);
 	text-align: right;
+	transition: border-color var(--state-duration) var(--state-easing);
+}
+
+/* Shared field hover (#128); focus below keeps its own border. */
+@media (hover: hover) {
+	input.chaos-seed:hover {
+		border-color: var(--state-field-hover-border);
+	}
 }
 
 input.chaos-seed:focus {
