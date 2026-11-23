@@ -215,8 +215,8 @@ button.agent-card__button:disabled,
 button.agent-card__button:disabled:hover,
 button.agent-card__button:disabled:focus,
 button.agent-card__button:disabled:active {
+	/* Opacity is the shared disabled look in src/common/interaction.css (#128). */
 	cursor: default;
-	opacity: 0.55;
 }
 
 button.agent-card__button--primary:disabled,

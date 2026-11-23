@@ -407,6 +407,8 @@ stay reachable; the list keeps scrolling internally via overflow-y. */
 	font-size: 1.2em;
 	padding: 0px 0px 2px 0px;
 	margin: 0px;
+	/* Shared timing (#128): paint properties only, not the legacy `all 80ms`. */
+	transition-property: background-color, border-color, color;
 }
 
 /* Expand the icon-only close hit area to 32px without moving layout */
