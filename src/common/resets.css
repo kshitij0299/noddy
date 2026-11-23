@@ -278,7 +278,8 @@ input[type='number'] {
 /* Contract 1 §2 + Contract 2 §4 — sentence case everywhere by default;
 .label--meta uppercase is reserved for super-titles (eyebrow labels above
 titles), never for buttons or body copy. */
-:where(label, label:focus, label:active) {
+label,
+:where(label:focus, label:active) {
 	display: inline;
 	font-family: var(--font-sans);
 	font-weight: 500;

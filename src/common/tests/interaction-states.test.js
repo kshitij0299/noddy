@@ -25,10 +25,27 @@ describe('resets.css: legacy state rules never outrank component styles', () => 
 	const LEGACY_STATE =
 		/(^|,)\s*(button|input|textarea|a|label)(\[disabled\])?(:hover|:focus|:active|:visited)|(^|,)\s*button\[disabled\]|(^|,)\s*\[(disabled|aria-disabled|aria-selected|aria-busy)/;
 
+	/** Splits a selector list at top-level commas only. */
+	const parts = (list) => {
+		const out = [];
+		let depth = 0;
+		let current = '';
+		for (const char of list) {
+			if (char === '(') depth++;
+			if (char === ')') depth--;
+			if (char === ',' && depth === 0) {
+				out.push(current.trim());
+				current = '';
+			} else current += char;
+		}
+		out.push(current.trim());
+		return out;
+	};
+
 	it('wraps every button / link / field / ARIA state rule in :where()', () => {
-		const offenders = selectors(resets).filter(
-			(selector) => LEGACY_STATE.test(selector) && !selector.startsWith(':where(')
-		);
+		const offenders = selectors(resets)
+			.flatMap(parts)
+			.filter((selector) => LEGACY_STATE.test(selector) && !selector.startsWith(':where('));
 		expect(offenders).toEqual([]);
 	});
 
