@@ -143,33 +143,32 @@ strong {
 	font-weight: bold;
 }
 
-a,
-a:visited {
+/* Legacy state rules below are wrapped in :where() (zero specificity, #128): they still
+paint the legacy pages by default, but any component rule wins over them without
+doubled classes or IDs, so hover, press and focus are set in one place per control. */
+:where(a, a:visited) {
 	background-color: transparent;
 	border-radius: 4px;
 	color: var(--blue-l55);
 	text-decoration: none;
 }
 
-a:active {
+:where(a:active) {
 	color: var(--blue-l40);
 	background-color: hsla(200, 100%, 45%, 0.1);
 }
 
-a:focus,
-a:hover {
+:where(a:focus-visible, a:hover) {
 	color: var(--blue-l65);
 	text-decoration: underline;
 	cursor: pointer;
 }
 
-a[danger],
-a[danger]:visited {
+:where(a[danger], a[danger]:visited) {
 	color: var(--darkRed);
 }
 
-a[danger]:hover,
-a[danger]:focus {
+:where(a[danger]:hover, a[danger]:focus-visible) {
 	color: var(--red);
 }
 
@@ -279,9 +278,7 @@ input[type='number'] {
 /* Contract 1 §2 + Contract 2 §4 — sentence case everywhere by default;
 .label--meta uppercase is reserved for super-titles (eyebrow labels above
 titles), never for buttons or body copy. */
-label,
-label:focus,
-label:active {
+:where(label, label:focus, label:active) {
 	display: inline;
 	font-family: var(--font-sans);
 	font-weight: 500;
@@ -422,7 +419,7 @@ label:active {
 	font-style: italic;
 }
 
-label:hover {
+:where(label:hover) {
 	color: black;
 }
 
@@ -444,22 +441,19 @@ textarea {
 	user-select: text;
 }
 
-input:hover,
-textarea:hover {
+:where(input:hover, textarea:hover) {
 	background-color: var(--enabled-focus-background);
 	color: var(--enabled-focus-text);
 	border-color: var(--enabled-focus-border);
 }
 
-input:focus,
-textarea:focus {
+:where(input:focus, textarea:focus) {
 	background-color: var(--enabled-focus-background);
 	color: var(--enabled-focus-text);
 	border-color: var(--enabled-focus-border);
 }
 
-textarea:hover::-webkit-resizer,
-textarea:focus::-webkit-resizer {
+:where(textarea:hover, textarea:focus)::-webkit-resizer {
 	display: block;
 	border: 2px outset var(--enabled-focus-background);
 }
@@ -468,20 +462,18 @@ info-bubble {
 	width: 12px;
 }
 
-input:focus,
-button:focus,
-textarea:focus,
-info-bubble:focus,
-glyph-tile:focus {
-	outline: var(--global-focus-style);
+/* Focus ring for the keyboard only (#128): a mouse click no longer outlines a button.
+Legacy fields keep their inset ring (0,1,1, as before, so it still beats :focus-visible). */
+:is(input, textarea, info-bubble, glyph-tile):focus-visible {
+	outline: var(--state-focus-ring, 2px solid var(--ring));
 	outline-offset: -1px;
 }
 
-/* Contract 1 §5 — focus is always visible via :focus-visible (2px solid
---ring + 2px offset). Never `outline: 0` without a replacement. */
+/* Contract 1 §5 — focus is always visible via :focus-visible. Never `outline: 0`
+without a replacement. One ring for the whole app: --state-focus-ring (interaction.css). */
 :focus-visible {
-	outline: 2px solid var(--ring);
-	outline-offset: 2px;
+	outline: var(--state-focus-ring, 2px solid var(--ring));
+	outline-offset: var(--state-focus-offset, 2px);
 }
 
 /* Contract 1 §2 — icons. Material Symbols Rounded ligature names; the host
@@ -611,10 +603,7 @@ edit-canvas:focus-visible {
 // Button
 // ------------------------------------------------------------*/
 
-button,
-button:active,
-button:hover,
-button:focus {
+:where(button) {
 	text-align: center;
 	padding: 4px 8px;
 	margin: 2px 0px;
@@ -626,17 +615,13 @@ button:focus {
 	box-shadow: var(--l1-shadow);
 }
 
-button:hover {
+:where(button:hover) {
 	color: var(--enabled-focus-text);
 	border-color: var(--blue-l85);
 	box-shadow: var(--l1-shadow);
 }
 
-button[disabled],
-button[disabled]:active,
-button[disabled]:hover,
-button[disabled]:hover,
-button[disabled]:focus {
+:where(button[disabled]) {
 	background-color: var(--gray-l95);
 	border-color: var(--gray-l95);
 	color: var(--disabled-text);
@@ -672,24 +657,21 @@ existing per-control states keep winning where defined.
 }
 
 /* Selected/active: --primary accent with --primary-foreground text. */
-.is-selected,
-[aria-selected='true'] {
+:where(.is-selected, [aria-selected='true']) {
 	background-color: var(--primary);
 	color: var(--primary-foreground);
 }
 
 /* Disabled: --muted surface + --muted-foreground text. */
-[disabled],
-[aria-disabled='true'] {
+/* Buttons keep their own legacy disabled look above (it used to outrank this rule). */
+:where([disabled]:not(button), [aria-disabled='true']) {
 	background-color: var(--muted);
 	color: var(--muted-foreground);
 	cursor: not-allowed;
 }
 
 /* Loading: skeleton shimmer in --secondary/--muted + aria-busy, no layout shift. */
-.skeleton,
-.is-loading,
-[aria-busy='true'] {
+:where(.skeleton, .is-loading, [aria-busy='true']) {
 	background-color: var(--muted);
 }
 
