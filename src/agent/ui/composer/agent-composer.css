@@ -21,8 +21,9 @@ form.agent-composer:focus-within {
 	border-color: var(--color-border-strong);
 }
 
-/* The box carries the ring for the textarea (a text field shows it on click too). */
-form.agent-composer:has(.agent-composer__input:focus-visible) {
+/* The box carries the ring for the textarea, for keyboard focus only: a text field matches
+:focus-visible on a click too, so the facade marks a pointer focus with data-pointer-focus. */
+form.agent-composer:not([data-pointer-focus]):has(.agent-composer__input:focus-visible) {
 	outline: var(--state-focus-ring);
 	outline-offset: var(--state-focus-offset);
 }
@@ -44,6 +45,11 @@ form.agent-composer:has(.agent-composer__input:focus-visible) {
 	list-style: none;
 }
 
+/* resets.css gives every `ul li` a 20px left and 10px top margin. */
+.agent-composer__attachments > .agent-attachment {
+	margin: 0;
+}
+
 .agent-attachment {
 	--state-hover-bg: var(--color-bg-surface);
 	display: inline-flex;
@@ -51,6 +57,7 @@ form.agent-composer:has(.agent-composer__input:focus-visible) {
 	gap: var(--space-1);
 	box-sizing: border-box;
 	height: 32px;
+	min-width: 0;
 	max-width: 100%;
 	padding: 0 var(--space-1) 0 var(--space-3);
 	border-radius: var(--radius-full);
@@ -59,11 +66,13 @@ form.agent-composer:has(.agent-composer__input:focus-visible) {
 }
 
 .agent-attachment > .nd-icon {
+	flex: none;
 	font-size: 16px;
 	color: var(--color-text-secondary);
 }
 
 .agent-attachment__name {
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -73,6 +82,7 @@ form.agent-composer:has(.agent-composer__input:focus-visible) {
 /* 24px to the eye, a 40px target. */
 .nd-control--icon.nd-control--icon.agent-attachment__remove {
 	position: relative;
+	flex: none;
 	width: 24px;
 	height: 24px;
 	color: var(--color-text-secondary);
@@ -136,6 +146,13 @@ textarea.agent-composer__input::placeholder {
 	color: var(--color-text-primary);
 }
 
+/* Pressed reads darker than hover and open. ui-sdk menu triggers (+, Target) open on press and
+cancel its default, so :active never applies: the facade sets data-pressed while the pointer is
+down. Send keeps its own accent pressed state. */
+form.agent-composer .nd-control.nd-control[data-pressed]:not(.nd-control--accent) {
+	background-color: var(--state-pressed-bg);
+}
+
 .agent-composer__plus .nd-icon {
 	font-size: 22px;
 }
@@ -175,14 +192,16 @@ textarea.agent-composer__input::placeholder {
 	inset: -4px 0;
 }
 
+/* When the row is tight the Model label truncates first: Target keeps its short label. */
 .nd-control.agent-composer__target {
-	flex: 0 1 auto;
+	flex: none;
 	padding-left: var(--space-2);
 	box-shadow: inset 0 0 0 1px var(--color-border-default);
 }
 
 .nd-control.agent-composer__model {
 	flex: 0 1 auto;
+	max-width: 100%;
 	color: var(--color-text-secondary);
 }
 
@@ -257,7 +276,9 @@ textarea.agent-composer__input::placeholder {
 	flex-direction: column;
 	min-width: 240px;
 	max-width: min(320px, calc(100vw - 2 * var(--space-4)));
-	max-height: min(420px, var(--available-height, 420px));
+	/* All the room above the box, so the Remix and Wild list does not hide a row below a
+	scroll (overlay scrollbars show no cue); it scrolls only when the window is too short. */
+	max-height: var(--available-height, 640px);
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }
