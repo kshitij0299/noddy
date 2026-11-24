@@ -191,6 +191,13 @@
 	background-color: var(--blue-l95);
 }
 
+.editor-page__tool:disabled,
+.editor-page__tool:disabled:hover {
+	/* The shared legacy disabled look (resets.css :where(button[disabled])), which the
+	class background above would otherwise beat (#128). */
+	background-color: var(--gray-l95);
+}
+
 .editor-page__tool-selected,
 .editor-page__tool-selected:active,
 .editor-page__tool-selected:focus,
@@ -477,11 +484,11 @@ code.warning {
 
 .editor__page .kern-group-chooser__row:hover,
 .editor__page .kern-group-chooser__row:active {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 }
 
 .editor__page .kern-group-chooser__row[selected] {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 }
 
 .editor__page .kern-group-chooser__row:focus-visible {

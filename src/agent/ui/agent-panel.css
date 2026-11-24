@@ -474,6 +474,11 @@ button.agent-provider:focus-visible {
 	color: var(--color-text-secondary);
 }
 
+/* Dark press fill takes warm-600 secondary text under 4.5:1; lift it while held (#128). */
+:is(.dark, [data-theme='dark']) button.agent-provider:active:not(:disabled) .agent-provider__hint {
+	color: var(--color-text-primary);
+}
+
 .agent-provider__chevron {
 	flex: none;
 	color: var(--color-text-secondary);
@@ -513,6 +518,14 @@ label.agent-field__label:hover,
 	border: 1px solid var(--color-border-default);
 	border-radius: var(--radius-md);
 	background: var(--color-bg-surface);
+	transition: border-color var(--state-duration) var(--state-easing);
+}
+
+/* Shared field hover (#128): a quieter border than focus. */
+@media (hover: hover) {
+	.agent-field__box:hover {
+		border-color: var(--state-field-hover-border);
+	}
 }
 
 /* A text field always shows the focus ring token on focus (QA #60). */
@@ -528,6 +541,7 @@ label.agent-field__label:hover,
 input.agent-field__input,
 input.agent-field__input:hover,
 input.agent-field__input:focus {
+	transition: none; /* the box paints the states (#128) */
 	flex: 1 1 auto;
 	box-sizing: border-box;
 	min-width: 0;
@@ -1246,8 +1260,12 @@ button.agent-pill:focus-visible {
 }
 
 .agent-panel__tab--chaos {
-	/* The Chaos tab scrolls inside its tool block, so its footer stays put (chaos-tab.css). */
+	/* The Chaos tab scrolls inside its tool block, so its footer stays put (chaos-tab.css).
+	   The padding / negative margin pair gives focus rings at its edges room without moving
+	   anything (#128). */
 	overflow: hidden;
+	padding: var(--state-ring-room);
+	margin: calc(-1 * var(--state-ring-room));
 }
 
 /* Agent | Tools: a pill track like the grid's segmented switch. */
@@ -1280,6 +1298,12 @@ button.agent-tab:active {
 	box-shadow: none;
 	cursor: pointer;
 	transition: background-color 120ms ease;
+}
+
+/* Hover on an unselected tab: text colour only, like the segmented switch (the track is
+   already bg/subtle, so a hover fill would not show). */
+button.agent-tab:hover:not([aria-selected='true']) {
+	color: var(--color-text-primary);
 }
 
 button.agent-tab[aria-selected='true'] {

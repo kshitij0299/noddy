@@ -98,8 +98,9 @@ glyph-grid-tile {
 	user-select: none;
 	-webkit-user-select: none;
 	outline: none;
-	/* Paint changes are instant: no fading ring from the global transition */
-	transition: none;
+	/* Hover fill on the shared timing (#128); the selected ring and the glyph art stay
+	instant (no fading ring from the global transition). */
+	transition: background-color var(--state-duration, 120ms) var(--state-easing, ease);
 }
 
 glyph-grid-tile * {
@@ -118,7 +119,7 @@ glyph-grid-tile[selected],
 glyph-grid-tile[aria-selected='true'] {
 	background: var(--color-bg-surface);
 	color: var(--color-glyph-ink);
-	box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+	box-shadow: inset 0 0 0 2px var(--color-border-accent);
 }
 
 glyph-grid-tile[selected]:hover,

@@ -541,7 +541,7 @@
 }
 
 .panel__actions-area button:hover {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 	cursor: pointer;
 }
 
@@ -746,7 +746,7 @@ nav .item-chooser__wrapper {
 
 .item-link__row:hover,
 .item-link__row:active {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 	cursor: pointer;
 }
 
@@ -1151,7 +1151,7 @@ nav .item-chooser__wrapper {
 }
 
 .panel__card button:not(:has(svg)):hover {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 }
 
 /* Primary call-to-action keeps the peach accent */
@@ -1177,7 +1177,7 @@ nav .item-chooser__wrapper {
 }
 
 .panel__card button:has(svg):not(.guide-delete-button):not(.guide-angle-button):hover {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 }
 
 .panel__card button:has(svg):not(.guide-delete-button):not(.guide-angle-button) svg {

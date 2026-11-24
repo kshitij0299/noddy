@@ -58,3 +58,12 @@ Every step uses the same grid. The card is 352px in the 384px panel with 16px pa
 - Laws of UX, [Hick's law](https://lawsofux.com/hicks-law/) and [Jakob's law](https://lawsofux.com/jakobs-law/).
 
 None of these is copied: the grid is translated into Noddy tokens, radius and type roles.
+
+## 128 · Focus ring colour in light mode (Figma deviation)
+
+Figma's `focus/ring` is peach/300 in both modes. In light mode that is about 1.8:1 on white, under the 3:1 that WCAG 2.2 asks of a focus indicator. Code uses **peach/600** (`#BD712D`) in light, 3.3 to 3.8:1 on every light surface token, and keeps **peach/300** in dark (7.5 to 9.9:1). Issue: [#128](https://github.com/kshitij0299/noddy/issues/128), PR [#133](https://github.com/kshitij0299/noddy/pull/133).
+
+- Token: `--color-focus-ring: var(--peach-600)` in light, `var(--peach-300)` in dark (`src/common/colors.css`). The legacy `--ring` token now points at it, so every ring in the app is the same colour.
+- Selection edges (the selected glyph tile, accent borders) stay `border/accent`, peach/300; only the keyboard ring moved.
+- To sync: set the `focus/ring` variable's light value to peach/600 in the Figma file. Until then FIGMA-SPEC §1 lists the deviation, and `test/figma-tokens.test.js` pins it so a sync does not move it back by accident.
+- Same PR: field hover borders use `border/strong` (`--state-field-hover-border`), quieter than the focus colour, so a hovered field never looks focused.

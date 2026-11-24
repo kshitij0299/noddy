@@ -243,4 +243,35 @@ Draft. Found on the way:
     auto-growing field needs the same until #128 retires the reset.
 57. **Light-mode focus rings are under 3:1** (`--color-focus-ring` is peach/300, about 1.9:1 on
     white). The composer uses the new `--state-focus-color` (peach/600 in light, about 3.8:1);
-    #128 should move the rest of the app onto it.
+    #128 should move the rest of the app onto it. **Fixed in #128** (`--color-focus-ring` is
+    peach/600 in light). The first round of #128 only moved the new UI: the legacy `--ring` token
+    stayed peach/300, so about 30 rings that use `var(--ring)` (the dialog close button, the edit
+    canvas, the legacy panels and pages) still drew 1.8:1 (QA B1 on PR #133). The fix round
+    points `--ring` at `--color-focus-ring` in light and dark, moves the few hover and selected
+    borders that borrowed `--ring` onto `--primary` (same peach/300 as before), and adds a contract
+    test that `--ring` is only used for focus rings and that the ring is at least 3:1 on every
+    surface token.
+65. **Legacy text fields lost hover and focus paint, and disabled ones looked enabled** (PR #133,
+    first round). The field state rules were wrapped in `:where()` but the `input, textarea` rest
+    rule was not, so it outranked them. **Fixed in the #133 fix round** (rest rule wrapped too,
+    plus a specificity test that fails if a rest rule outranks its state rules).
+
+## Found in the interaction-state audit (#128, 2026-11-23)
+
+58. **No pressed state almost anywhere.** Component CSS pinned `:active` to the rest paint to beat
+    the legacy `button:active` reset, so mouse-down looked like hover. **Fixed in #128** (reset
+    wrapped in `:where()`, shared pressed list in `interaction.css`).
+59. **A mouse click outlined buttons** (legacy `button:focus` outline in resets.css). **Fixed in #128.**
+60. **Top-bar Undo / Redo looked the same disabled as enabled** (only the hover went away).
+    **Fixed in #128** (shared 40% disabled look).
+61. **Tools tab focus rings were cut at the tab's edges** (`overflow: hidden` with content flush to
+    it). **Fixed in #128** (ring-room padding with an equal negative margin).
+62. **Focus mode traps Tab inside the card**: the top bar and the agent panel cannot be reached by
+    keyboard while a glyph is open. Deliberate trap in `focus_mode.js` (the canvas swallows Tab);
+    needs a product decision (F6-style region switching?). Deferred from #128.
+63. **The specimen is 40+ Tab stops** (every letter is its own stop) before the grid and the
+    panel. A roving tabindex with arrow keys would make it one stop. Deferred from #128 (JS
+    keyboard change, not a state style).
+64. **Focus mode at phone width (390) overlaps itself**: the inspector card covers the close /
+    previous / next row and the top of the canvas. Layout, not states; seen in the #128 browser
+    check. Deferred.

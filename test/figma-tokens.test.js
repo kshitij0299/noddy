@@ -129,7 +129,9 @@ describe('Figma space, radius, shadow and focus tokens', () => {
 		expect(light.get('--focus-ring-width')).toBe('2px');
 		expect(light.get('--focus-ring-offset')).toBe('2px');
 		expect(light.get('--focus-ring')).toContain('var(--color-focus-ring)');
-		expect(light.get('--color-focus-ring')).toBe('var(--peach-300)');
+		// Figma deviation (#128): peach/300 is under 3:1 on white, so light rings in peach/600.
+		expect(light.get('--color-focus-ring')).toBe('var(--peach-600)');
+		expect(dark.get('--color-focus-ring')).toBe('var(--peach-300)');
 	});
 
 	it('keeps the legacy Contract 1 tokens available', () => {

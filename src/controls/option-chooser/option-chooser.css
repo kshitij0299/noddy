@@ -29,7 +29,7 @@ the selection label already ellipsizes in-cell. */
 
 .wrapper:hover,
 .wrapper:focus {
-	border-color: var(--ring, oklch(0.8141 0.1261 58.1544));
+	border-color: var(--primary, oklch(0.8141 0.1261 58.1544));
 	background-color: var(--secondary, oklch(0.9584 0.006 43.3348));
 	cursor: pointer;
 }

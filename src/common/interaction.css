@@ -15,9 +15,13 @@
 	clipped (outline, not box-shadow inside overflow); disabled reads as disabled (dimmed, no
 	hover, default cursor); motion off with prefers-reduced-motion.
 
-	The classes are doubled (.nd-control.nd-control) so they beat the legacy `button`,
-	`button:hover` and `button[disabled]:hover` resets in resets.css and the global
-	`[disabled]` / `[aria-disabled]` / `[aria-selected]` states, without !important.
+	The legacy state rules in resets.css are wrapped in :where() (zero specificity, #128), so
+	any component rule beats them. The doubled classes (.nd-control.nd-control) are kept so a
+	control can carry both a component class and these without an order dependency.
+
+	Controls built before these classes (top bar, start screen, panel, Tools tab, focus mode)
+	keep their own rest and hover paint and get the shared pressed fill, disabled look and
+	motion timing from the "existing controls" list at the end of this file.
 -------------------------------------------------------------- */
 
 /* ui-sdk adds its own behaviour CSS in this layer; unlayered app CSS always wins over it. */
@@ -39,20 +43,28 @@
 	--state-accent-pressed-bg: var(--peach-600);
 	--state-on-accent: var(--color-text-on-accent);
 
+	/* Field hover: a quieter border than focus, so hover never reads as "typing goes here". */
+	--state-field-hover-border: var(--color-border-strong);
+
 	--state-disabled-opacity: 0.4;
 	--state-target-size: 40px;
 
-	/* peach/300 is under 3:1 on white, so light mode rings in peach/600 (about 3.8:1). */
-	--state-focus-color: var(--peach-600);
+	/* --color-focus-ring is peach/600 in light (peach/300 is under 3:1 on white) and peach/300 in dark. */
+	--state-focus-color: var(--color-focus-ring);
 	--state-focus-ring: var(--focus-ring-width) solid var(--state-focus-color);
 	--state-focus-offset: var(--focus-ring-offset);
+	/* Padding a clipping scroller needs so an outset ring is never cut. */
+	--state-ring-room: calc(var(--focus-ring-width) + var(--focus-ring-offset));
 }
 
+/* Dark: hover one step brighter than --color-bg-subtle so it reads on the warm-950 surface;
+press a light mix of warm-700 into warm-850 (warm-700 alone was a heavy jump and took
+secondary text under 3:1). */
 .dark,
 [data-theme='dark'] {
-	--state-pressed-bg: var(--warm-700);
+	--state-hover-bg: var(--warm-850);
+	--state-pressed-bg: color-mix(in srgb, var(--warm-700) 30%, var(--warm-850));
 	--state-accent-pressed-bg: var(--peach-100);
-	--state-focus-color: var(--peach-300);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -60,6 +72,11 @@
 	.dark,
 	[data-theme='dark'] {
 		--state-duration: 0ms;
+	}
+
+	/* The legacy `* { transition: var(--global-transition) }` reset animates everything else. */
+	:root {
+		--global-transition: none;
 	}
 }
 
@@ -210,4 +227,131 @@
 	.nd-popup.nd-popup[data-ending-style] {
 		transform: none;
 	}
+}
+
+/* ---- Existing controls (#128) ----
+	One list per state for controls that predate the classes above. Each component file keeps
+	its rest and hover paint; these rules add what was missing everywhere: a pressed fill, one
+	disabled look and one motion timing.
+
+	Specificity: each state has two rules. The ID-scoped controls (#app__top-bar,
+	#open-project__page, #modal-dialog) need ID weight to beat their own ID-scoped component
+	rules; everything else stays at class weight, so a component can still give one control its
+	own pressed or disabled look without an ID or !important. The :not() list adds (0,2,0), so
+	the class rules (0,4,1)+ still beat the components' pinned `button.x:active` / `:hover`
+	rules. Selected and disabled controls are excluded, so pressing one never repaints it; a
+	toggle button (aria-pressed, like the theme switch) still shows the press. */
+:is(
+		#app__top-bar .top-bar__mark,
+		#app__top-bar .icon-button,
+		#app__top-bar .button--secondary,
+		#app__top-bar .export-menu__item,
+		#open-project__page .start__link,
+		#open-project__page .start__theme,
+		#open-project__page .start__button--secondary
+	):active:not(:disabled, [aria-disabled='true'], [aria-checked='true'], [aria-selected='true'], .is-active) {
+	background-color: var(--state-pressed-bg);
+}
+
+:is(
+		button.segmented-pill__segment,
+		button.agent-tab,
+		button.agent-icon-button,
+		button.agent-pill,
+		button.agent-provider,
+		button.agent-field__icon-button,
+		button.agent-link-button,
+		button.agent-card__button--secondary,
+		button.agent-card__button--ghost,
+		button.agent-chip-button,
+		button.agent-glyph-pick,
+		.agent-radio,
+		button.chaos-tab__pick,
+		button.chaos-segmented__option,
+		button.glyph-grid-tile__action,
+		.focus-mode button.focus-mode__icon-button,
+		.focus-mode button.focus-pill__tool,
+		.focus-mode button.focus-inspector__revert
+	):active:not(
+		:disabled,
+		[aria-disabled='true'],
+		[aria-checked='true'],
+		[aria-selected='true'],
+		.segmented-pill__segment[aria-pressed='true'],
+		.is-active
+	) {
+	background-color: var(--state-pressed-bg);
+}
+
+/* Accent controls press one step past their accent hover. The dialog close button hovers
+in the accent, so it presses in the accent too (a grey press read as the hover switching off). */
+:is(#open-project__page .start__button--primary):active:not(:disabled, [aria-disabled='true']) {
+	background-color: var(--state-accent-pressed-bg);
+	border-color: transparent;
+}
+
+#modal-dialog .modal-dialog__close-button:active {
+	background-color: var(--state-accent-pressed-bg);
+	border-color: var(--state-accent-pressed-bg);
+	color: var(--state-on-accent);
+}
+
+:is(button.agent-card__button--primary, .focus-mode button.focus-inspector__keep):active:not(
+		:disabled,
+		[aria-disabled='true']
+	) {
+	background-color: var(--state-accent-pressed-bg);
+	border-color: transparent;
+}
+
+#app__top-bar :is(.icon-button, .export-menu__item):is(:disabled, [aria-disabled='true']) {
+	opacity: var(--state-disabled-opacity);
+	cursor: default;
+}
+
+:is(
+		button.agent-icon-button,
+		button.agent-card__button,
+		button.agent-chip-button,
+		.agent-radio,
+		button.chaos-segmented__option,
+		.focus-mode button.focus-mode__icon-button,
+		.focus-mode button.focus-inspector__revert
+	):is(:disabled, [aria-disabled='true']) {
+	opacity: var(--state-disabled-opacity);
+	cursor: default;
+}
+
+/* Timing keeps ID weight on purpose: several components re-declare the `transition`
+shorthand on :hover at (0,2,1), which would otherwise reset the duration mid-hover. */
+:is(
+		#app__top-bar .top-bar__mark,
+		#app__top-bar .icon-button,
+		#app__top-bar .button--secondary,
+		#app__top-bar .export-menu__item,
+		#open-project__page .start__link,
+		#open-project__page .start__theme,
+		#open-project__page .start__button,
+		#open-project__page .start-card,
+		button.segmented-pill__segment,
+		button.agent-tab,
+		button.agent-icon-button,
+		button.agent-pill,
+		button.agent-provider,
+		button.agent-field__icon-button,
+		button.agent-link-button,
+		button.agent-card__button,
+		button.agent-chip-button,
+		button.agent-glyph-pick,
+		.agent-radio,
+		button.chaos-tab__pick,
+		button.chaos-segmented__option,
+		.focus-mode button.focus-mode__icon-button,
+		.focus-mode button.focus-pill__tool,
+		.focus-mode button.focus-inspector__keep,
+		.focus-mode button.focus-inspector__revert,
+		#modal-dialog .modal-dialog__close-button
+	) {
+	transition-duration: var(--state-duration);
+	transition-timing-function: var(--state-easing);
 }

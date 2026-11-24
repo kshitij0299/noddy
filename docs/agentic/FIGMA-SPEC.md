@@ -70,7 +70,7 @@ Figma file: `XQHz0qOrTAmZhWw7h71a2S`.
 | text/on-accent | warm/900 | warm/900 |
 | border/default | warm/200 | warm/950 |
 | border/strong | warm/300 | warm/700 |
-| focus/ring | peach/300 | peach/300 |
+| focus/ring | peach/600 (deviation, AA, #128; Figma says peach/300, about 1.8:1 on white) | peach/300 |
 | glyph/ink | warm/900 | warm/990 |
 | glyph/ghost (missing glyph outline) | warm/300 | warm/700 |
 | glyph/guide (metric lines) | blue/500 at ~50% via its own primitive #9CC7EC | #2D4A63 |

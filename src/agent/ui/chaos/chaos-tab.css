@@ -83,8 +83,8 @@ button.chaos-tab__pick:focus-visible {
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	/* Room for focus rings at the edges of the scroller. */
-	padding: 2px;
-	margin: -2px;
+	padding: var(--state-ring-room);
+	margin: calc(-1 * var(--state-ring-room));
 }
 
 .chaos-tool__hint {
@@ -211,6 +211,8 @@ input.chaos-knob__slider {
 	width: 100%;
 	margin: 0;
 	accent-color: var(--color-bg-accent);
+	cursor: pointer;
+	transition: background-color var(--state-duration) var(--state-easing);
 }
 
 input.chaos-knob__slider:focus {
@@ -235,6 +237,14 @@ input.chaos-seed:focus {
 	background: var(--color-bg-surface);
 	color: var(--color-text-primary);
 	text-align: right;
+	transition: border-color var(--state-duration) var(--state-easing);
+}
+
+/* Shared field hover (#128); focus below keeps its own border. */
+@media (hover: hover) {
+	input.chaos-seed:hover {
+		border-color: var(--state-field-hover-border);
+	}
 }
 
 input.chaos-seed:focus {

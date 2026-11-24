@@ -78,7 +78,7 @@
 	--color-border-default: var(--warm-200);
 	--color-border-strong: var(--warm-300);
 	--color-border-accent: var(--peach-300);
-	--color-focus-ring: var(--peach-300);
+	--color-focus-ring: var(--peach-600); /* Figma deviation (AA, #128): peach/300 is under 3:1 on white */
 	--color-glyph-ink: var(--warm-900);
 	--color-glyph-ghost: var(--warm-300); /* missing glyph outline */
 	--color-glyph-guide: var(--blue-300); /* metric lines */
@@ -125,9 +125,12 @@
 	/* Legacy Contract 1 §1 tokens — values FROZEN (exact OKLCH, guarded by
 	test/css-typography-guard.test.js). Each equals a primitive above to 8-bit
 	precision: --background = warm/0, --foreground = warm/900,
-	--primary/--ring = peach/300, --secondary = warm/75,
+	--primary = peach/300, --secondary = warm/75,
 	--muted-foreground = warm/500, --border = warm/200. New work uses the
-	--color-* tokens; --radius stays 0.45rem for existing surfaces. */
+	--color-* tokens; --radius stays 0.45rem for existing surfaces.
+	--ring is no longer frozen (#128): it points at --color-focus-ring, so every legacy
+	`var(--ring)` focus ring draws the same AA colour as the new UI (peach/600 light,
+	peach/300 dark). It is re-declared under .dark so the dark value resolves there. */
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.2707 0.054 44.1725);
 	--card: oklch(1 0 0);
@@ -137,7 +140,7 @@
 	--muted: oklch(0.9702 0 0);
 	--muted-foreground: oklch(0.5931 0.0295 44.5478);
 	--border: oklch(0.9055 0.0111 54.4854);
-	--ring: oklch(0.8141 0.1261 58.1544);
+	--ring: var(--color-focus-ring);
 	--destructive: oklch(0.6137 0.2039 25.5645);
 	--radius: 0.45rem;
 	--tracking-normal: 0em;
@@ -151,8 +154,9 @@
 }
 
 /* Dark theme — Contract 1 §1.
---primary, --primary-foreground, --ring, --radius and shadows are
-UNCHANGED from light (peach passes on both); only neutrals invert. */
+--primary, --primary-foreground, --radius and shadows are
+UNCHANGED from light (peach passes on both); only neutrals invert.
+--ring follows --color-focus-ring, so it is re-declared here. */
 .dark,
 [data-theme='dark'] {
 	/* Semantic colour (Noddy/Color) — Dark mode */
@@ -172,6 +176,7 @@ UNCHANGED from light (peach passes on both); only neutrals invert. */
 	--color-border-strong: var(--warm-700);
 	--color-border-accent: var(--peach-300);
 	--color-focus-ring: var(--peach-300);
+	--ring: var(--color-focus-ring);
 	--color-glyph-ink: var(--warm-990);
 	--color-glyph-ghost: var(--warm-700);
 	--color-glyph-guide: var(--blue-800);

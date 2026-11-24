@@ -352,11 +352,17 @@ describe('the / list keys inside the panel', () => {
 	it('Esc on a keyboard-opened tooltip closes the tooltip, not the panel', async () => {
 		const panel = panelFixture();
 		const { composer } = panel;
+		// Run first, the island's tooltip is not wired yet after one settle(); wait for it, so
+		// the test does not depend on an earlier test having warmed the module up.
+		await vi.waitFor(() => expect(composer.plus.getAttribute('aria-describedby')).toBeTruthy());
+		const tip = document.getElementById(composer.plus.getAttribute('aria-describedby'));
+		// The tooltip opens on keyboard focus only: a Tab keydown sets keyboard modality.
+		document.body.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+		);
 		composer.plus.focus();
 		composer.plus.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-		await settle();
-		const tip = document.getElementById(composer.plus.getAttribute('aria-describedby'));
-		expect(tip.hasAttribute('data-open')).toBe(true);
+		await vi.waitFor(() => expect(tip.hasAttribute('data-open')).toBe(true));
 		const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
 		composer.plus.dispatchEvent(event);
 		await settle();
