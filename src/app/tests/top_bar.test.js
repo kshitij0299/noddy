@@ -3,7 +3,11 @@ import { Glyph } from '../../project_data/glyph.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { getGlyphrStudioApp, setCurrentProjectEditor } from '../main.js';
 import { LATIN_KERNEL_SIZE } from '../set_progress.js';
-import { isReviewFilterOn, setReviewFilter } from '../../controls/glyph-grid/review-filter.js';
+import {
+	isReviewFilterOn,
+	reviewCount,
+	setReviewFilter,
+} from '../../controls/glyph-grid/review-filter.js';
 import {
 	ALL_REVIEWED_TEXT,
 	THEME_STORAGE_KEY,
@@ -72,6 +76,15 @@ beforeEach(() => {
 	document.querySelector('#app__wrapper').appendChild(bar);
 });
 
+/** Labels of the bar's tab stops, in DOM (= tab) order. */
+function tabOrder() {
+	return [
+		...bar.querySelectorAll(
+			'input:not([hidden]), button:not([hidden]), [tabindex="0"]:not([hidden])'
+		),
+	].map((element) => element.getAttribute('aria-label') || element.textContent.trim());
+}
+
 afterEach(() => {
 	vi.clearAllMocks();
 	getGlyphrStudioApp().projectEditors = [];
@@ -84,7 +97,8 @@ describe('Top bar: controls', () => {
 		expect(bar.querySelector('.top-bar__mark')).not.toBeNull();
 		expect(bar.querySelector('.top-bar__mark').tagName).toBe('BUTTON');
 		expect(name().value).toBe('Bakery Sans');
-		// Nothing to review: the calm note shows and the pill button is out of the tab order.
+		// Nothing to review: the calm note shows in the pill's place (a tab stop for its
+		// "characters drawn" name) and the pill button is out of the tab order.
 		expect(bar.querySelector('.top-bar__review-done').hidden).toBe(false);
 		expect(bar.querySelector('.top-bar__review-done').textContent).toBe('All reviewed');
 		expect(bar.querySelector('.top-bar__review').hidden).toBe(true);
@@ -95,12 +109,10 @@ describe('Top bar: controls', () => {
 
 		// UI reset: no compact-tier "Panel" toggle and no menus slot; the
 		// minimized agent pill is the one control that restores the panel.
-		const order = [...bar.querySelectorAll('input:not([hidden]), button:not([hidden])')].map(
-			(element) => element.getAttribute('aria-label') || element.textContent.trim()
-		);
-		expect(order).toEqual([
+		expect(tabOrder()).toEqual([
 			'Back to start',
 			'Font name',
+			`All reviewed · 0 of ${LATIN_KERNEL_SIZE} characters drawn`,
 			'Undo',
 			'Redo',
 			'Theme',
@@ -111,6 +123,12 @@ describe('Top bar: controls', () => {
 
 		const icons = [...bar.querySelectorAll('.material-symbols-rounded')].map((i) => i.textContent);
 		expect(icons).toEqual(expect.arrayContaining(['undo', 'redo', 'dark_mode', 'download']));
+	});
+
+	it('with drafts, the "N to review" pill sits between the font name and Undo', async () => {
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(tabOrder().slice(0, 4)).toEqual(['Back to start', 'Font name', '1 to review', 'Undo']);
 	});
 
 	it('does not add a settings cog, project menu, breadcrumb or hamburger', () => {
@@ -328,7 +346,7 @@ describe('Top bar: "N to review" pill (#135)', () => {
 
 	afterEach(() => setReviewFilter(editor, false));
 
-	it('counts agent Drafts in the set, not Failed, Kept, Yours, Queued or Drafting', async () => {
+	it('counts every agent Draft in the project, not Failed, Kept, Yours, Queued or Drafting', async () => {
 		editor.project.glyphs['glyph-0x41'] = makeGlyph(editor, 'glyph-0x41'); // derived Kept
 		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
 		editor.glyphStatus.set('glyph-0x62', 'draft', 'agent');
@@ -337,10 +355,12 @@ describe('Top bar: "N to review" pill (#135)', () => {
 		editor.glyphStatus.set('glyph-0x63', 'yours', 'user');
 		editor.glyphStatus.set('glyph-0x64', 'queued', 'agent');
 		editor.glyphStatus.set('glyph-0x65', 'drafting', 'agent');
-		editor.glyphStatus.set('glyph-0xE9', 'draft', 'agent'); // outside the set: not counted
+		editor.glyphStatus.set('glyph-0xE9', 'draft', 'agent'); // outside the set: counted too
 		await flush();
 		expect(pill().hidden).toBe(false);
-		expect(pill().textContent).toBe('3 to review');
+		// The same number the agent pill shows (one shared count) and the grid's tile count.
+		expect(pill().textContent).toBe('4 to review');
+		expect(reviewCount(editor)).toBe(4);
 		expect(pill().getAttribute('aria-pressed')).toBe('false');
 		expect(done().hidden).toBe(true);
 	});
@@ -355,6 +375,38 @@ describe('Top bar: "N to review" pill (#135)', () => {
 		expect(done().hidden).toBe(false);
 		expect(done().textContent).toBe(ALL_REVIEWED_TEXT);
 		expect(done().tagName).toBe('SPAN'); // not a control, not a disabled button
+		expect(done().getAttribute('role')).toBe('note');
+	});
+
+	it('the only draft outside the 116 set still shows "1 to review", not "All reviewed"', async () => {
+		editor.glyphStatus.set('glyph-0x203D', 'draft', 'agent'); // "‽" (Oblegg has it)
+		await flush();
+		expect(pill().hidden).toBe(false);
+		expect(pill().textContent).toBe('1 to review');
+		expect(done().hidden).toBe(true);
+	});
+
+	it('focus on the pill moves to "All reviewed" when the last draft goes, and back', async () => {
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		await flush();
+		pill().focus();
+		pill().click();
+		editor.glyphStatus.set('glyph-0x61', 'kept', 'user'); // e.g. redo of a Keep
+		await flush();
+		expect(pill().hidden).toBe(true);
+		expect(document.activeElement).toBe(done());
+		editor.glyphStatus.set('glyph-0x62', 'draft', 'agent');
+		await flush();
+		expect(document.activeElement).toBe(pill());
+	});
+
+	it('focus elsewhere is left alone when the count reaches 0', async () => {
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		await flush();
+		name().focus();
+		editor.glyphStatus.set('glyph-0x61', 'kept', 'user');
+		await flush();
+		expect(document.activeElement).toBe(name());
 	});
 
 	it('click toggles the grid filter (aria-pressed), which stays out of the project file', async () => {
@@ -382,6 +434,11 @@ describe('Top bar: "N to review" pill (#135)', () => {
 		refreshTopBar();
 		expect(done().getAttribute('title')).toBe(
 			`Nothing to review · 3 of ${LATIN_KERNEL_SIZE} characters drawn`
+		);
+		// Reachable without a mouse: a tab stop whose accessible name carries the count.
+		expect(done().getAttribute('tabindex')).toBe('0');
+		expect(done().getAttribute('aria-label')).toBe(
+			`All reviewed · 3 of ${LATIN_KERNEL_SIZE} characters drawn`
 		);
 		expect(pill().getAttribute('title')).toBe(
 			`Show only glyphs to review · 3 of ${LATIN_KERNEL_SIZE} characters drawn`

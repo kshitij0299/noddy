@@ -205,7 +205,8 @@
 }
 
 /* Zero: a quiet note, not a control. No border or fill, secondary text, the same box so
-   nothing beside it moves when the last glyph is reviewed. */
+   nothing beside it moves when the last glyph is reviewed. A tab stop only so its
+   "n of 116 characters drawn" name is reachable; the ring follows the pill shape. */
 .top-bar__review-done {
 	box-sizing: border-box;
 	display: inline-flex;
@@ -214,9 +215,19 @@
 	gap: var(--space-2);
 	height: 36px;
 	padding: 0 var(--space-3);
+	border-radius: var(--radius-full);
 	color: var(--color-text-secondary);
 	white-space: nowrap;
 	cursor: default;
+}
+
+.top-bar__review-done:focus {
+	outline: none;
+}
+
+.top-bar__review-done:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
 }
 
 .top-bar__review-done .top-bar__review-dot {

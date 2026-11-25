@@ -19,7 +19,7 @@ import { GLYPH_STATUS_TOPIC } from '../project_editor/glyph-status.js';
 import {
 	isReviewFilterOn,
 	onReviewFilterChange,
-	reviewIDs,
+	reviewCount,
 	setReviewFilter,
 } from '../controls/glyph-grid/review-filter.js';
 import { closeFocusMode, isFocusModeOpen } from '../pages/focus_mode.js';
@@ -562,8 +562,10 @@ export const ALL_REVIEWED_TEXT = 'All reviewed';
  * The review pill and its calm zero state. With glyphs to review, a toggle
  * button "N to review" (aria-pressed) filters the grid to them. At zero the
  * button hides and a quiet "All reviewed" note shows instead: there is
- * nothing to filter, so it is not a control. Both carry the old ring's
- * "n of 116 characters drawn" in their tooltip.
+ * nothing to filter, so it is not a control. It is still a tab stop, so
+ * keyboard and screen-reader users reach the old ring's "n of 116 characters
+ * drawn" (its accessible name and tooltip), and it takes focus when the
+ * button disappears under it. The button carries the same count in its tooltip.
  * @returns {Array<HTMLElement>} [button, done note]
  */
 function makeReviewPill() {
@@ -587,6 +589,7 @@ function makeReviewPill() {
 	const done = makeElement({
 		tag: 'span',
 		className: 'top-bar__review-done text-label',
+		attributes: { role: 'note', tabindex: '0' },
 	});
 	done.append(
 		makeElement({
@@ -622,7 +625,7 @@ function updateReviewPill(topBar, editor) {
 	const button = topBar.querySelector('.top-bar__review');
 	const done = topBar.querySelector('.top-bar__review-done');
 	if (!button || !done) return;
-	const count = reviewIDs(editor).length;
+	const count = reviewCount(editor);
 	const on = isReviewFilterOn(editor);
 	const { done: drawn, total } = getSetProgress(editor.project);
 	const drawnText = `${drawn} of ${total} characters drawn`;
@@ -635,8 +638,14 @@ function updateReviewPill(topBar, editor) {
 	);
 	button.setAttribute('data-count', String(count));
 	done.setAttribute('title', `Nothing to review · ${drawnText}`);
+	done.setAttribute('aria-label', `${ALL_REVIEWED_TEXT} · ${drawnText}`);
 
 	const zero = count === 0;
+	// The button hides under focus when the last draft goes: hand focus to the note in
+	// its place (and back again when a draft arrives), never to the page.
+	const focused = document.activeElement;
+	const handOff = (zero && focused === button) || (!zero && focused === done);
 	/** @type {HTMLElement} */ (button).hidden = zero;
 	/** @type {HTMLElement} */ (done).hidden = !zero;
+	if (handOff) /** @type {HTMLElement} */ (zero ? done : button).focus();
 }
