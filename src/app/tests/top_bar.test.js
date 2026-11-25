@@ -3,7 +3,9 @@ import { Glyph } from '../../project_data/glyph.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { getGlyphrStudioApp, setCurrentProjectEditor } from '../main.js';
 import { LATIN_KERNEL_SIZE } from '../set_progress.js';
+import { isReviewFilterOn, setReviewFilter } from '../../controls/glyph-grid/review-filter.js';
 import {
+	ALL_REVIEWED_TEXT,
 	THEME_STORAGE_KEY,
 	applyStoredTheme,
 	makeAppTopBar,
@@ -77,22 +79,33 @@ afterEach(() => {
 });
 
 describe('Top bar: controls', () => {
-	it('renders mark, name, ring, status slot, undo, redo, theme and Export in tab order', () => {
+	it('renders mark, name, review pill, status slot, undo, redo, theme and Export in tab order', () => {
 		expect(bar.id).toBe('app__top-bar');
 		expect(bar.querySelector('.top-bar__mark')).not.toBeNull();
 		expect(bar.querySelector('.top-bar__mark').tagName).toBe('BUTTON');
 		expect(name().value).toBe('Bakery Sans');
-		expect(bar.querySelector('.top-bar__count').textContent).toBe(`0/${LATIN_KERNEL_SIZE}`);
+		// Nothing to review: the calm note shows and the pill button is out of the tab order.
+		expect(bar.querySelector('.top-bar__review-done').hidden).toBe(false);
+		expect(bar.querySelector('.top-bar__review-done').textContent).toBe('All reviewed');
+		expect(bar.querySelector('.top-bar__review').hidden).toBe(true);
+		expect(bar.querySelector('.top-bar__progress')).toBeNull();
 		const status = bar.querySelector('.top-bar__status');
 		expect(status).not.toBeNull();
 		expect(status.childElementCount).toBe(0);
 
 		// UI reset: no compact-tier "Panel" toggle and no menus slot; the
 		// minimized agent pill is the one control that restores the panel.
-		const order = [...bar.querySelectorAll('input, button')].map(
+		const order = [...bar.querySelectorAll('input:not([hidden]), button:not([hidden])')].map(
 			(element) => element.getAttribute('aria-label') || element.textContent.trim()
 		);
-		expect(order).toEqual(['Back to start', 'Font name', 'Undo', 'Redo', 'Theme', 'downloadExport']);
+		expect(order).toEqual([
+			'Back to start',
+			'Font name',
+			'Undo',
+			'Redo',
+			'Theme',
+			'downloadExport',
+		]);
 		expect(bar.querySelector('.noddy-panel-toggle')).toBeNull();
 		expect(bar.querySelector('.top-bar__menus')).toBeNull();
 
@@ -308,21 +321,70 @@ describe('Top bar: theme', () => {
 	});
 });
 
-describe('Top bar: set progress ring', () => {
-	it('counts Kernel glyphs with outlines and shows n/116', () => {
+describe('Top bar: "N to review" pill (#135)', () => {
+	const pill = () => /** @type {HTMLButtonElement} */ (bar.querySelector('.top-bar__review'));
+	const done = () => /** @type {HTMLElement} */ (bar.querySelector('.top-bar__review-done'));
+	const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	afterEach(() => setReviewFilter(editor, false));
+
+	it('counts agent Drafts in the set, not Failed, Kept, Yours, Queued or Drafting', async () => {
+		editor.project.glyphs['glyph-0x41'] = makeGlyph(editor, 'glyph-0x41'); // derived Kept
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		editor.glyphStatus.set('glyph-0x62', 'draft', 'agent');
+		editor.glyphStatus.set('glyph-0x21', 'draft', 'agent'); // "!" is in All 116
+		editor.glyphStatus.set('glyph-0x66', 'failed', 'agent');
+		editor.glyphStatus.set('glyph-0x63', 'yours', 'user');
+		editor.glyphStatus.set('glyph-0x64', 'queued', 'agent');
+		editor.glyphStatus.set('glyph-0x65', 'drafting', 'agent');
+		editor.glyphStatus.set('glyph-0xE9', 'draft', 'agent'); // outside the set: not counted
+		await flush();
+		expect(pill().hidden).toBe(false);
+		expect(pill().textContent).toBe('3 to review');
+		expect(pill().getAttribute('aria-pressed')).toBe('false');
+		expect(done().hidden).toBe(true);
+	});
+
+	it('updates on glyphStatusChanged and falls back to a calm "All reviewed" at zero', async () => {
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		await flush();
+		expect(pill().textContent).toBe('1 to review');
+		editor.glyphStatus.set('glyph-0x61', 'kept', 'user');
+		await flush();
+		expect(pill().hidden).toBe(true);
+		expect(done().hidden).toBe(false);
+		expect(done().textContent).toBe(ALL_REVIEWED_TEXT);
+		expect(done().tagName).toBe('SPAN'); // not a control, not a disabled button
+	});
+
+	it('click toggles the grid filter (aria-pressed), which stays out of the project file', async () => {
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		await flush();
+		const saved = JSON.stringify(editor.project.save());
+		const stored = JSON.stringify({ ...window.localStorage });
+		pill().click();
+		expect(isReviewFilterOn(editor)).toBe(true);
+		expect(pill().getAttribute('aria-pressed')).toBe('true');
+		expect(JSON.stringify(editor.project.save())).toBe(saved);
+		expect(JSON.stringify({ ...window.localStorage })).toBe(stored);
+
+		pill().click();
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(pill().getAttribute('aria-pressed')).toBe('false');
+	});
+
+	it('keeps the old ring\'s "n of 116 characters drawn" in the tooltip', () => {
 		editor.project.glyphs['glyph-0x41'] = makeGlyph(editor, 'glyph-0x41');
 		editor.project.glyphs['glyph-0x62'] = makeGlyph(editor, 'glyph-0x62');
 		editor.project.glyphs['glyph-0x20AC'] = makeGlyph(editor, 'glyph-0x20AC');
 		// Outside the set: not counted
 		editor.project.glyphs['glyph-0xE9'] = makeGlyph(editor, 'glyph-0xE9');
 		refreshTopBar();
-		const ring = bar.querySelector('.top-bar__progress');
-		expect(bar.querySelector('.top-bar__count').textContent).toBe(`3/${LATIN_KERNEL_SIZE}`);
-		expect(ring.getAttribute('aria-label')).toBe(`3 of ${LATIN_KERNEL_SIZE} characters drawn`);
-		expect(ring.hasAttribute('data-complete')).toBe(false);
-		const fill = ring.querySelector('.top-bar__ring-fill');
-		expect(Number(fill.getAttribute('stroke-dashoffset'))).toBeLessThan(
-			Number(fill.getAttribute('stroke-dasharray'))
+		expect(done().getAttribute('title')).toBe(
+			`Nothing to review · 3 of ${LATIN_KERNEL_SIZE} characters drawn`
+		);
+		expect(pill().getAttribute('title')).toBe(
+			`Show only glyphs to review · 3 of ${LATIN_KERNEL_SIZE} characters drawn`
 		);
 	});
 });

@@ -1,11 +1,12 @@
 /**
  * Noddy top bar for an open project (M2 app shell, Figma TopBar `50:78`).
  *
- * Left: mark, editable font name, set progress ring, status slot.
+ * Left: mark, editable font name, "N to review" pill, status slot.
  * Right: undo, redo, theme, Export.
  *
- * The bar is rebuilt by every `navigate()`; a stable `currentItem`
- * subscription keeps undo/redo and the ring fresh in between.
+ * The bar is rebuilt by every `navigate()`; stable `currentItem`,
+ * `itemChanged` and `glyphStatusChanged` subscriptions keep undo/redo and
+ * the review pill fresh in between.
  */
 
 import { insertAfter, makeElement } from '../common/dom.js';
@@ -14,6 +15,14 @@ import { getCurrentProjectEditor, getGlyphrStudioApp } from './main.js';
 import { makeFileMenuRows } from './menu.js';
 import { makePage_OpenProject } from './open_project.js';
 import { getSetProgress } from './set_progress.js';
+import { GLYPH_STATUS_TOPIC } from '../project_editor/glyph-status.js';
+import {
+	isReviewFilterOn,
+	onReviewFilterChange,
+	reviewIDs,
+	setReviewFilter,
+} from '../controls/glyph-grid/review-filter.js';
+import { closeFocusMode, isFocusModeOpen } from '../pages/focus_mode.js';
 import { LEAVE_MESSAGE, hasUnsavedChanges, shouldShowNotAutosaving } from './leave_guard.js';
 
 export { hasUnsavedChanges };
@@ -24,8 +33,6 @@ const SUBSCRIBER_ID = 'topBar';
 const EXPORT_MENU_WIDTH = 320;
 const NAME_MAX_LENGTH = 80;
 const MONITOR_MEDIA = '(max-width: 759px)';
-const RING_RADIUS = 6.5;
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
 /**
  * Actions the bar calls through to. Read at click time so tests (and later
@@ -298,10 +305,10 @@ export function makeAppTopBar() {
 	});
 
 	const name = makeNameField(editor);
-	const progress = makeProgressRing();
+	const review = makeReviewPill();
 	const status = makeElement({ tag: 'div', className: 'top-bar__status', id: 'top-bar-status' });
 
-	left.append(mark, name, progress, status);
+	left.append(mark, name, ...review, status);
 
 	const undo = iconButton({
 		id: 'top-bar-undo',
@@ -356,6 +363,15 @@ export function makeAppTopBar() {
 		subscriberID: `${SUBSCRIBER_ID}-itemChanged`,
 		callback: refresh,
 	});
+	// Keep, Revert, Retry and agent drafts change the review count.
+	editor.subscribe({
+		topic: GLYPH_STATUS_TOPIC,
+		subscriberID: `${SUBSCRIBER_ID}-glyphStatus`,
+		callback: refresh,
+	});
+	// One listener for the page: each new bar replaces the previous one.
+	offReviewFilter?.();
+	offReviewFilter = onReviewFilterChange(() => refreshTopBar());
 
 	// Saving only changes the document title (setProjectAsSaved), so follow
 	// the title to show or hide the "Not autosaving" chip.
@@ -366,6 +382,8 @@ export function makeAppTopBar() {
 }
 
 let titleObserver;
+/** @type {Function | null} */
+let offReviewFilter = null;
 
 /**
  * One observer for the page; each new bar replaces the previous callback.
@@ -407,7 +425,7 @@ export function updateAutosaveChip(topBar) {
 }
 
 /**
- * Updates the live parts of the bar: undo/redo availability, the ring, the
+ * Updates the live parts of the bar: undo/redo availability, the review pill, the
  * theme icon and the name (after undo of a settings change, for example).
  * @param {Element =} topBar - defaults to the bar in the document
  */
@@ -439,7 +457,7 @@ export function refreshTopBar(topBar = document.getElementById(TOP_BAR_ID)) {
 		setNameValue(name, editor.project.settings.project.name);
 	}
 
-	updateProgressRing(topBar.querySelector('.top-bar__progress'), getSetProgress(editor.project));
+	updateReviewPill(topBar, editor);
 	updateAutosaveChip(topBar);
 }
 
@@ -535,50 +553,90 @@ function makeNameField(editor) {
 }
 
 // --------------------------------------------------------------
-// Set progress ring
+// "N to review" pill (issue #135)
 // --------------------------------------------------------------
 
+export const ALL_REVIEWED_TEXT = 'All reviewed';
+
 /**
- * 16px ring plus `n/116` in Mono small. Hollow at 0, fills with progress,
- * shows a check when complete.
- * @returns {Element}
+ * The review pill and its calm zero state. With glyphs to review, a toggle
+ * button "N to review" (aria-pressed) filters the grid to them. At zero the
+ * button hides and a quiet "All reviewed" note shows instead: there is
+ * nothing to filter, so it is not a control. Both carry the old ring's
+ * "n of 116 characters drawn" in their tooltip.
+ * @returns {Array<HTMLElement>} [button, done note]
  */
-function makeProgressRing() {
-	const wrapper = makeElement({
+function makeReviewPill() {
+	const button = /** @type {HTMLButtonElement} */ (
+		makeElement({
+			tag: 'button',
+			id: 'top-bar-review',
+			className: 'top-bar__review text-label',
+			attributes: { type: 'button', 'aria-pressed': 'false' },
+			onClick: () => toggleReviewFilter(),
+		})
+	);
+	button.append(
+		makeElement({
+			tag: 'span',
+			className: 'top-bar__review-dot',
+			attributes: { 'aria-hidden': 'true' },
+		}),
+		makeElement({ tag: 'span', className: 'top-bar__review-text' })
+	);
+	const done = makeElement({
 		tag: 'span',
-		className: 'top-bar__progress',
-		attributes: { role: 'img' },
+		className: 'top-bar__review-done text-label',
 	});
-	const ring = makeElement({
-		tag: 'span',
-		className: 'top-bar__ring',
-		attributes: { 'aria-hidden': 'true' },
-		innerHTML: `<svg viewBox="0 0 16 16" width="16" height="16" focusable="false">
-			<circle class="top-bar__ring-track" cx="8" cy="8" r="${RING_RADIUS}" />
-			<circle class="top-bar__ring-fill" cx="8" cy="8" r="${RING_RADIUS}"
-				stroke-dasharray="${RING_LENGTH.toFixed(3)}" stroke-dashoffset="${RING_LENGTH.toFixed(3)}"
-				transform="rotate(-90 8 8)" />
-		</svg>`,
-	});
-	const check = icon('check');
-	check.classList.add('top-bar__ring-check');
-	const count = makeElement({ tag: 'span', className: 'top-bar__count text-mono-small' });
-	wrapper.append(ring, check, count);
-	return wrapper;
+	done.append(
+		makeElement({
+			tag: 'span',
+			className: 'top-bar__review-dot',
+			attributes: { 'aria-hidden': 'true' },
+		}),
+		makeElement({ tag: 'span', content: ALL_REVIEWED_TEXT })
+	);
+	done.hidden = true;
+	return [button, done];
 }
 
 /**
- * @param {Element | null} wrapper - `.top-bar__progress`
- * @param {{done: Number, total: Number, fraction: Number}} progress - set progress
+ * Flips the grid's review filter. From focus mode it also closes the
+ * editor, so the click lands on the grid it just filtered.
+ * @param {Object=} editor - ProjectEditor
  */
-function updateProgressRing(wrapper, progress) {
-	if (!wrapper) return;
-	const { done, total, fraction } = progress;
-	wrapper.setAttribute('aria-label', `${done} of ${total} characters drawn`);
-	wrapper.setAttribute('data-done', String(done));
-	wrapper.toggleAttribute('data-complete', done >= total);
-	const fill = wrapper.querySelector('.top-bar__ring-fill');
-	if (fill) fill.setAttribute('stroke-dashoffset', (RING_LENGTH * (1 - fraction)).toFixed(3));
-	const count = wrapper.querySelector('.top-bar__count');
-	if (count) count.textContent = `${done}/${total}`;
+export function toggleReviewFilter(editor = getCurrentProjectEditor()) {
+	if (!editor) return;
+	setReviewFilter(editor, !isReviewFilterOn(editor));
+	if (isFocusModeOpen(editor)) {
+		closeFocusMode(editor);
+		/** @type {HTMLElement | null} */ (document.querySelector('#top-bar-review'))?.focus();
+	}
+}
+
+/**
+ * @param {Element} topBar - the bar
+ * @param {Object} editor - ProjectEditor
+ */
+function updateReviewPill(topBar, editor) {
+	const button = topBar.querySelector('.top-bar__review');
+	const done = topBar.querySelector('.top-bar__review-done');
+	if (!button || !done) return;
+	const count = reviewIDs(editor).length;
+	const on = isReviewFilterOn(editor);
+	const { done: drawn, total } = getSetProgress(editor.project);
+	const drawnText = `${drawn} of ${total} characters drawn`;
+
+	button.querySelector('.top-bar__review-text').textContent = `${count} to review`;
+	button.setAttribute('aria-pressed', on && count > 0 ? 'true' : 'false');
+	button.setAttribute(
+		'title',
+		`${on ? 'Show every glyph' : 'Show only glyphs to review'} · ${drawnText}`
+	);
+	button.setAttribute('data-count', String(count));
+	done.setAttribute('title', `Nothing to review · ${drawnText}`);
+
+	const zero = count === 0;
+	/** @type {HTMLElement} */ (button).hidden = zero;
+	/** @type {HTMLElement} */ (done).hidden = !zero;
 }
