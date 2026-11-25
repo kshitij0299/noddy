@@ -188,8 +188,9 @@ button.chaos-tab__pick:focus-visible {
 	gap: var(--space-1);
 	box-sizing: border-box;
 	height: 32px;
+	/* No negative margin: the scroller only has ring room for a ring drawn round a box that
+	   starts on its content edge (#137 QA). */
 	padding: 0 var(--space-3) 0 var(--space-1);
-	margin-left: calc(-1 * var(--space-1));
 	border-radius: var(--radius-full);
 	color: var(--color-text-secondary);
 	list-style: none;

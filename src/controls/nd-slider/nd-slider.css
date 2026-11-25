@@ -174,7 +174,8 @@ input.nd-slider__input,
 input.nd-slider__input:hover,
 input.nd-slider__input:focus {
 	box-sizing: content-box;
-	width: 3ch;
+	/* As wide as the longest value in the range ("-100" on Warp's Strength), set by nd-slider.jsx. */
+	width: calc(var(--nd-slider-value-chars, 3) * 1ch);
 	height: 100%;
 	margin: 0;
 	padding: 0;
@@ -284,7 +285,9 @@ input.nd-range:active:not(:disabled)::-moz-range-thumb {
 	transform: scale(var(--nd-slider-press-scale));
 }
 
-input.nd-range:focus {
+input.nd-range:focus,
+/* The legacy panels ring every :focus-visible by id; the range keeps its one ring on the thumb. */
+:is(#editor-page__panel, #content-page__panel) input.nd-range:focus-visible {
 	outline: none;
 }
 
