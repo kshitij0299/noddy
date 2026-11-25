@@ -183,7 +183,24 @@ function glyphArt(project, glyph, height, char) {
  * @param {Object} op - an engine op
  * @param {{getEditor: () => any, shared?: {chaosDrafts: Set<String>}}} context
  */
-export function mountChaosTool(container, op, { getEditor, shared = { chaosDrafts: new Set() } }) {
+export function mountChaosTool(container, op, context) {
+	/** @type {Array<{dispose: () => void}>} */
+	const sliders = [];
+	try {
+		return buildChaosTool(container, op, context, sliders);
+	} catch (error) {
+		// Each slider is its own React root: unmount the ones already made before giving up.
+		sliders.forEach((slider) => slider.dispose());
+		throw error;
+	}
+}
+
+function buildChaosTool(
+	container,
+	op,
+	{ getEditor, shared = { chaosDrafts: new Set() } },
+	sliders
+) {
 	const settings = settingsFor(op);
 	const chaosDrafts = shared.chaosDrafts;
 	let previewToken = 0;
@@ -207,8 +224,6 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 	preview.append(strip, note);
 
 	// The one knob you see: Chaos. Everything else waits in Fine-tune.
-	/** @type {Array<{dispose: () => void}>} */
-	const sliders = [];
 	const chaosKnob = sliderRow({
 		label: 'Chaos',
 		min: 0,
