@@ -147,7 +147,10 @@ export function isFocusModeOpen(editor = getCurrentProjectEditor()) {
  * @param {Array<String>=} options.order - prev/next order (the grid's visible IDs)
  * @param {String=} options.view - the grid view at open
  */
-export function openFocusMode(id, { editor = getCurrentProjectEditor(), origin = 'grid', order, view } = {}) {
+export function openFocusMode(
+	id,
+	{ editor = getCurrentProjectEditor(), origin = 'grid', order, view } = {}
+) {
 	if (!id || !editor) return;
 	const fallback = defaultOrderFor(id, view);
 	const useOrder = Array.isArray(order) && order.includes(id) ? order : fallback.order;
@@ -231,7 +234,11 @@ function returnFocus(state) {
 	const grid = /** @type {any} */ (document.querySelector('glyph-grid'));
 	if (!grid?.select) return;
 	if (state.view && grid.view !== state.view && grid.setView) grid.setView(state.view);
-	grid.select(id, { focus: true });
+	// With the review filter on (#135), a glyph kept in focus mode has left the grid:
+	// focus lands on the tile now in its place (the next one in the order it was opened
+	// from), or on "All reviewed", not on the page.
+	if (grid.focusNear) grid.focusNear(id, state.order);
+	else grid.select(id, { focus: true });
 }
 
 // --------------------------------------------------------------
@@ -252,7 +259,10 @@ export function glyphDisplayName(editor, id) {
 		name = '';
 	}
 	// "Latin Small Letter A" → "Latin small a"; "Digit Zero" → "Digit zero".
-	const words = name.replace(/\bletter\s+/i, '').split(/\s+/).filter(Boolean);
+	const words = name
+		.replace(/\bletter\s+/i, '')
+		.split(/\s+/)
+		.filter(Boolean);
 	const isSmall = /^small$/i.test(words[1] || '');
 	return words
 		.map((word, index) => {
@@ -358,7 +368,11 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 		state.baseline = takeBaseline(editor, currentID);
 	}
 
-	const content = makeElement({ tag: 'div', id: 'app__page', attributes: { 'data-page': 'focus' } });
+	const content = makeElement({
+		tag: 'div',
+		id: 'app__page',
+		attributes: { 'data-page': 'focus' },
+	});
 	const card = makeElement({
 		tag: 'div',
 		className: 'focus-mode',
@@ -391,7 +405,11 @@ export function makePage_Focus(editor = getCurrentProjectEditor()) {
 	canvas.setAttribute('editing-item-id', currentID);
 	canvas.setAttribute('tabindex', '0');
 	canvas.setAttribute('aria-label', 'Glyph canvas');
-	const guides = makeElement({ tag: 'div', className: 'focus-guides', attributes: { 'aria-hidden': 'true' } });
+	const guides = makeElement({
+		tag: 'div',
+		className: 'focus-guides',
+		attributes: { 'aria-hidden': 'true' },
+	});
 	wrapper.append(canvas, guides);
 
 	const pill = makeToolPill(editor);
@@ -587,4 +605,3 @@ function makeIconButton(icon, label, className) {
 		})
 	);
 }
-

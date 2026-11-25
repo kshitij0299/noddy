@@ -33,6 +33,7 @@ import {
 	openStartProject,
 } from './start_font.js';
 import { getTheme, toggleTheme } from './top_bar.js';
+import { setReviewFilter } from '../controls/glyph-grid/review-filter.js';
 
 /**
  * Page > Open Project: the New font start screen (M5, flow-01).
@@ -51,7 +52,13 @@ export const FONT_FILE_ACCEPT = '.otf,.ttf,.woff,.svg';
 /** The three starts, in order. `icon` is a Material Symbol; null uses the Noddy mark. */
 export const START_CARDS = Object.freeze([
 	// The file start comes first and is the recommended one (owner, 2026-10-28).
-	{ id: 'file', title: 'From a font file', line: 'OTF, TTF or SVG', icon: 'upload_file', recommended: true },
+	{
+		id: 'file',
+		title: 'From a font file',
+		line: 'OTF, TTF or SVG',
+		icon: 'upload_file',
+		recommended: true,
+	},
 	{ id: 'agent', title: 'Start with agent', line: 'Describe it, approve it', icon: null },
 	{ id: 'draw', title: 'Draw myself', line: 'Pen and points', icon: 'ink_pen' },
 ]);
@@ -88,7 +95,11 @@ export function makePage_OpenProject(secondProjectFlag = false) {
 		innerHTML: noddyLogoBig,
 		attributes: { role: 'img', 'aria-label': 'Noddy' },
 	});
-	const heading = makeElement({ tag: 'h1', className: 'start__visually-hidden', content: 'New font' });
+	const heading = makeElement({
+		tag: 'h1',
+		className: 'start__visually-hidden',
+		content: 'New font',
+	});
 
 	const nameLabel = makeElement({
 		tag: 'label',
@@ -205,7 +216,9 @@ export function makeStartCards() {
 			makeElement({ tag: 'span', className: 'start-card__line', content: card.line }),
 		]);
 		if (card.recommended) {
-			button.appendChild(makeElement({ tag: 'span', className: 'start-card__tag', content: 'Recommended' }));
+			button.appendChild(
+				makeElement({ tag: 'span', className: 'start-card__tag', content: 'Recommended' })
+			);
 		}
 		row.appendChild(button);
 	});
@@ -442,9 +455,9 @@ function makeSecondaryRow(more) {
 			},
 			onClick: () => {
 				const open = button.getAttribute('aria-expanded') === 'true';
-				row.querySelectorAll('[aria-expanded]').forEach((other) =>
-					other.setAttribute('aria-expanded', 'false')
-				);
+				row
+					.querySelectorAll('[aria-expanded]')
+					.forEach((other) => other.setAttribute('aria-expanded', 'false'));
 				if (open) {
 					more.setAttribute('hidden', '');
 					more.replaceChildren();
@@ -638,6 +651,8 @@ export function importProjectDataAndNavigate(glyphrStudioProjectFile) {
 	}
 
 	editor.project.resetSessionStateForAllItems();
+	// The editor is reused across projects: a review filter left on stays with the old one.
+	setReviewFilter(editor, false);
 	editor.nav.page = 'Workspace';
 	if (isSecondProject) showToast(`Switched to<br>${editor.project.settings.project.name}`);
 	updateWindowUnloadEvent();

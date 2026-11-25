@@ -124,56 +124,114 @@
 	cursor: default;
 }
 
-/* Set progress ring: 16px ring + n/116 in Mono small */
-.top-bar__progress {
+/* "N to review" pill (#135): a 36px toggle (aria-pressed) that filters the grid to the
+   glyphs that need the owner. Same height as the name field and Export. Hover and press are
+   paint only; the pressed (filtering) state is an ink pill, so it reads as "on" without
+   leaning on colour alone (the text and aria-pressed say it too). States are pinned at ID
+   weight against the legacy global button rules. */
+#app__top-bar .top-bar__review,
+#app__top-bar .top-bar__review:hover,
+#app__top-bar .top-bar__review:active,
+#app__top-bar .top-bar__review:focus {
+	box-sizing: border-box;
 	display: inline-flex;
-	align-items: center;
-	gap: var(--space-1);
 	flex: 0 0 auto;
-	color: var(--color-text-secondary);
+	align-items: center;
+	gap: var(--space-2);
+	height: 36px;
+	min-width: 0;
+	margin: 0;
+	padding: 0 var(--space-4) 0 var(--space-3);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color var(--state-duration) var(--state-easing),
+		border-color var(--state-duration) var(--state-easing),
+		color var(--state-duration) var(--state-easing);
 }
 
-.top-bar__ring {
+@media (hover: hover) {
+	#app__top-bar .top-bar__review:hover {
+		background-color: var(--state-hover-bg);
+	}
+}
+
+#app__top-bar .top-bar__review:active {
+	background-color: var(--state-pressed-bg);
+}
+
+#app__top-bar .top-bar__review[aria-pressed='true'] {
+	border-color: var(--color-text-primary);
+	background-color: var(--color-text-primary);
+	color: var(--color-bg-surface);
+}
+
+@media (hover: hover) {
+	#app__top-bar .top-bar__review[aria-pressed='true']:hover {
+		border-color: var(--color-text-primary);
+		background-color: color-mix(in srgb, var(--color-text-primary) 86%, var(--color-bg-surface));
+	}
+}
+
+#app__top-bar .top-bar__review[aria-pressed='true']:active {
+	background-color: color-mix(in srgb, var(--color-text-primary) 74%, var(--color-bg-surface));
+}
+
+#app__top-bar .top-bar__review:focus {
+	outline: none;
+}
+
+#app__top-bar .top-bar__review:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
+}
+
+#app__top-bar .top-bar__review[hidden],
+#app__top-bar .top-bar__review-done[hidden] {
+	display: none;
+}
+
+/* 8px status dot: peach while drafts wait, green once all is reviewed (same dot as the tiles) */
+.top-bar__review-dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: var(--radius-full);
+	background-color: var(--color-status-draft);
+}
+
+/* Zero: a quiet note, not a control. No border or fill, secondary text, the same box so
+   nothing beside it moves when the last glyph is reviewed. A tab stop only so its
+   "n of 116 characters drawn" name is reachable; the ring follows the pill shape. */
+.top-bar__review-done {
+	box-sizing: border-box;
 	display: inline-flex;
-	width: 16px;
-	height: 16px;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--space-2);
+	height: 36px;
+	padding: 0 var(--space-3);
+	border-radius: var(--radius-full);
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	cursor: default;
 }
 
-.top-bar__ring-track,
-.top-bar__ring-fill {
-	fill: none;
-	stroke-width: 2;
+.top-bar__review-done:focus {
+	outline: none;
 }
 
-.top-bar__ring-track {
-	stroke: var(--color-border-default);
+.top-bar__review-done:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
 }
 
-.top-bar__ring-fill {
-	stroke: var(--color-bg-accent);
-	stroke-linecap: round;
-}
-
-#app__top-bar .top-bar__ring-check {
-	display: none;
-	font-size: 16px;
-	color: var(--color-bg-accent);
-}
-
-.top-bar__progress[data-complete] .top-bar__ring {
-	display: none;
-}
-
-#app__top-bar .top-bar__progress[data-complete] .top-bar__ring-check {
-	display: inline-block;
-}
-
-.top-bar__count {
-	font-family: var(--font-mono);
-	font-size: 11px;
-	font-weight: 500;
-	line-height: 1.3;
-	font-variant-ligatures: none;
+.top-bar__review-done .top-bar__review-dot {
+	background-color: var(--color-status-kept);
 }
 
 /* Status slot (M1.4 "Not autosaving" chip mounts here); nothing by default */

@@ -13,11 +13,13 @@
 	color: var(--color-text-primary);
 }
 
-/* Header row: heading + segmented pill, legend right-aligned */
+/* Header row: heading + segmented pill, legend right-aligned. It wraps only when the
+   column is too narrow for the heading and "Basic 62 · All 116" side by side (phone). */
 .glyph-grid__header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	gap: var(--space-4);
+	gap: var(--space-2) var(--space-4);
 	min-height: 36px;
 	margin-bottom: var(--space-3);
 }
@@ -137,8 +139,20 @@ glyph-grid-tile[data-status='drafting'] {
 	border: 1.5px solid var(--color-status-draft);
 }
 
-glyph-grid-tile[data-status='draft'] {
+/* A Draft needs the owner (#135), so it is the one tile that stands out: a soft peach
+   fill under the dashed border and the dot. Paint only; the box is the same as every
+   other tile. Hover deepens the fill a step instead of falling back to grey. */
+glyph-grid-tile[data-status='draft'],
+glyph-grid-tile[data-status='draft'][selected],
+glyph-grid-tile[data-status='draft'][aria-selected='true'] {
 	border: 1px dashed var(--color-status-draft);
+	background: var(--color-status-draft-subtle);
+}
+
+glyph-grid-tile[data-status='draft']:hover,
+glyph-grid-tile[data-status='draft'][selected]:hover,
+glyph-grid-tile[data-status='draft'][aria-selected='true']:hover {
+	background: color-mix(in srgb, var(--color-status-draft) 18%, var(--color-status-draft-subtle));
 }
 
 /* Glyph art centred; ghost for empty tiles */
@@ -251,9 +265,98 @@ button.glyph-grid-tile__action:focus-visible {
 	font-size: 16px;
 }
 
-/* An empty tile shows the ghost glyph instead of a corner mark */
-glyph-grid-tile[data-status='empty'] .glyph-grid-tile__mark {
-	visibility: hidden;
+/* Only statuses that need the owner or show the run moving get a corner mark (#135,
+   tileShowsMark in status-mark.js): Kept and Yours tiles are bare, and an empty tile
+   shows its ghost glyph instead. The mark is absolutely placed, so this never shifts. */
+.glyph-grid-tile__mark[hidden] {
+	display: none;
+}
+
+/* --------------------------------------------------------------
+	Review filter note (#135): only while the top bar's "N to review" filter
+	is on and nothing is left. "All reviewed" is a calm card with one way back.
+-------------------------------------------------------------- */
+.glyph-grid__note[hidden] {
+	display: none;
+}
+
+.glyph-grid__note[data-state='done'] {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-1);
+	margin-top: 0;
+	padding: var(--space-10) var(--space-6);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-surface);
+	text-align: center;
+}
+
+.glyph-grid__note-title,
+.glyph-grid__note-text {
+	margin: 0;
+}
+
+.glyph-grid__note-title {
+	color: var(--color-text-primary);
+}
+
+.glyph-grid__note-text {
+	color: var(--color-text-secondary);
+}
+
+.glyph-grid__note[data-state='done'] .glyph-grid__note-title::before {
+	content: '';
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin-right: var(--space-2);
+	border-radius: var(--radius-full);
+	background: var(--color-status-kept);
+	vertical-align: 0.1em;
+}
+
+/* One way back: a 36px secondary pill, sized to its label (never stretched). */
+button.glyph-grid__note-button,
+button.glyph-grid__note-button:hover,
+button.glyph-grid__note-button:focus,
+button.glyph-grid__note-button:active {
+	box-sizing: border-box;
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	align-self: center;
+	height: 36px;
+	min-width: 0;
+	margin: var(--space-3) 0 0;
+	padding: 0 var(--space-4);
+	border: 1px solid var(--color-border-default);
+	border-radius: var(--radius-full);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+	box-shadow: none;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color var(--state-duration) var(--state-easing);
+}
+
+@media (hover: hover) {
+	button.glyph-grid__note-button:hover {
+		background-color: var(--state-hover-bg);
+	}
+}
+
+button.glyph-grid__note-button:active {
+	background-color: var(--state-pressed-bg);
+}
+
+button.glyph-grid__note-button:focus {
+	outline: none;
+}
+
+button.glyph-grid__note-button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: var(--focus-ring-offset);
 }
 
 /* --------------------------------------------------------------

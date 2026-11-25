@@ -7,24 +7,37 @@ import {
 import { GLYPH_STATUS_TOPIC } from '../../project_editor/glyph-status.js';
 import { ITEM_CHANGED_TOPIC, createDebouncedRedraw } from '../../project_editor/item_changed.js';
 import { openFocusMode } from '../../pages/focus_mode.js';
-import {
-	RETRY_GLYPHS_EVENT,
-	keepGlyphs,
-	preDraftOf,
-	revertGlyph,
-} from '../../agent/run/review.js';
+import { RETRY_GLYPHS_EVENT, keepGlyphs, preDraftOf, revertGlyph } from '../../agent/run/review.js';
 import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
 import { getPicks, onControlsChange, setPicks, togglePick } from '../../agent/agent-controls.js';
 import './glyph-grid.css';
 import { GlyphGridTile } from './glyph-tile.js';
 import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
+import {
+	isReviewFilterOn,
+	onReviewFilterChange,
+	reviewEntries,
+	setReviewFilter,
+} from './review-filter.js';
 
 /**
  * <glyph-grid>: the Letters & figures shelf (issue #14, flow-02/05/07).
  *
- *   header   "Letters & figures" (Heading, ROND 60) + segmented pill "62 · All 116"
+ *   header   "Letters & figures" (Heading, ROND 60) + segmented pill "Basic 62 · All 116"
  *            + legend (one mark + count per status with count > 0)
  *   tiles    one <glyph-grid-tile> per GF Latin Kernel entry, 13 columns
+ *   note     "All reviewed" with a way back, only while the review filter is on
+ *            and nothing is left to review
+ *
+ * Review filter (#135): the top bar's "N to review" pill sets a per-editor flag
+ * (review-filter.js). While it is on, the tiles are every glyph in the project
+ * that needs the owner (agent Drafts, reviewIDs order), including glyphs outside
+ * Basic 62 / All 116, so "N to review" is always N tiles. Neither view segment
+ * is pressed then; pressing one leaves the filter and shows that view. Turning
+ * the filter on selects the first draft. A tile leaves the moment its glyph is
+ * kept or reverted; the next tile takes the selection (and focus, when focus
+ * was in the grid). Whenever a rebuild removes the focused element (a tile, the
+ * note's button), focus moves to the current tile, never to the page.
  *
  * Data flow: tiles are dumb; the grid re-renders a tile by glyph ID with a
  * freshly fetched glyph and status whenever `itemChanged {id}` or
@@ -40,7 +53,7 @@ import { LEGEND_ORDER, STATUS_LABELS, makeStatusMark } from './status-mark.js';
  * document-level canvas shortcuts (ARCHITECTURE.md §4 "Keyboard").
  */
 
-/** Views of the character set; `label` is the pill text. */
+/** Views of the character set. */
 export const GRID_VIEWS = Object.freeze({
 	default: { id: 'default', entries: latinKernelLettersAndFigures },
 	all: { id: 'all', entries: latinKernelAll },
@@ -89,6 +102,8 @@ export class GlyphGrid extends HTMLElement {
 		this.openGlyph = (id) =>
 			openGlyph(id, this.editor, { origin: 'grid', order: this.visibleIDs, view: this.view });
 		this._built = false;
+		/** Whether the last tile build was filtered (see _buildTiles). */
+		this._builtFiltered = false;
 	}
 
 	get editor() {
@@ -100,8 +115,14 @@ export class GlyphGrid extends HTMLElement {
 		return this.editor.project;
 	}
 
-	/** Entries currently shown. */
+	/** Whether only glyphs that need review are shown (top bar pill, #135). */
+	get reviewOnly() {
+		return isReviewFilterOn(this.editor);
+	}
+
+	/** Entries currently shown: the view, or every glyph to review when filtering. */
 	get entries() {
+		if (this.reviewOnly) return reviewEntries(this.editor);
 		return GRID_VIEWS[this.view].entries();
 	}
 
@@ -124,6 +145,12 @@ export class GlyphGrid extends HTMLElement {
 		this._offPicks = onControlsChange((event) => {
 			if (event.detail?.reason === 'picks') this._applyPicks();
 		});
+		this._offReview?.();
+		this._offReview = onReviewFilterChange((event) => {
+			if (event.detail?.editor === this.editor) this.syncFilter();
+		});
+		// The filter may have flipped while the grid was detached.
+		this.syncFilter();
 		this.refreshAll();
 		this._applyPicks();
 	}
@@ -132,6 +159,8 @@ export class GlyphGrid extends HTMLElement {
 		this._unsubscribe();
 		this._offPicks?.();
 		this._offPicks = null;
+		this._offReview?.();
+		this._offReview = null;
 		this._redraw.cancel();
 	}
 
@@ -178,7 +207,11 @@ export class GlyphGrid extends HTMLElement {
 			className: `${SEGMENTED_PILL.track} glyph-grid__switch`,
 			attributes: { role: 'group', 'aria-label': 'Which characters to show' },
 		});
-		this.segmentDefault = this._makeSegment('default', `${defaultCount}`, 'Letters and figures');
+		this.segmentDefault = this._makeSegment(
+			'default',
+			`Basic ${defaultCount}`,
+			'Letters and figures'
+		);
 		this.segmentAll = this._makeSegment('all', `All ${allCount}`, 'All characters');
 		this.switchEl.append(this.segmentDefault, this.segmentAll);
 
@@ -201,7 +234,16 @@ export class GlyphGrid extends HTMLElement {
 		this.tilesEl.addEventListener('click', (event) => this._onClick(event));
 		this.tilesEl.addEventListener('focusin', (event) => this._onFocusIn(event));
 
-		this.append(header, this.tilesEl);
+		// A labelled group, not a live region: focus moves to its button when the last
+		// draft goes, and the group name says "All reviewed" once (no double announcement).
+		this.noteEl = makeElement({
+			tag: 'div',
+			className: 'glyph-grid__note',
+			attributes: { role: 'group' },
+		});
+		this.noteEl.hidden = true;
+
+		this.append(header, this.tilesEl, this.noteEl);
 		this._buildTiles();
 	}
 
@@ -213,13 +255,26 @@ export class GlyphGrid extends HTMLElement {
 			title,
 			attributes: { type: 'button', 'data-view': viewID, 'aria-pressed': 'false' },
 		});
-		button.addEventListener('click', () => this.setView(viewID));
+		button.addEventListener('click', () => {
+			// While reviewing, a view segment means "show me that view": leave the filter.
+			setReviewFilter(this.editor, false);
+			this.setView(viewID);
+		});
 		return button;
 	}
 
 	/** (Re)creates the tiles for the current view; keeps tiles that stay visible. */
 	_buildTiles() {
 		const entries = this.entries;
+		const before = [...this.tilesEl.children].map((tile) => tile.glyphID);
+		const oldIndex = before.indexOf(this.selectedID);
+		const filtering = this.reviewOnly;
+		const wasFiltered = this._builtFiltered;
+		const firstBuild = !this._built && before.length === 0;
+		this._builtFiltered = filtering;
+		const active = /** @type {HTMLElement | null} */ (document.activeElement);
+		// Tiles or the note's button: either may be removed by this rebuild.
+		const hadFocus = !!active && this.contains(active);
 		const keep = new Set(entries.map((entry) => entry.glyphID));
 		this.tiles.forEach((tile, id) => {
 			if (!keep.has(id)) {
@@ -237,19 +292,104 @@ export class GlyphGrid extends HTMLElement {
 			fragment.appendChild(tile);
 		});
 		this.tilesEl.replaceChildren(fragment);
-		this.segmentDefault.setAttribute('aria-pressed', this.view === 'default' ? 'true' : 'false');
-		this.segmentAll.setAttribute('aria-pressed', this.view === 'all' ? 'true' : 'false');
+		// While reviewing, neither view is what the grid shows.
+		const pressed = (viewID) => (!filtering && this.view === viewID ? 'true' : 'false');
+		this.segmentDefault.setAttribute('aria-pressed', pressed('default'));
+		this.segmentAll.setAttribute('aria-pressed', pressed('all'));
 		this.setAttribute('data-view', this.view);
 
-		if (!this.tiles.has(this.selectedID)) {
+		const turnedOn = filtering && !wasFiltered && !firstBuild;
+		if (turnedOn) {
+			// Turning the filter on starts at the first glyph to review.
+			this.selectedID = entries[0]?.glyphID || '';
+		} else if (!this.tiles.has(this.selectedID)) {
 			const editorID = this.editor?.selectedGlyphID;
-			this.selectedID = this.tiles.has(editorID) ? editorID : entries[0]?.glyphID || '';
+			// A tile that left the review filter hands the selection to the tile now in its place.
+			const neighbour =
+				filtering && wasFiltered && oldIndex >= 0
+					? entries[Math.min(oldIndex, entries.length - 1)]?.glyphID
+					: '';
+			this.selectedID =
+				neighbour || (this.tiles.has(editorID) ? editorID : entries[0]?.glyphID || '');
 		}
 		this._applySelection();
+		this._renderNote();
+
+		// replaceChildren() detaches and re-attaches tiles, and the note may drop its
+		// button: either loses focus. Put it back on what was focused, or the current tile.
+		if (hadFocus && !this.contains(document.activeElement)) {
+			if (active?.isConnected && this.contains(active)) active.focus();
+			else this.focusCurrent();
+		}
+	}
+
+	/**
+	 * Re-applies the review filter: rebuilds the tiles when the set of glyphs
+	 * to show changed (filter flipped, a glyph kept, a new draft arrived).
+	 * @param {Object=} options
+	 * @param {Boolean=} options.force - rebuild even when the set looks the same
+	 */
+	syncFilter({ force = false } = {}) {
+		if (!this._built) return;
+		const want = this.entries.map((entry) => entry.glyphID);
+		const have = [...this.tilesEl.children].map((tile) => tile.glyphID);
+		const same = want.length === have.length && want.every((id, index) => id === have[index]);
+		if (same && !force) {
+			this._renderNote();
+			return;
+		}
+		this._buildTiles();
+		if (this.isConnected) this.refreshAll();
+	}
+
+	/**
+	 * The card under the header while the review filter is on and nothing is
+	 * left to review: "All reviewed" with one way back. Hidden otherwise.
+	 */
+	_renderNote() {
+		const note = this.noteEl;
+		if (!note) return;
+		const filtering = this.reviewOnly;
+		this.toggleAttribute('data-review', filtering);
+		const done = filtering && this.tiles.size === 0;
+		if (!done) {
+			if (!note.hidden) note.replaceChildren();
+			note.removeAttribute('data-state');
+			note.hidden = true;
+			return;
+		}
+		if (!note.hidden) return;
+
+		const titleID = `glyph-grid-note-title-${this._instance}`;
+		const title = makeElement({
+			tag: 'p',
+			className: 'glyph-grid__note-title text-subheading',
+			content: 'All reviewed',
+		});
+		title.id = titleID;
+		const back = makeElement({
+			tag: 'button',
+			className: 'glyph-grid__note-button text-label',
+			content: 'Show every glyph',
+			attributes: { type: 'button' },
+		});
+		back.addEventListener('click', () => setReviewFilter(this.editor, false));
+		note.setAttribute('data-state', 'done');
+		note.setAttribute('aria-labelledby', titleID);
+		note.replaceChildren(
+			title,
+			makeElement({
+				tag: 'p',
+				className: 'glyph-grid__note-text text-body',
+				content: 'Nothing needs you right now.',
+			}),
+			back
+		);
+		note.hidden = false;
 	}
 
 	// --------------------------------------------------------------
-	// Views ("62" / "All 116")
+	// Views ("Basic 62" / "All 116")
 	// --------------------------------------------------------------
 
 	/**
@@ -346,8 +486,11 @@ export class GlyphGrid extends HTMLElement {
 	_applyRefresh(id) {
 		if (!this.isConnected) return;
 		if (id === REFRESH_ALL) this.refreshAll();
-		else if (id === REFRESH_LEGEND) this.refreshLegend();
-		else this.refreshTile(id);
+		else if (id === REFRESH_LEGEND) {
+			// Status changes can move glyphs in or out of the review filter.
+			if (this.reviewOnly) this.syncFilter();
+			this.refreshLegend();
+		} else this.refreshTile(id);
 	}
 
 	// --------------------------------------------------------------
@@ -429,6 +572,45 @@ export class GlyphGrid extends HTMLElement {
 		if (focus) this.tiles.get(id).focus();
 	}
 
+	/** Focuses the selected tile, or the review note's button when no tile is shown. */
+	focusCurrent() {
+		const tile = this.tiles.get(this.selectedID);
+		if (tile) {
+			tile.focus();
+			return;
+		}
+		const back = /** @type {HTMLElement | null} */ (this.noteEl?.querySelector('button'));
+		back?.focus();
+	}
+
+	/**
+	 * Selects and focuses `id`, or, when it has left the grid (kept while the
+	 * review filter is on), the tile now in its place: the next one in `order`
+	 * still shown, else the one before. Used when focus mode closes.
+	 * @param {String} id - glyph ID
+	 * @param {Array<String>=} order - the order the grid showed when `id` was opened
+	 */
+	focusNear(id, order = []) {
+		if (this.tiles.has(id)) {
+			this.select(id, { focus: true });
+			return;
+		}
+		const index = order.indexOf(id);
+		if (index >= 0) {
+			const after = order.slice(index + 1).find((item) => this.tiles.has(item));
+			const before = order
+				.slice(0, index)
+				.reverse()
+				.find((item) => this.tiles.has(item));
+			const target = after || before;
+			if (target) {
+				this.select(target, { focus: true });
+				return;
+			}
+		}
+		this.focusCurrent();
+	}
+
 	_applySelection() {
 		this.tiles.forEach((tile, id) => {
 			const isSelected = id === this.selectedID;
@@ -472,7 +654,11 @@ export class GlyphGrid extends HTMLElement {
 		else if (action === 'revert') revertGlyph(this.editor, id);
 		else if (action === 'retry')
 			this.dispatchEvent(
-				new CustomEvent(RETRY_GLYPHS_EVENT, { bubbles: true, composed: true, detail: { ids: [id] } })
+				new CustomEvent(RETRY_GLYPHS_EVENT, {
+					bubbles: true,
+					composed: true,
+					detail: { ids: [id] },
+				})
 			);
 	}
 

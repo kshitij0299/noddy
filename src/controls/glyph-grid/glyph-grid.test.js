@@ -8,8 +8,15 @@ import { latinKernelAll } from '../../project_editor/charset_latin_kernel.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { getPicks, resetAgentControlsForTests } from '../../agent/agent-controls.js';
 import { GlyphGrid, openGlyph } from './glyph-grid.js';
+import { isReviewFilterOn, reviewCount, setReviewFilter } from './review-filter.js';
 import { FAILED_TOOLTIP, GlyphGridTile, tileLabelFor } from './glyph-tile.js';
-import { STATUS_LABELS, STATUS_SHAPES, makeStatusMark } from './status-mark.js';
+import {
+	STATUS_LABELS,
+	STATUS_SHAPES,
+	TILE_MARK_STATUSES,
+	makeStatusMark,
+	tileShowsMark,
+} from './status-mark.js';
 
 if (!customElements.get('glyph-grid-tile')) customElements.define('glyph-grid-tile', GlyphGridTile);
 if (!customElements.get('glyph-grid')) customElements.define('glyph-grid', GlyphGrid);
@@ -70,11 +77,12 @@ afterEach(() => {
 });
 
 describe('GlyphGrid: header and views', () => {
-	it('renders the heading, the 62 · All 116 pill and 62 tiles by default', () => {
+	it('renders the heading, the Basic 62 · All 116 pill and 62 tiles by default', () => {
 		expect(grid.querySelector('h3').textContent).toBe('Letters & figures');
 		expect(grid.querySelector('h3').classList.contains('text-heading')).toBe(true);
 		const segments = [...grid.querySelectorAll('.glyph-grid__segment')];
-		expect(segments.map((s) => s.textContent)).toEqual(['62', 'All 116']);
+		expect(segments.map((s) => s.textContent)).toEqual(['Basic 62', 'All 116']);
+		expect(segments.map((s) => s.getAttribute('data-view'))).toEqual(['default', 'all']);
 		expect(segments.map((s) => s.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
 		expect(grid.querySelectorAll('glyph-grid-tile').length).toBe(62);
 		expect(grid.getAttribute('data-view')).toBe('default');
@@ -110,18 +118,15 @@ describe('GlyphGrid: legend', () => {
 				li.getAttribute('data-status'),
 				li.querySelector('.glyph-grid__legend-count').textContent,
 			]);
-		// A is drawn (derived kept), everything else is empty.
-		expect(items()).toEqual([
-			['kept', '1'],
-			['empty', '61'],
-		]);
+		// A is drawn (derived kept), everything else is empty. Kept tiles carry no
+		// mark (#135), so the legend does not list them.
+		expect(items()).toEqual([['empty', '61']]);
 
 		editor.glyphStatus.set(a, 'draft', 'agent');
 		editor.glyphStatus.set('glyph-0x62', 'failed', 'agent');
 		editor.glyphStatus.set('glyph-0x21', 'draft', 'agent'); // "!" is outside the 62 view
 		grid.flushRedraws();
 		expect(items()).toEqual([
-			['kept', '1'],
 			['draft', '1'],
 			['failed', '1'],
 			['empty', '59'],
@@ -129,7 +134,6 @@ describe('GlyphGrid: legend', () => {
 
 		grid.setView('all');
 		expect(items()).toEqual([
-			['kept', '1'],
 			['draft', '2'],
 			['failed', '1'],
 			['empty', '112'],
@@ -148,10 +152,21 @@ describe('GlyphGrid: legend', () => {
 	});
 
 	it('legend items name the status in text, not colour alone', () => {
-		const kept = grid.legendEl.querySelector('[data-status="kept"]');
-		expect(kept.getAttribute('aria-label')).toBe('1 Kept');
-		expect(kept.getAttribute('title')).toBe('1 Kept');
-		expect(kept.querySelector('.glyph-status-mark').getAttribute('data-shape')).toBe('icon');
+		editor.glyphStatus.set(a, 'failed', 'agent');
+		grid.flushRedraws();
+		const failed = grid.legendEl.querySelector('[data-status="failed"]');
+		expect(failed.getAttribute('aria-label')).toBe('1 Failed');
+		expect(failed.getAttribute('title')).toBe('1 Failed');
+		expect(failed.querySelector('.glyph-status-mark').getAttribute('data-shape')).toBe('icon');
+	});
+
+	it('never lists Kept or Yours, whose tiles have no mark', () => {
+		editor.glyphStatus.set(a, 'yours', 'user');
+		editor.glyphStatus.set('glyph-0x62', 'draft', 'agent');
+		grid.flushRedraws();
+		expect(grid.legendEl.querySelector('[data-status="kept"]')).toBeNull();
+		expect(grid.legendEl.querySelector('[data-status="yours"]')).toBeNull();
+		expect(grid.legendEl.querySelector('[data-status="draft"]')).not.toBeNull();
 	});
 });
 
@@ -193,6 +208,30 @@ describe('GlyphGridTile: status marks (shape + text, never colour alone)', () =>
 		grid.flushRedraws();
 		expect(tile.getAttribute('aria-label')).toBe(`a · ${STATUS_LABELS.yours}`);
 		expect(tile.mark.textContent).toBe('edit');
+		expect(tile.mark.hidden).toBe(true); // finished work: no corner mark (#135)
+	});
+
+	it('marks only glyphs that need the owner or show the run moving (#135)', () => {
+		const tile = grid.tiles.get(a);
+		const markFor = (status, owner = 'agent') => {
+			editor.glyphStatus.set(a, status, owner);
+			grid.flushRedraws();
+			return !tile.mark.hidden;
+		};
+		expect(tile.mark.hidden).toBe(true); // empty: the ghost glyph, no mark
+		expect(markFor('queued')).toBe(true);
+		expect(markFor('drafting')).toBe(true);
+		expect(markFor('draft')).toBe(true);
+		expect(markFor('failed')).toBe(true);
+		expect(markFor('kept', 'user')).toBe(false);
+		expect(markFor('yours', 'user')).toBe(false);
+		expect(tile.getAttribute('aria-label')).toBe('a · Yours');
+		// A drawn glyph without a record is derived Kept: no tick, status still in its name.
+		const drawn = grid.tiles.get(A);
+		expect(drawn.mark.hidden).toBe(true);
+		expect(drawn.getAttribute('aria-label')).toBe('A · Kept');
+		expect(TILE_MARK_STATUSES).toEqual(['queued', 'drafting', 'draft', 'failed']);
+		expect(tileShowsMark('kept')).toBe(false);
 	});
 
 	it('renders a ghost for an empty glyph and project outlines for a drawn one', () => {
@@ -330,7 +369,9 @@ describe('GlyphGrid: live updates', () => {
 			editor.project.glyphs[a].svgPathData
 		);
 		expect(tile.getAttribute('aria-label')).toBe('a · Kept');
-		expect(grid.legendEl.querySelector('[data-status="kept"] .glyph-grid__legend-count').textContent).toBe('2');
+		expect(
+			grid.legendEl.querySelector('[data-status="empty"] .glyph-grid__legend-count').textContent
+		).toBe('60');
 	});
 
 	it('refreshes every tile when a whole-project undo swaps the project object', async () => {
@@ -420,7 +461,9 @@ describe('GlyphGrid: review actions on tiles (M7 #29)', () => {
 		document.addEventListener('noddy-retry-glyphs', seen);
 		editor.glyphStatus.set(a, 'failed', 'agent');
 		grid.refreshTile(a);
-		/** @type {HTMLButtonElement} */ (tileOf(a).querySelector('[data-tile-action="retry"]')).click();
+		/** @type {HTMLButtonElement} */ (
+			tileOf(a).querySelector('[data-tile-action="retry"]')
+		).click();
 		document.removeEventListener('noddy-retry-glyphs', seen);
 		expect(seen).toHaveBeenCalledTimes(1);
 		expect(seen.mock.calls[0][0].detail).toEqual({ ids: [a] });
@@ -466,5 +509,215 @@ describe('GlyphGrid: picks for the agent Target (PR B)', () => {
 		expect(grid.openGlyph).not.toHaveBeenCalled();
 		key(grid.tiles.get(a), 'Enter');
 		expect(grid.openGlyph).toHaveBeenCalledWith(a);
+	});
+});
+
+describe('GlyphGrid: review filter (#135)', () => {
+	const shown = () => [...grid.querySelectorAll('glyph-grid-tile')].map((t) => t.glyphID);
+	const b = 'glyph-0x62';
+	const c = 'glyph-0x63';
+	const bang = 'glyph-0x21'; // "!" lives in All 116 only
+	const interrobang = 'glyph-0x203D'; // "‽" is outside the 116 set (Oblegg has it)
+	const z = 'glyph-0x7A';
+	const pressed = () =>
+		[grid.segmentDefault, grid.segmentAll].map((s) => s.getAttribute('aria-pressed'));
+
+	afterEach(() => setReviewFilter(editor, false));
+
+	it('is off by default and shows the whole view', () => {
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(grid.reviewOnly).toBe(false);
+		expect(shown()).toHaveLength(62);
+		expect(grid.noteEl.hidden).toBe(true);
+	});
+
+	it('shows every draft in the project, inside and outside the 116 set: N to review is N tiles', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		editor.glyphStatus.set(c, 'draft', 'agent');
+		editor.glyphStatus.set('glyph-0x65', 'failed', 'agent');
+		editor.glyphStatus.set(b, 'yours', 'user');
+		editor.glyphStatus.set('glyph-0x64', 'drafting', 'agent');
+		editor.glyphStatus.set(bang, 'draft', 'agent');
+		editor.glyphStatus.set(interrobang, 'draft', 'agent');
+		grid.flushRedraws();
+
+		setReviewFilter(editor, true);
+		expect(grid.hasAttribute('data-review')).toBe(true);
+		// Set order first, then the rest by code point; the view does not narrow it.
+		expect(shown()).toEqual([a, c, bang, interrobang]);
+		expect(shown()).toHaveLength(reviewCount(editor));
+		expect(grid.tiles.get(interrobang).getAttribute('aria-label')).toBe('‽ · Draft');
+		// No "N more in All 116" hint: nothing is hidden.
+		expect(grid.noteEl.hidden).toBe(true);
+		// Neither view segment is what the grid shows.
+		expect(pressed()).toEqual(['false', 'false']);
+		grid.setView('all');
+		expect(shown()).toEqual([a, c, bang, interrobang]);
+		grid.setView('default');
+
+		setReviewFilter(editor, false);
+		expect(shown()).toHaveLength(62);
+		expect(pressed()).toEqual(['true', 'false']);
+		expect(grid.hasAttribute('data-review')).toBe(false);
+	});
+
+	it('pressing a view segment while reviewing leaves the filter and shows that view', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		setReviewFilter(editor, true);
+		grid.segmentAll.focus();
+		grid.segmentAll.click();
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(grid.view).toBe('all');
+		expect(shown()).toHaveLength(116);
+		expect(pressed()).toEqual(['false', 'true']);
+		expect(document.activeElement).toBe(grid.segmentAll);
+
+		setReviewFilter(editor, true);
+		grid.segmentAll.click(); // the view it was already on
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(shown()).toHaveLength(116);
+		grid.setView('default');
+	});
+
+	it('turning the filter on selects the first draft, not the one at the old index', () => {
+		[b, 'glyph-0x39'].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		grid.select(z, { focus: true }); // index 51 of Basic 62
+		setReviewFilter(editor, true);
+		expect(shown()).toEqual([b, 'glyph-0x39']);
+		expect(grid.selectedID).toBe(b);
+		expect(document.activeElement).toBe(grid.tiles.get(b));
+	});
+
+	it('picks up new drafts and drops kept ones while filtering', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		setReviewFilter(editor, true);
+		expect(shown()).toEqual([a]);
+
+		editor.glyphStatus.set(b, 'draft', 'agent');
+		grid.flushRedraws();
+		expect(shown()).toEqual([a, b]);
+		expect(grid.tiles.get(b).getAttribute('aria-label')).toBe('b · Draft');
+
+		editor.glyphStatus.set(a, 'kept', 'user');
+		grid.flushRedraws();
+		expect(shown()).toEqual([b]);
+	});
+
+	it('keeping the last draft shows a friendly "All reviewed" with a way back, not a blank grid', () => {
+		editor.glyphStatus.set(A, 'draft', 'agent');
+		setReviewFilter(editor, true);
+		grid.select(A, { focus: true });
+		/** @type {HTMLButtonElement} */ (
+			grid.tiles.get(A).querySelector('[data-tile-action="keep"]')
+		).click();
+		grid.flushRedraws();
+
+		expect(shown()).toEqual([]);
+		expect(grid.noteEl.hidden).toBe(false);
+		expect(grid.noteEl.getAttribute('data-state')).toBe('done');
+		// A labelled group, not a live region: focus on its button says "All reviewed" once.
+		expect(grid.noteEl.getAttribute('role')).toBe('group');
+		expect(grid.noteEl.hasAttribute('aria-live')).toBe(false);
+		const title = grid.noteEl.querySelector('.glyph-grid__note-title');
+		expect(title.textContent).toBe('All reviewed');
+		expect(grid.noteEl.getAttribute('aria-labelledby')).toBe(title.id);
+		const back = grid.noteEl.querySelector('button');
+		expect(back.textContent).toBe('Show every glyph');
+		// Focus was in the grid: it lands on the way back instead of the page.
+		expect(document.activeElement).toBe(back);
+
+		back.click();
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(shown()).toHaveLength(62);
+		expect(grid.noteEl.hidden).toBe(true);
+		// The button removed itself: focus goes to the current tile, not <body>.
+		expect(document.activeElement).toBe(grid.tiles.get(grid.selectedID));
+		expect(grid.selectedID).toBe(A);
+	});
+
+	it('a draft arriving while "Show every glyph" has focus moves focus to its tile', () => {
+		setReviewFilter(editor, true);
+		const back = grid.noteEl.querySelector('button');
+		back.focus();
+		editor.glyphStatus.set(c, 'draft', 'agent');
+		grid.flushRedraws();
+		expect(shown()).toEqual([c]);
+		expect(grid.noteEl.hidden).toBe(true);
+		expect(document.activeElement).toBe(grid.tiles.get(c));
+	});
+
+	it('turning the filter off from outside while the note has focus lands on the current tile', () => {
+		setReviewFilter(editor, true);
+		grid.noteEl.querySelector('button').focus();
+		setReviewFilter(editor, false);
+		expect(document.activeElement).toBe(grid.tiles.get(grid.selectedID));
+	});
+
+	it('a kept tile hands selection and focus to the tile now in its place', () => {
+		[a, b, c].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		setReviewFilter(editor, true);
+		grid.select(b, { focus: true });
+		/** @type {HTMLButtonElement} */ (
+			grid.tiles.get(b).querySelector('[data-tile-action="keep"]')
+		).click();
+		grid.flushRedraws();
+		expect(shown()).toEqual([a, c]);
+		expect(grid.selectedID).toBe(c);
+		expect(document.activeElement).toBe(grid.tiles.get(c));
+		expect(grid.tiles.get(c).getAttribute('tabindex')).toBe('0');
+	});
+
+	it('arrow keys, Home and End walk the filtered tiles; Enter opens with the filtered order', () => {
+		[a, b, c, bang].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		setReviewFilter(editor, true);
+		const open = vi.spyOn(grid, 'openGlyph');
+		grid.select(a, { focus: true });
+		key(grid.tiles.get(a), 'ArrowRight');
+		expect(grid.selectedID).toBe(b);
+		key(grid.tiles.get(b), 'End');
+		expect(grid.selectedID).toBe(bang);
+		key(grid.tiles.get(bang), 'ArrowRight'); // wraps
+		expect(grid.selectedID).toBe(a);
+		key(grid.tiles.get(a), 'ArrowLeft');
+		expect(grid.selectedID).toBe(bang);
+		key(grid.tiles.get(bang), 'Home');
+		expect(grid.selectedID).toBe(a);
+		key(grid.tiles.get(a), 'Enter');
+		expect(open).toHaveBeenCalledWith(a);
+		expect(grid.visibleIDs).toEqual([a, b, c, bang]);
+	});
+
+	it("focusNear (focus mode closing) lands on the tile that took a kept glyph's place", () => {
+		[a, b, c].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		setReviewFilter(editor, true);
+		editor.glyphStatus.set(b, 'kept', 'user');
+		grid.flushRedraws();
+		grid.focusNear(b, [a, b, c]);
+		expect(document.activeElement).toBe(grid.tiles.get(c));
+		editor.glyphStatus.set(c, 'kept', 'user');
+		grid.flushRedraws();
+		grid.focusNear(c, [a, b, c]);
+		expect(document.activeElement).toBe(grid.tiles.get(a));
+		grid.focusNear(a, [a, b, c]);
+		expect(document.activeElement).toBe(grid.tiles.get(a));
+	});
+
+	it('survives the grid being rebuilt (focus mode closing) and resets for another editor', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		setReviewFilter(editor, true);
+		grid.remove();
+		const rebuilt = new GlyphGrid({ editor });
+		document.body.appendChild(rebuilt);
+		expect([...rebuilt.querySelectorAll('glyph-grid-tile')].map((t) => t.glyphID)).toEqual([a]);
+		rebuilt.remove();
+		expect(isReviewFilterOn(new ProjectEditor())).toBe(false);
+	});
+
+	it('flipping the filter for another editor leaves this grid alone', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		const other = new ProjectEditor();
+		setReviewFilter(other, true);
+		expect(shown()).toHaveLength(62);
+		setReviewFilter(other, false);
 	});
 });

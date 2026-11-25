@@ -1,5 +1,5 @@
 import { makeElement } from '../../common/dom.js';
-import { STATUS_LABELS, makeStatusMark, updateStatusMark } from './status-mark.js';
+import { STATUS_LABELS, makeStatusMark, tileShowsMark, updateStatusMark } from './status-mark.js';
 
 /**
  * GlyphTile (Figma Components 50:78, screens flow-02 / flow-05 / flow-07):
@@ -12,7 +12,8 @@ import { STATUS_LABELS, makeStatusMark, updateStatusMark } from './status-mark.j
  * whole-project undo replaces the project object (ARCHITECTURE.md §6).
  *
  * Layout: fixed 84px height, art centred, Mono-small char label bottom-left,
- * status mark top-right. Hover is paint only; the selected ring is drawn
+ * status mark top-right. Only statuses that need the owner or show the run
+ * moving get a mark (`tileShowsMark`, #135); Kept and Yours tiles are bare. Hover is paint only; the selected ring is drawn
  * inset so it is never clipped at the grid edge.
  *
  * Review actions (M7 #29): a Draft tile shows Keep and Revert, a Failed tile
@@ -104,10 +105,14 @@ export class GlyphGridTile extends HTMLElement {
 
 		this.art = makeElement({ tag: 'span', className: 'glyph-grid-tile__art' });
 		// textContent, not innerHTML: labels include '<', '>' and '&'.
-		this.labelEl = makeElement({ tag: 'span', className: 'glyph-grid-tile__label text-mono-small' });
+		this.labelEl = makeElement({
+			tag: 'span',
+			className: 'glyph-grid-tile__label text-mono-small',
+		});
 		this.labelEl.textContent = this.label;
 		this.mark = makeStatusMark('empty');
 		this.mark.classList.add('glyph-grid-tile__mark');
+		this.mark.hidden = true;
 		this.actionsEl = makeElement({ tag: 'span', className: 'glyph-grid-tile__actions' });
 		this._actionsKey = '';
 		// Picked for the agent's Target (Cmd/Ctrl/Shift-click): a check badge, top-left.
@@ -201,9 +206,7 @@ export class GlyphGridTile extends HTMLElement {
 				this.art.replaceChildren(makeGlyphArt(project, glyph));
 				this.removeAttribute('data-ghost');
 			} else {
-				this.art.replaceChildren(
-					makeElement({ tag: 'span', className: 'glyph-grid-tile__ghost' })
-				);
+				this.art.replaceChildren(makeElement({ tag: 'span', className: 'glyph-grid-tile__ghost' }));
 				this.setAttribute('data-ghost', '');
 			}
 		}
@@ -212,6 +215,8 @@ export class GlyphGridTile extends HTMLElement {
 			this.status = status;
 			this.setAttribute('data-status', status);
 			updateStatusMark(this.mark, status);
+			// Absolutely positioned, so hiding it never moves anything.
+			this.mark.hidden = !tileShowsMark(status);
 		} else if (!this.hasAttribute('data-status')) {
 			this.setAttribute('data-status', status);
 		}

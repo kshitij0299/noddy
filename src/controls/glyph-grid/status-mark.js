@@ -10,8 +10,8 @@ import { makeElement } from '../../common/dom.js';
  *   queued    ring      small hollow ring
  *   drafting  spinner   peach ring with a gap, spinning (static when motion is reduced)
  *   draft     dot       8px filled peach dot (plus a dashed tile border, see flow-05)
- *   kept      icon      green `check_circle`
- *   yours     icon      blue `edit`
+ *   kept      icon      green `check_circle` (inspector chip only; tiles show no mark, #135)
+ *   yours     icon      blue `edit` (inspector chip only; tiles show no mark, #135)
  *   failed    icon      red `error`
  */
 
@@ -44,16 +44,30 @@ export const STATUS_LABELS = Object.freeze({
 	failed: 'Failed',
 });
 
-/** Legend order: finished work first, then work in flight, then the rest. */
-export const LEGEND_ORDER = Object.freeze([
-	'kept',
-	'yours',
-	'draft',
-	'drafting',
-	'queued',
-	'failed',
-	'empty',
-]);
+/**
+ * Statuses that put a mark in a tile's corner (issue #135: mark only what
+ * needs you). Kept and Yours are finished work, so their tiles carry no
+ * mark; a tick on every finished tile told the owner nothing. Empty shows
+ * its ghost glyph instead of a mark. Draft and Failed need the owner;
+ * Queued and Drafting show the agent's run moving. The tile's accessible
+ * name still states every status.
+ */
+export const TILE_MARK_STATUSES = Object.freeze(['queued', 'drafting', 'draft', 'failed']);
+
+/**
+ * @param {String} status
+ * @returns {Boolean} whether a tile with this status shows its corner mark
+ */
+export function tileShowsMark(status) {
+	return TILE_MARK_STATUSES.includes(status);
+}
+
+/**
+ * Legend order: what needs the owner first, then work in flight, then the
+ * ghost. Only statuses whose mark you can find on a tile (or the ghost)
+ * are listed, so the legend never explains a mark that is not there.
+ */
+export const LEGEND_ORDER = Object.freeze(['draft', 'failed', 'drafting', 'queued', 'empty']);
 
 /**
  * Builds a 16×16 status mark.

@@ -20,9 +20,16 @@ import {
 	latinKernelUncoveredCodePoints,
 } from '../../project_editor/charset_latin_kernel.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
-import { getCurrentProjectEditor, getGlyphrStudioApp, setCurrentProjectEditor } from '../main.js';
+import {
+	getCurrentProjectEditor,
+	getGlyphrStudioApp,
+	getProjectEditorImportTarget,
+	setCurrentProjectEditor,
+} from '../main.js';
+import { isReviewFilterOn, setReviewFilter } from '../../controls/glyph-grid/review-filter.js';
 import {
 	FONT_FILE_ACCEPT,
+	importProjectDataAndNavigate,
 	makePage_OpenProject,
 	showLicenceNote,
 	startFromFontFile,
@@ -171,6 +178,40 @@ describe('New font: project state for each start (#23)', () => {
 	});
 });
 
+describe('Review filter does not follow you to the next project (#135)', () => {
+	it('"Back to start" then opening another project reuses the editor but clears the filter', () => {
+		const editor = freshImportTarget();
+		openStartProject(createKernelProject('A'));
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		setReviewFilter(editor, true);
+
+		// The real reuse path: no second editor, the same import target gets project B.
+		const reopened = openStartProject(createKernelProject('B'));
+		expect(reopened).toBe(editor);
+		expect(getGlyphrStudioApp().projectEditors).toEqual([editor]);
+		expect(isReviewFilterOn(editor)).toBe(false);
+	});
+
+	it('importing a project file into the reused editor clears it too', () => {
+		const editor = freshImportTarget();
+		openStartProject(createKernelProject('A'));
+		setReviewFilter(editor, true);
+		importProjectDataAndNavigate(createKernelProject('B').save());
+		expect(getProjectEditorImportTarget()).toBe(editor);
+		expect(editor.project.settings.project.name).toBe('B');
+		expect(isReviewFilterOn(editor)).toBe(false);
+	});
+
+	it('a whole-project undo (the project object swapped, no open) keeps it', () => {
+		const editor = freshImportTarget();
+		openStartProject(createKernelProject('A'));
+		setReviewFilter(editor, true);
+		editor.project = createKernelProject('A');
+		expect(isReviewFilterOn(editor)).toBe(true);
+		setReviewFilter(editor, false);
+	});
+});
+
 describe('New font screen DOM (#23)', () => {
 	it('shows the wordmark, the name field, the set chip and three cards in order', () => {
 		const page = mountStartScreen();
@@ -190,14 +231,16 @@ describe('New font screen DOM (#23)', () => {
 		]);
 		// Real buttons: Tab reaches them after the name field, Enter activates.
 		cards.forEach((card) => expect(card.tagName).toBe('BUTTON'));
-		expect(
-			name.compareDocumentPosition(cards[0]) & Node.DOCUMENT_POSITION_FOLLOWING
-		).toBeTruthy();
+		expect(name.compareDocumentPosition(cards[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		expect(cards[0].querySelector('.material-symbols-rounded').textContent).toBe('upload_file');
 		expect(cards[1].querySelector('.start-card__mark')).not.toBeNull();
 		expect(cards[2].querySelector('.material-symbols-rounded').textContent).toBe('ink_pen');
 		// Only the file start is recommended: filled, with a tag.
-		expect(cards.map((card) => card.classList.contains('start-card--recommended'))).toEqual([true, false, false]);
+		expect(cards.map((card) => card.classList.contains('start-card--recommended'))).toEqual([
+			true,
+			false,
+			false,
+		]);
 		expect(cards[0].querySelector('.start-card__tag').textContent).toBe('Recommended');
 		expect(page.querySelectorAll('.start-card__tag')).toHaveLength(1);
 		expect(START_CARDS.every((card) => !card.line.includes('.'))).toBe(true);
