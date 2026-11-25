@@ -8,7 +8,7 @@ import { latinKernelAll } from '../../project_editor/charset_latin_kernel.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { getPicks, resetAgentControlsForTests } from '../../agent/agent-controls.js';
 import { GlyphGrid, openGlyph } from './glyph-grid.js';
-import { isReviewFilterOn, setReviewFilter } from './review-filter.js';
+import { isReviewFilterOn, reviewCount, setReviewFilter } from './review-filter.js';
 import { FAILED_TOOLTIP, GlyphGridTile, tileLabelFor } from './glyph-tile.js';
 import {
 	STATUS_LABELS,
@@ -517,6 +517,10 @@ describe('GlyphGrid: review filter (#135)', () => {
 	const b = 'glyph-0x62';
 	const c = 'glyph-0x63';
 	const bang = 'glyph-0x21'; // "!" lives in All 116 only
+	const interrobang = 'glyph-0x203D'; // "‽" is outside the 116 set (Oblegg has it)
+	const z = 'glyph-0x7A';
+	const pressed = () =>
+		[grid.segmentDefault, grid.segmentAll].map((s) => s.getAttribute('aria-pressed'));
 
 	afterEach(() => setReviewFilter(editor, false));
 
@@ -527,32 +531,61 @@ describe('GlyphGrid: review filter (#135)', () => {
 		expect(grid.noteEl.hidden).toBe(true);
 	});
 
-	it('shows only the Drafts of the current view, and composes with Basic / All', () => {
+	it('shows every draft in the project, inside and outside the 116 set: N to review is N tiles', () => {
 		editor.glyphStatus.set(a, 'draft', 'agent');
 		editor.glyphStatus.set(c, 'draft', 'agent');
 		editor.glyphStatus.set('glyph-0x65', 'failed', 'agent');
 		editor.glyphStatus.set(b, 'yours', 'user');
 		editor.glyphStatus.set('glyph-0x64', 'drafting', 'agent');
 		editor.glyphStatus.set(bang, 'draft', 'agent');
+		editor.glyphStatus.set(interrobang, 'draft', 'agent');
 		grid.flushRedraws();
 
 		setReviewFilter(editor, true);
 		expect(grid.hasAttribute('data-review')).toBe(true);
-		expect(shown()).toEqual([a, c]);
-		// One more waits outside Basic 62: a quiet way to it.
-		expect(grid.noteEl.hidden).toBe(false);
-		expect(grid.noteEl.getAttribute('data-state')).toBe('more');
-		expect(grid.noteEl.textContent).toBe('1 more in All 116');
-
-		grid.noteEl.querySelector('button').click();
-		expect(grid.view).toBe('all');
-		expect(shown()).toEqual([a, c, bang]);
+		// Set order first, then the rest by code point; the view does not narrow it.
+		expect(shown()).toEqual([a, c, bang, interrobang]);
+		expect(shown()).toHaveLength(reviewCount(editor));
+		expect(grid.tiles.get(interrobang).getAttribute('aria-label')).toBe('‽ · Draft');
+		// No "N more in All 116" hint: nothing is hidden.
 		expect(grid.noteEl.hidden).toBe(true);
-
+		// Neither view segment is what the grid shows.
+		expect(pressed()).toEqual(['false', 'false']);
+		grid.setView('all');
+		expect(shown()).toEqual([a, c, bang, interrobang]);
 		grid.setView('default');
+
 		setReviewFilter(editor, false);
 		expect(shown()).toHaveLength(62);
+		expect(pressed()).toEqual(['true', 'false']);
 		expect(grid.hasAttribute('data-review')).toBe(false);
+	});
+
+	it('pressing a view segment while reviewing leaves the filter and shows that view', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		setReviewFilter(editor, true);
+		grid.segmentAll.focus();
+		grid.segmentAll.click();
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(grid.view).toBe('all');
+		expect(shown()).toHaveLength(116);
+		expect(pressed()).toEqual(['false', 'true']);
+		expect(document.activeElement).toBe(grid.segmentAll);
+
+		setReviewFilter(editor, true);
+		grid.segmentAll.click(); // the view it was already on
+		expect(isReviewFilterOn(editor)).toBe(false);
+		expect(shown()).toHaveLength(116);
+		grid.setView('default');
+	});
+
+	it('turning the filter on selects the first draft, not the one at the old index', () => {
+		[b, 'glyph-0x39'].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		grid.select(z, { focus: true }); // index 51 of Basic 62
+		setReviewFilter(editor, true);
+		expect(shown()).toEqual([b, 'glyph-0x39']);
+		expect(grid.selectedID).toBe(b);
+		expect(document.activeElement).toBe(grid.tiles.get(b));
 	});
 
 	it('picks up new drafts and drops kept ones while filtering', () => {
@@ -582,8 +615,12 @@ describe('GlyphGrid: review filter (#135)', () => {
 		expect(shown()).toEqual([]);
 		expect(grid.noteEl.hidden).toBe(false);
 		expect(grid.noteEl.getAttribute('data-state')).toBe('done');
-		expect(grid.noteEl.getAttribute('role')).toBe('status');
-		expect(grid.noteEl.querySelector('.glyph-grid__note-title').textContent).toBe('All reviewed');
+		// A labelled group, not a live region: focus on its button says "All reviewed" once.
+		expect(grid.noteEl.getAttribute('role')).toBe('group');
+		expect(grid.noteEl.hasAttribute('aria-live')).toBe(false);
+		const title = grid.noteEl.querySelector('.glyph-grid__note-title');
+		expect(title.textContent).toBe('All reviewed');
+		expect(grid.noteEl.getAttribute('aria-labelledby')).toBe(title.id);
 		const back = grid.noteEl.querySelector('button');
 		expect(back.textContent).toBe('Show every glyph');
 		// Focus was in the grid: it lands on the way back instead of the page.
@@ -593,16 +630,27 @@ describe('GlyphGrid: review filter (#135)', () => {
 		expect(isReviewFilterOn(editor)).toBe(false);
 		expect(shown()).toHaveLength(62);
 		expect(grid.noteEl.hidden).toBe(true);
+		// The button removed itself: focus goes to the current tile, not <body>.
+		expect(document.activeElement).toBe(grid.tiles.get(grid.selectedID));
+		expect(grid.selectedID).toBe(A);
 	});
 
-	it('says where the rest are when Basic 62 has none left but All 116 does', () => {
-		editor.glyphStatus.set(bang, 'draft', 'agent');
+	it('a draft arriving while "Show every glyph" has focus moves focus to its tile', () => {
 		setReviewFilter(editor, true);
-		expect(shown()).toEqual([]);
-		expect(grid.noteEl.getAttribute('data-state')).toBe('elsewhere');
-		expect(grid.noteEl.textContent).toContain('1 glyph waits in All 116.');
-		grid.noteEl.querySelector('button').click();
-		expect(shown()).toEqual([bang]);
+		const back = grid.noteEl.querySelector('button');
+		back.focus();
+		editor.glyphStatus.set(c, 'draft', 'agent');
+		grid.flushRedraws();
+		expect(shown()).toEqual([c]);
+		expect(grid.noteEl.hidden).toBe(true);
+		expect(document.activeElement).toBe(grid.tiles.get(c));
+	});
+
+	it('turning the filter off from outside while the note has focus lands on the current tile', () => {
+		setReviewFilter(editor, true);
+		grid.noteEl.querySelector('button').focus();
+		setReviewFilter(editor, false);
+		expect(document.activeElement).toBe(grid.tiles.get(grid.selectedID));
 	});
 
 	it('a kept tile hands selection and focus to the tile now in its place', () => {
@@ -627,14 +675,31 @@ describe('GlyphGrid: review filter (#135)', () => {
 		key(grid.tiles.get(a), 'ArrowRight');
 		expect(grid.selectedID).toBe(b);
 		key(grid.tiles.get(b), 'End');
-		expect(grid.selectedID).toBe(c);
-		key(grid.tiles.get(c), 'ArrowRight'); // wraps
+		expect(grid.selectedID).toBe(bang);
+		key(grid.tiles.get(bang), 'ArrowRight'); // wraps
 		expect(grid.selectedID).toBe(a);
 		key(grid.tiles.get(a), 'ArrowLeft');
-		expect(grid.selectedID).toBe(c);
-		key(grid.tiles.get(c), 'Enter');
-		expect(open).toHaveBeenCalledWith(c);
-		expect(grid.visibleIDs).toEqual([a, b, c]);
+		expect(grid.selectedID).toBe(bang);
+		key(grid.tiles.get(bang), 'Home');
+		expect(grid.selectedID).toBe(a);
+		key(grid.tiles.get(a), 'Enter');
+		expect(open).toHaveBeenCalledWith(a);
+		expect(grid.visibleIDs).toEqual([a, b, c, bang]);
+	});
+
+	it("focusNear (focus mode closing) lands on the tile that took a kept glyph's place", () => {
+		[a, b, c].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		setReviewFilter(editor, true);
+		editor.glyphStatus.set(b, 'kept', 'user');
+		grid.flushRedraws();
+		grid.focusNear(b, [a, b, c]);
+		expect(document.activeElement).toBe(grid.tiles.get(c));
+		editor.glyphStatus.set(c, 'kept', 'user');
+		grid.flushRedraws();
+		grid.focusNear(c, [a, b, c]);
+		expect(document.activeElement).toBe(grid.tiles.get(a));
+		grid.focusNear(a, [a, b, c]);
+		expect(document.activeElement).toBe(grid.tiles.get(a));
 	});
 
 	it('survives the grid being rebuilt (focus mode closing) and resets for another editor', () => {

@@ -273,20 +273,14 @@ button.glyph-grid-tile__action:focus-visible {
 }
 
 /* --------------------------------------------------------------
-	Review filter note (#135): under the tiles, only while the top bar's
-	"N to review" filter is on. "All reviewed" is a calm card with one way
-	back; "N more in All 116" is a quiet text button.
+	Review filter note (#135): only while the top bar's "N to review" filter
+	is on and nothing is left. "All reviewed" is a calm card with one way back.
 -------------------------------------------------------------- */
 .glyph-grid__note[hidden] {
 	display: none;
 }
 
-.glyph-grid__note {
-	margin-top: var(--space-3);
-}
-
-.glyph-grid__note[data-state='done'],
-.glyph-grid__note[data-state='elsewhere'] {
+.glyph-grid__note[data-state='done'] {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -363,11 +357,6 @@ button.glyph-grid__note-button:focus {
 button.glyph-grid__note-button:focus-visible {
 	outline: var(--focus-ring);
 	outline-offset: var(--focus-ring-offset);
-}
-
-/* "N more in All 116": the same pill on the canvas, left-aligned under the tiles */
-.glyph-grid__note[data-state='more'] button.glyph-grid__note-button {
-	margin: 0;
 }
 
 /* --------------------------------------------------------------

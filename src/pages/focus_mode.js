@@ -235,8 +235,9 @@ function returnFocus(state) {
 	if (!grid?.select) return;
 	if (state.view && grid.view !== state.view && grid.setView) grid.setView(state.view);
 	// With the review filter on (#135), a glyph kept in focus mode has left the grid:
-	// focus lands on the tile now in its place, or on "All reviewed", not on the page.
-	if (grid.tiles?.has && !grid.tiles.has(id) && grid.focusCurrent) grid.focusCurrent();
+	// focus lands on the tile now in its place (the next one in the order it was opened
+	// from), or on "All reviewed", not on the page.
+	if (grid.focusNear) grid.focusNear(id, state.order);
 	else grid.select(id, { focus: true });
 }
 

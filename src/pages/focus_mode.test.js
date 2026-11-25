@@ -174,18 +174,36 @@ describe('Focus mode: open and close (#16)', () => {
 		expect(document.activeElement).toBe(grid().tiles.get(a));
 	});
 
-	it('review filter (#135): a draft kept in focus mode leaves the grid; focus goes to the next one', () => {
-		editor.glyphStatus.set(a, 'draft', 'agent');
-		editor.glyphStatus.set(n, 'draft', 'agent');
+	it('review filter (#135): a middle draft kept in focus mode hands focus to the tile now in its place', () => {
+		// Three drafts; keeping the middle one must land on the third, not the first
+		// (the grid is rebuilt on close, so this is not the "first tile" fallback).
+		const b = 'glyph-0x62';
+		[a, b, n].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
 		setReviewFilter(editor, true);
-		expect([...grid().tiles.keys()]).toEqual([a, n]);
-		grid().tiles.get(a).click();
+		const order = [a, b, n];
+		expect([...grid().tiles.keys()]).toEqual(order);
+		const middle = b;
+		const after = n;
+		grid().tiles.get(middle).click();
 		expect(isFocusModeOpen(editor)).toBe(true);
-		editor.glyphStatus.set(a, 'kept', 'user');
+		editor.glyphStatus.set(middle, 'kept', 'user');
 		key(document.body, 'Escape');
 		expect(isFocusModeOpen(editor)).toBe(false);
-		expect([...grid().tiles.keys()]).toEqual([n]);
-		expect(document.activeElement).toBe(grid().tiles.get(n));
+		expect([...grid().tiles.keys()]).toEqual(order.filter((id) => id !== middle));
+		expect(grid().selectedID).toBe(after);
+		expect(document.activeElement).toBe(grid().tiles.get(after));
+		setReviewFilter(editor, false);
+	});
+
+	it('review filter (#135): keeping the last draft in focus mode lands on the one before it', () => {
+		[a, n].forEach((id) => editor.glyphStatus.set(id, 'draft', 'agent'));
+		setReviewFilter(editor, true);
+		const order = [...grid().tiles.keys()];
+		const last = order.at(-1);
+		grid().tiles.get(last).click();
+		editor.glyphStatus.set(last, 'kept', 'user');
+		key(document.body, 'Escape');
+		expect(document.activeElement).toBe(grid().tiles.get(order[0]));
 		setReviewFilter(editor, false);
 	});
 
