@@ -35,6 +35,7 @@ import {
 	getProjectEditorImportTarget,
 	setCurrentProjectEditor,
 } from './main.js';
+import { setReviewFilter } from '../controls/glyph-grid/review-filter.js';
 
 export const DEFAULT_FONT_NAME = 'Bakery Sans';
 export const LICENCE_NOTE = "Check the font's licence lets you modify it.";
@@ -156,6 +157,8 @@ export function openStartProject(project, { panel = 'open', secondProject = fals
 	setCurrentProjectEditor(editor);
 	editor.project = project;
 	editor.project.resetSessionStateForAllItems();
+	// The editor is reused across projects: a review filter left on stays with the old one.
+	setReviewFilter(editor, false);
 	editor.nav.page = 'Workspace';
 	updateWindowUnloadEvent();
 	editor.navigate();
