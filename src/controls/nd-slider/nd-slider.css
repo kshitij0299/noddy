@@ -174,7 +174,7 @@ input.nd-slider__input,
 input.nd-slider__input:hover,
 input.nd-slider__input:focus {
 	box-sizing: content-box;
-	width: 4ch;
+	width: 3ch;
 	height: 100%;
 	margin: 0;
 	padding: 0;
@@ -208,9 +208,13 @@ input.nd-range {
 	height: 24px;
 	margin: 0;
 	padding: 0;
+	/* The legacy field reset (resets.css) gives every input a border and a radius. */
+	border: 0;
+	border-radius: 0;
 	appearance: none;
 	-webkit-appearance: none;
 	background: transparent;
+	user-select: none;
 	accent-color: var(--nd-slider-fill);
 	cursor: pointer;
 }

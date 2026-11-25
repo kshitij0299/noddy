@@ -77,7 +77,7 @@ export function registerChaosTools() {
  * (label · fixed-length track · editable value) on the Fine-tune grid.
  */
 function sliderRow({ label, min, max, step = 1, value, unit = '', variant = 'row', onInput }) {
-	const row = el('div', `chaos-knob chaos-knob--slider chaos-knob--${variant}`);
+	const row = el('div', 'chaos-knob chaos-knob--slider');
 	const slider = mountSlider(row, {
 		label,
 		min,
