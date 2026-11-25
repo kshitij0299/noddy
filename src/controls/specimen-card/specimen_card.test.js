@@ -156,7 +156,10 @@ describe('Specimen card: layout and rendering', () => {
 		const card = mountCard();
 		const radios = card.querySelectorAll('[role="radio"]');
 		expect(radios).toHaveLength(3);
-		expect([...radios].map((r) => r.getAttribute('aria-label'))).toEqual(['Text', 'Spacing', 'Waterfall']);
+		// Words on the buttons (#134): the text is the accessible name, the mode ids stay.
+		expect([...radios].map((r) => r.textContent)).toEqual(['Text', 'Spacing', 'Sizes']);
+		expect([...radios].map((r) => r.getAttribute('data-mode'))).toEqual(['text', 'spacing', 'waterfall']);
+		expect([...radios].some((r) => r.querySelector('.material-symbols-rounded'))).toBe(false);
 		expect(radios[0].getAttribute('aria-checked')).toBe('true');
 
 		radios[1].click();
@@ -186,6 +189,20 @@ describe('Specimen card: layout and rendering', () => {
 
 		card.size = 9999;
 		expect(card.size).toBe(SPECIMEN_SIZE.max);
+	});
+
+	it('the size slider wears the shared slider look and paints its filled part (#134)', () => {
+		const card = mountCard();
+		const slider = /** @type {HTMLInputElement} */ (card.querySelector('input[type="range"]'));
+		expect(slider.classList.contains('nd-range')).toBe(true);
+		const fill = (size) =>
+			`${((size - SPECIMEN_SIZE.min) / (SPECIMEN_SIZE.max - SPECIMEN_SIZE.min)) * 100}%`;
+		expect(slider.style.getPropertyValue('--nd-range-fill')).toBe(fill(SPECIMEN_SIZE.default));
+		slider.value = '200';
+		slider.dispatchEvent(new Event('input'));
+		expect(slider.style.getPropertyValue('--nd-range-fill')).toBe(fill(200));
+		card.size = SPECIMEN_SIZE.min;
+		expect(slider.style.getPropertyValue('--nd-range-fill')).toBe('0%');
 	});
 
 	it('redraws once per burst when itemChanged is published', async () => {

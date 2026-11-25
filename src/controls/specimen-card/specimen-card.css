@@ -34,10 +34,11 @@ specimen-card .specimen__bar {
 	height: 36px;
 }
 
-/* Mode pill: the shared SegmentedPill (src/controls/segmented-pill), icon
-   variant: 124×36, bg/subtle, three 36×28 segments */
+/* Mode pill: the shared SegmentedPill (src/controls/segmented-pill), text
+   variant: Text / Spacing / Sizes (#134; they were icons before). */
 
-/* Size slider: 80px track, 8px thumb, Mono value at the right edge */
+/* Size slider: a 160px styled native range (nd-slider.css, the same look as
+   the Tools tab's ui-sdk slider), Mono value at the right edge. */
 specimen-card .specimen__size {
 	display: flex;
 	flex: 0 0 auto;
@@ -48,70 +49,7 @@ specimen-card .specimen__size {
 }
 
 specimen-card .specimen__size-slider {
-	width: 80px;
-	height: 8px;
-	margin: 0;
-	appearance: none;
-	-webkit-appearance: none;
-	background: transparent;
-	cursor: pointer;
-	transition: background-color var(--state-duration, 120ms) var(--state-easing, ease);
-}
-
-specimen-card .specimen__size-slider::-webkit-slider-runnable-track {
-	height: 4px;
-	border-radius: var(--radius-full, 999px);
-	background: var(--color-bg-track, var(--border));
-}
-
-specimen-card .specimen__size-slider::-moz-range-track {
-	height: 4px;
-	border-radius: var(--radius-full, 999px);
-	background: var(--color-bg-track, var(--border));
-}
-
-specimen-card .specimen__size-slider::-webkit-slider-thumb {
-	-webkit-appearance: none;
-	appearance: none;
-	width: 8px;
-	height: 8px;
-	margin-top: -2px;
-	border-radius: 50%;
-	border: none;
-	background: var(--color-bg-accent, var(--primary));
-}
-
-specimen-card .specimen__size-slider::-moz-range-thumb {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	border: none;
-	background: var(--color-bg-accent, var(--primary));
-}
-
-/* Thumb states (#128): paint only, the thumb never changes size. */
-@media (hover: hover) {
-	specimen-card .specimen__size-slider:hover::-webkit-slider-thumb {
-		background: var(--state-accent-hover-bg);
-	}
-
-	specimen-card .specimen__size-slider:hover::-moz-range-thumb {
-		background: var(--state-accent-hover-bg);
-	}
-}
-
-specimen-card .specimen__size-slider:active::-webkit-slider-thumb {
-	background: var(--state-accent-pressed-bg);
-}
-
-specimen-card .specimen__size-slider:active::-moz-range-thumb {
-	background: var(--state-accent-pressed-bg);
-}
-
-specimen-card .specimen__size-slider:focus-visible {
-	outline: var(--focus-ring, 2px solid var(--ring));
-	outline-offset: var(--focus-ring-offset, 2px);
-	border-radius: var(--radius-full, 999px);
+	width: 160px;
 }
 
 specimen-card .specimen__size-value {

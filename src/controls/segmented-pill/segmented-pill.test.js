@@ -169,7 +169,8 @@ describe('SegmentedPill: shared markup', () => {
 			});
 			expect(pill.segments.filter(pill.selected), pill.name).toHaveLength(1);
 		}
-		expect(card.querySelector('.specimen__mode-pill').classList.contains('segmented-pill--icons')).toBe(true);
+		// The mode pill carries words since #134, so it uses the text variant.
+		expect(card.querySelector('.specimen__mode-pill').classList.contains('segmented-pill--icons')).toBe(false);
 	});
 
 	it('keeps exactly one selected segment after switching', () => {
@@ -395,12 +396,12 @@ describe('SegmentedPill: hover state', () => {
 	});
 });
 
-describe('SegmentedPill: icon variant (mode pill)', () => {
-	it('uses 36px-wide icon segments: 4 + 3 x 36 + 2 x 4 + 4 = 124px, the Figma pill', () => {
-		const icons = resolve(card.querySelector('.specimen__mode-pill'), RULES);
-		expect(icons['--segmented-pill-segment-width']).toBe('36px');
+describe('SegmentedPill: text variant (mode pill, #134)', () => {
+	it('mode segments size to their word: no fixed icon width, the default side padding', () => {
+		const track = resolve(card.querySelector('.specimen__mode-pill'), RULES);
+		expect(track['--segmented-pill-segment-width']).toBeUndefined();
 		const segment = resolve(card.querySelector('.specimen__mode'), RULES);
 		expect(segment.width).toBe('var(--segmented-pill-segment-width, auto)');
-		expect(4 + 3 * 36 + 2 * 4 + 4).toBe(124);
+		expect(segment.padding).toBe('0 var(--segmented-pill-segment-px, var(--space-3))');
 	});
 });
