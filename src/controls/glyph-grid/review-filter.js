@@ -1,21 +1,25 @@
-import { latinKernelAll } from '../../project_editor/charset_latin_kernel.js';
+import { glyphIDToCodePoint, latinKernelAll } from '../../project_editor/charset_latin_kernel.js';
 
 /**
  * "To review" (issue #135): which glyphs need the owner, and the grid filter
  * that shows only those.
  *
  * A glyph needs review while it is an agent Draft: the agent drew it and the
- * owner has not kept or reverted it yet. This is the same count as the agent
- * pill's "Needs you · N to review" (agent-panel.js reviewCount), so the two
- * never disagree. Failed glyphs keep their red mark and Retry button on the
- * tile but are not "to review": there is nothing to look at yet. Kept and
- * Yours are finished, Empty is not started, and Queued / Drafting are still
- * in the agent's hands.
+ * owner has not kept or reverted it yet. reviewIDs() / reviewCount() are the
+ * one count: the top bar's "N to review" pill, the agent pill's
+ * "Needs you · N to review" and the filtered grid all read it, so they agree.
+ * It covers every draft in the project, including glyphs outside the 116
+ * set, so "N to review" always shows exactly N tiles. Failed glyphs keep their
+ * red mark and Retry button on the tile but are not "to review": there is
+ * nothing to look at yet. Kept and Yours are finished, Empty is not started,
+ * and Queued / Drafting are still in the agent's hands.
  *
  * The filter is view state only. It lives in memory, one flag per
- * ProjectEditor (a WeakMap, so a new or reopened project starts unfiltered),
- * and never reaches the project file or localStorage. The top bar's
- * "N to review" pill sets it; the <glyph-grid> reads it and listens for
+ * ProjectEditor (a WeakMap), and never reaches the project file or
+ * localStorage. Opening or importing a project reuses the same editor, so
+ * those paths clear the flag (openStartProject, importProjectDataAndNavigate);
+ * a whole-project undo swaps the project object too and keeps it. The top
+ * bar's "N to review" pill sets it; the <glyph-grid> reads it and listens for
  * changes, so the filter survives focus mode closing and the grid being
  * rebuilt on navigate().
  */
@@ -41,15 +45,76 @@ export function needsReview(status) {
 }
 
 /**
- * IDs that need review, in the order given.
+ * Every glyph that needs review in the project, in grid order: the 116 set
+ * first (in set order), then the rest by code point.
  * @param {Object} editor - ProjectEditor (reads editor.glyphStatus)
- * @param {Array<String>=} ids - candidates; defaults to the whole character set (116)
- * @returns {Array<String>}
+ * @returns {Array<String>} item IDs
  */
-export function reviewIDs(editor, ids = latinKernelAll().map((entry) => entry.glyphID)) {
+export function reviewIDs(editor) {
 	const store = editor?.glyphStatus;
 	if (!store) return [];
-	return ids.filter((id) => needsReview(store.getStatus(id)));
+	let drafts;
+	try {
+		drafts = REVIEW_STATUSES.flatMap((status) => store.listByStatus(status));
+	} catch {
+		return [];
+	}
+	const order = kernelOrder();
+	const rank = (id) => (order.has(id) ? order.get(id) : Infinity);
+	const point = (id) => {
+		const value = glyphIDToCodePoint(id);
+		return value === false ? Infinity : value;
+	};
+	return [...new Set(drafts)].sort(
+		(a, b) => rank(a) - rank(b) || point(a) - point(b) || (a < b ? -1 : a > b ? 1 : 0)
+	);
+}
+
+/**
+ * How many glyphs need review. The one count every "N to review" shows.
+ * @param {Object} editor - ProjectEditor
+ * @returns {Number}
+ */
+export function reviewCount(editor) {
+	return reviewIDs(editor).length;
+}
+
+/**
+ * Grid entries for every glyph to review (reviewIDs order). Glyphs in the 116
+ * set get their set entry; the rest get one built from the ID, so the tile
+ * can label them.
+ * @param {Object} editor - ProjectEditor
+ * @returns {Array<{glyphID: String, char: String, codePoint: Number, hex: String}>}
+ */
+export function reviewEntries(editor) {
+	const byID = kernelEntries();
+	return reviewIDs(editor).map((id) => {
+		const known = byID.get(id);
+		if (known) return known;
+		const codePoint = glyphIDToCodePoint(id);
+		if (codePoint === false) return { glyphID: id, char: '', codePoint: 0, hex: id };
+		return {
+			glyphID: id,
+			char: String.fromCodePoint(codePoint),
+			codePoint,
+			hex: id.substring('glyph-'.length),
+		};
+	});
+}
+
+/** @type {Map<String, Object> | null} */
+let kernelByID = null;
+function kernelEntries() {
+	if (!kernelByID) kernelByID = new Map(latinKernelAll().map((entry) => [entry.glyphID, entry]));
+	return kernelByID;
+}
+
+/** @type {Map<String, Number> | null} */
+let kernelRank = null;
+function kernelOrder() {
+	if (!kernelRank)
+		kernelRank = new Map(latinKernelAll().map((entry, index) => [entry.glyphID, index]));
+	return kernelRank;
 }
 
 /**

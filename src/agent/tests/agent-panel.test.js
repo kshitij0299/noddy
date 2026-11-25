@@ -19,6 +19,8 @@ import {
 	threadCopyFor,
 } from '../ui/agent-panel.js';
 import { CARD_ACTION_EVENT } from '../ui/cards/index.js';
+import { ProjectEditor } from '../../project_editor/project_editor.js';
+import { reviewCount } from '../../controls/glyph-grid/review-filter.js';
 import { resetChaosToolsForTests } from '../ui/agent-panel-tabs.js';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -112,7 +114,8 @@ describe('agent panel shell (#19)', () => {
 		expect(panel.panel.querySelector('.agent-composer__tools')).toBe(null);
 		// Everything the composer has sits inside its one box.
 		const { root, input, plus, target, model, send } = panel.composer;
-		for (const node of [input, plus, target, model.button, send]) expect(root.contains(node)).toBe(true);
+		for (const node of [input, plus, target, model.button, send])
+			expect(root.contains(node)).toBe(true);
 	});
 
 	it('one box: attachments, then the input, then + · Target · Model · Send in Tab order (#126)', () => {
@@ -269,6 +272,17 @@ describe('minimize and pill (#20)', () => {
 		panel.minimize();
 		expect(panel.pill.root.dataset.phase).toBe('needs-you');
 		expect(panel.pill.root.textContent).toContain('Needs you · 4 to review');
+	});
+
+	it('pill counts with the shared reviewCount, drafts outside the 116 set included (#135)', () => {
+		const editor = new ProjectEditor();
+		editor.glyphStatus.set('glyph-0x61', 'draft', 'agent');
+		editor.glyphStatus.set('glyph-0x203D', 'draft', 'agent'); // "‽", outside the set
+		editor.glyphStatus.set('glyph-0x62', 'failed', 'agent');
+		const panel = panelFixture({ controller: fakeController(), getEditor: () => editor });
+		panel.minimize();
+		expect(reviewCount(editor)).toBe(2);
+		expect(panel.pill.root.textContent).toContain('Needs you · 2 to review');
 	});
 
 	it('pill shows run progress from setRunStatus', () => {

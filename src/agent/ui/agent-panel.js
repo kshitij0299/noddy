@@ -37,6 +37,7 @@ import {
 	setAgentPanelMode,
 } from '../../app/agent_panel_slot.js';
 import { GLYPH_STATUS_TOPIC } from '../../project_editor/glyph-status.js';
+import { reviewCount as sharedReviewCount } from '../../controls/glyph-grid/review-filter.js';
 import { createAgentController } from '../agent-controller.js';
 import { createNativeToolSession } from '../native-tools.js';
 import { createGlyphDrafter } from '../run/glyph-job.js';
@@ -572,12 +573,9 @@ export function createAgentPanel({
 	// ---- Status: header dot + pill ----
 	const pill = createAgentPill({ onExpand: () => restore() });
 
+	/** The shared count (review-filter.js), so this pill and the top bar's agree. */
 	function reviewCount() {
-		try {
-			return getEditor()?.glyphStatus?.listByStatus('draft').length || 0;
-		} catch {
-			return 0;
-		}
+		return sharedReviewCount(getEditor());
 	}
 
 	/** A chat request or a run's glyph job is in flight. */
