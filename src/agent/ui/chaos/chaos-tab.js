@@ -3,9 +3,10 @@
  *
  *   tools    a compact radio row of the registered tools (Slash cut, Glitch bands, Warp,
  *            Grid snap, Pixel Life); arrows move and choose
- *   tool     the chosen tool's block (its mount()): preview strip of the target glyphs,
- *            its knobs (Chaos, Seed, its own params, Break rules in Wild mode), results
- *   footer   Target chip · Re-roll · Apply
+ *   tool     the chosen tool's block (its mount()): preview strip of the target glyphs, the
+ *            Chaos slider (the one knob you see, #134), a collapsed Fine-tune with the rest (its
+ *            own params, Seed, Break rules in Wild mode), results
+ *   footer   Target chip · Re-roll (dice) · Apply
  *
  * Preview runs the engine on the font's glyphs (debounced, nothing written). Apply lands each
  * glyph as a Draft through apply_chaos + submit_glyph: one undo step per glyph. Results get
@@ -19,6 +20,7 @@ import { createTargetChip } from '../agent-composer-chips.js';
 import { cardButton, el, icon, srOnly } from '../cards/card-shell.js';
 import { makeGlyphSVG } from '../cards/glyph-art.js';
 import { listChaosTools, registerChaosTool } from '../agent-panel-tabs.js';
+import { mountSlider } from '../../../controls/nd-slider/nd-slider.jsx';
 import { PREVIEW_LIMIT, applyChaos, fontNote, previewChaos } from './chaos-runner.js';
 import './chaos-tab.css';
 
@@ -35,6 +37,9 @@ const nextId = (prefix) => `${prefix}-${++uid}`;
  */
 const settingsByTool = new Map();
 
+/** Fine-tune stays open or closed across tools for the session (#134). */
+let fineTuneOpen = false;
+
 function settingsFor(op) {
 	if (!settingsByTool.has(op.id))
 		settingsByTool.set(op.id, {
@@ -49,6 +54,7 @@ function settingsFor(op) {
 /** Test helper. */
 export function resetChaosTabForTests() {
 	settingsByTool.clear();
+	fineTuneOpen = false;
 }
 
 /** Registers the five tools with the panel's Chaos tab (once; safe to call again). */
@@ -66,37 +72,28 @@ export function registerChaosTools() {
 
 // ---- Small controls ----
 
-function sliderRow({ label, min, max, step = 1, value, unit = '', onInput }) {
-	const id = nextId('chaos-knob');
-	const row = el('div', 'chaos-knob');
-	const head = el('div', 'chaos-knob__head');
-	const name = /** @type {HTMLLabelElement} */ (el('label', 'chaos-knob__label text-label', label));
-	name.htmlFor = id;
-	const output = el('output', 'chaos-knob__value text-mono-small');
-	output.setAttribute('for', id);
-	head.append(name, output);
-	const input = /** @type {HTMLInputElement} */ (el('input', 'chaos-knob__slider'));
-	input.type = 'range';
-	input.id = id;
-	input.min = String(min);
-	input.max = String(max);
-	input.step = String(step);
-	const show = (v) => {
-		input.value = String(v);
-		output.textContent = unit === '% em' ? `${v}% em` : `${v}${unit}`;
-		input.setAttribute('aria-valuetext', output.textContent);
-	};
-	show(value);
-	input.addEventListener('input', () => {
-		show(Number(input.value));
-		onInput(Number(input.value));
+/**
+ * A slider on ui-sdk (controls/nd-slider). `hero` is the Chaos knob; `row` is a Fine-tune row
+ * (label · fixed-length track · editable value) on the Fine-tune grid.
+ */
+function sliderRow({ label, min, max, step = 1, value, unit = '', variant = 'row', onInput }) {
+	const row = el('div', `chaos-knob chaos-knob--slider chaos-knob--${variant}`);
+	const slider = mountSlider(row, {
+		label,
+		min,
+		max,
+		step,
+		value,
+		unit,
+		variant,
+		labelClassName: 'chaos-knob__label',
+		onInput,
 	});
-	row.append(head, input);
-	return { root: row, input, set: show };
+	return { root: row, slider };
 }
 
 function switchRow({ label, checked, onChange }) {
-	const row = el('div', 'chaos-knob chaos-knob--inline');
+	const row = el('div', 'chaos-knob chaos-knob--row');
 	const button = /** @type {HTMLButtonElement} */ (el('button', 'chaos-switch'));
 	button.type = 'button';
 	button.setAttribute('role', 'switch');
@@ -118,7 +115,7 @@ function switchRow({ label, checked, onChange }) {
 
 /** A segmented radio group (roving focus, arrows choose). */
 function segmentedRow({ label, options, value, onChange }) {
-	const row = el('div', 'chaos-knob');
+	const row = el('div', 'chaos-knob chaos-knob--row');
 	const id = nextId('chaos-seg');
 	const name = el('span', 'chaos-knob__label text-label', label);
 	name.id = id;
@@ -209,36 +206,46 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 	note.setAttribute('aria-live', 'polite');
 	preview.append(strip, note);
 
-	// Knobs
-	const knobs = el('div', 'chaos-knobs');
+	// The one knob you see: Chaos. Everything else waits in Fine-tune.
+	/** @type {Array<{dispose: () => void}>} */
+	const sliders = [];
 	const chaosKnob = sliderRow({
 		label: 'Chaos',
 		min: 0,
 		max: 100,
 		step: 5,
 		value: settings.chaos,
+		variant: 'hero',
 		onInput: (value) => {
 			settings.chaos = value;
 			schedulePreview();
 		},
 	});
-	knobs.append(chaosKnob.root);
+	sliders.push(chaosKnob.slider);
+
+	const fineTune = /** @type {HTMLDetailsElement} */ (el('details', 'chaos-finetune'));
+	fineTune.open = fineTuneOpen;
+	fineTune.addEventListener('toggle', () => (fineTuneOpen = fineTune.open));
+	const summary = el('summary', 'chaos-finetune__summary text-label');
+	summary.append(icon('chevron_right', 'chaos-finetune__chevron'), el('span', '', 'Fine-tune'));
+	const knobs = el('div', 'chaos-knobs nd-slider-grid');
+	fineTune.append(summary, knobs);
 	for (const param of op.params) {
 		if (param.type === 'int' || param.type === 'number') {
-			knobs.append(
-				sliderRow({
-					label: param.label,
-					min: param.min,
-					max: param.max,
-					step: param.step ?? 1,
-					unit: param.unit || '',
-					value: settings.params[param.key],
-					onInput: (value) => {
-						settings.params[param.key] = value;
-						schedulePreview();
-					},
-				}).root
-			);
+			const knob = sliderRow({
+				label: param.label,
+				min: param.min,
+				max: param.max,
+				step: param.step ?? 1,
+				unit: param.unit || '',
+				value: settings.params[param.key],
+				onInput: (value) => {
+					settings.params[param.key] = value;
+					schedulePreview();
+				},
+			});
+			sliders.push(knob.slider);
+			knobs.append(knob.root);
 		} else if (param.type === 'enum') {
 			knobs.append(
 				segmentedRow({
@@ -265,7 +272,7 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 		}
 	}
 	// Seed: type one to get a take back; Re-roll (footer) deals a new one.
-	const seedRow = el('div', 'chaos-knob chaos-knob--inline');
+	const seedRow = el('div', 'chaos-knob chaos-knob--row');
 	const seedId = nextId('chaos-seed');
 	const seedLabel = /** @type {HTMLLabelElement} */ (
 		el('label', 'chaos-knob__label text-label', 'Seed')
@@ -302,7 +309,7 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 	const results = el('div', 'chaos-results');
 	results.hidden = true;
 
-	scroll.append(hint, preview, knobs, results);
+	scroll.append(hint, preview, chaosKnob.root, fineTune, results);
 
 	// Footer
 	const footer = el('div', 'chaos-actions');
@@ -312,9 +319,11 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 		action: 'reroll',
 		iconName: 'casino',
 		variant: 'secondary',
+		size: 'lg',
 	});
+	reroll.classList.add('chaos-reroll');
 	reroll.setAttribute('aria-label', 'Re-roll: new seed');
-	const apply = cardButton({ label: 'Apply', action: 'apply', variant: 'primary' });
+	const apply = cardButton({ label: 'Apply', action: 'apply', variant: 'primary', size: 'lg' });
 	footer.append(target.button, el('span', 'chaos-actions__spacer'), reroll, apply);
 	container.append(scroll, footer, target.popover.root);
 
@@ -553,9 +562,12 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 		}
 		runApply(targetIds());
 	});
+	// The dice turns a full spin on every roll (CSS skips it under reduced motion).
+	let rolls = 0;
 	reroll.addEventListener('click', () => {
 		settings.seed = randomSeed();
 		seedInput.value = String(settings.seed);
+		reroll.style.setProperty('--chaos-dice-turns', String(++rolls));
 		runPreview();
 	});
 
@@ -570,6 +582,8 @@ export function mountChaosTool(container, op, { getEditor, shared = { chaosDraft
 		previewToken++;
 		running?.abort();
 		offControls();
+		fineTuneOpen = fineTune.open;
+		sliders.forEach((slider) => slider.dispose());
 		target.dispose();
 		target.popover.close({ restoreFocus: false });
 	};

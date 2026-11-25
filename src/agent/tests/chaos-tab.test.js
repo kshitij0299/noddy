@@ -7,6 +7,7 @@ import { Glyph } from '../../project_data/glyph.js';
 import { GlyphrStudioProject } from '../../project_data/glyphr_studio_project.js';
 import { ProjectEditor } from '../../project_editor/project_editor.js';
 import { resetAgentControlsForTests, setMode, setPicks } from '../agent-controls.js';
+import { CHAOS_OPS, defaultParams } from '../chaos/engine.js';
 import { toShapeData } from '../chaos/geometry.js';
 import { CURVY_O, PIXEL_H, PIXEL_O, SANS_H } from '../chaos/tests/fixtures.js';
 import { createAgentPanel } from '../ui/agent-panel.js';
@@ -201,6 +202,86 @@ describe('Chaos tab', () => {
 		expect(tab.querySelector('.chaos-seed').value).not.toBe(seed);
 		setMode(editor, 'wild');
 		await waitFor(() => !tab.querySelector('.chaos-knob--wild').hidden);
+	});
+
+	it('shows Chaos as the one hero slider; Fine-tune holds every other knob, none dropped (#134)', () => {
+		registerChaosTools();
+		const panel = panelFor(makeEditor({ [H]: SANS_H }));
+		panel.tabs.select('chaos');
+		const tab = chaosTab(panel);
+		const tools = CHAOS_OPS.filter((op) => !op.deck);
+		const radios = [...tab.querySelectorAll('.chaos-tab__pick')];
+		expect(radios.length).toBe(tools.length);
+		radios.forEach((radio, index) => {
+			radio.click();
+			const op = tools[index];
+			const heroes = [...tab.querySelectorAll('.nd-slider--hero')];
+			expect(heroes.length).toBe(1);
+			expect(heroes[0].querySelector('input[type="range"]').getAttribute('aria-label')).toBe('Chaos');
+			expect(heroes[0].closest('.chaos-finetune')).toBeNull();
+			const fineTune = tab.querySelector('.chaos-finetune');
+			expect(fineTune.tagName).toBe('DETAILS');
+			expect(fineTune.querySelector('summary').textContent).toBe('chevron_rightFine-tune');
+			const rows = [...fineTune.querySelectorAll('.chaos-knob__label')].map((l) => l.textContent);
+			expect(rows).toEqual([...op.params.map((param) => param.label), 'Seed', 'Break rules']);
+			// Number params are row sliders that start at their defaults.
+			const defaults = defaultParams(op);
+			for (const param of op.params.filter((item) => ['int', 'number'].includes(item.type))) {
+				const thumb = fineTune.querySelector(`input[type="range"][aria-label="${param.label}"]`);
+				expect(thumb.closest('.nd-slider--row')).not.toBeNull();
+				expect(Number(thumb.value)).toBe(defaults[param.key]);
+				expect(
+					thumb.closest('.nd-slider').querySelector('.nd-slider__input').getAttribute('aria-label')
+				).toBe(`${param.label} value`);
+			}
+		});
+	});
+
+	it('Fine-tune starts closed and stays open or closed across tools', () => {
+		registerChaosTools();
+		const panel = panelFor(makeEditor({ [H]: SANS_H }));
+		panel.tabs.select('chaos');
+		const tab = chaosTab(panel);
+		const fineTune = () => tab.querySelector('.chaos-finetune');
+		expect(fineTune().open).toBe(false);
+		fineTune().open = true;
+		fineTune().dispatchEvent(new Event('toggle'));
+		const radios = [...tab.querySelectorAll('.chaos-tab__pick')];
+		radios[2].click();
+		expect(fineTune().open).toBe(true);
+		fineTune().open = false;
+		fineTune().dispatchEvent(new Event('toggle'));
+		radios[0].click();
+		expect(fineTune().open).toBe(false);
+	});
+
+	it('the Chaos slider steps with the keyboard and each tool keeps its own value', async () => {
+		registerChaosTools();
+		const panel = panelFor(makeEditor({ [H]: SANS_H }));
+		panel.tabs.select('chaos');
+		const tab = chaosTab(panel);
+		const chaosThumb = () =>
+			/** @type {HTMLInputElement} */ (tab.querySelector('.nd-slider--hero input[type="range"]'));
+		const press = async (target, key, init = {}) => {
+			target.dispatchEvent(
+				new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+			);
+			target.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, ...init }));
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		};
+		expect(chaosThumb().value).toBe('50');
+		chaosThumb().focus();
+		await press(chaosThumb(), 'ArrowRight');
+		expect(chaosThumb().value).toBe('55');
+		await press(chaosThumb(), 'ArrowLeft', { shiftKey: true });
+		expect(chaosThumb().value).toBe('5');
+		await press(chaosThumb(), 'End');
+		expect(chaosThumb().value).toBe('100');
+		const radios = [...tab.querySelectorAll('.chaos-tab__pick')];
+		radios[1].click();
+		expect(chaosThumb().value).toBe('50');
+		radios[0].click();
+		expect(chaosThumb().value).toBe('100');
 	});
 
 	it('Pixel Life on a drawn font says why and cannot apply', async () => {
