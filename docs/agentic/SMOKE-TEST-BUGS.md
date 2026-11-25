@@ -275,3 +275,14 @@ Draft. Found on the way:
 64. **Focus mode at phone width (390) overlaps itself**: the inspector card covers the close /
     previous / next row and the top of the canvas. Layout, not states; seen in the #128 browser
     check. Deferred.
+
+## Found while building the Tools tab sliders (#134, 2026-11-25)
+
+66. **At phone width (390) the open agent panel hides its header under the top bar**: the
+    Agent / Tools tabs and the minimize button sit at y=18 behind the 56px top bar, so a tap on
+    "Tools" lands on the top bar (seen in headless Chromium, before and after #134). The panel body
+    is fine. Layout of the panel sheet, not the Tools tab; not fixed here. Needs an issue.
+67. **Native range inputs picked up the legacy field border** (`:where(input)` in resets.css gives
+    every input a 1px border and a 4px radius), so the restyled specimen slider showed a box
+    around it in the first #134 browser check. **Fixed in #134** (`.nd-range` clears border and
+    radius).
