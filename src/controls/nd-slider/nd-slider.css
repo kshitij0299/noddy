@@ -1,0 +1,301 @@
+/* --------------------------------------------------------------
+	Noddy slider (#134). Two forms that look the same:
+
+	  .nd-slider   the ui-sdk slider (nd-slider.jsx): Tools tab
+	  .nd-range    a styled native <input type="range">: specimen card, legacy fancy slider.
+	               Webkit has no progress pseudo-element, so the owner sets --nd-range-fill
+	               (a percentage) when the value changes.
+
+	Thin 4px track, accent fill, a 16px thumb on the raised surface with an accent edge. The
+	thumb grows on hover and press with a transform, so nothing around it moves. Keyboard focus
+	draws the shared ring around the thumb. Tokens only.
+-------------------------------------------------------------- */
+
+:root,
+.dark,
+[data-theme='dark'] {
+	--nd-slider-track: var(--color-bg-track);
+	--nd-slider-fill: var(--color-bg-accent);
+	--nd-slider-thumb: var(--color-bg-surface-raised);
+	/* The thumb edge needs 3:1 on the surface: peach/600 in light, peach/300 in dark. */
+	--nd-slider-thumb-edge: var(--color-focus-ring);
+	--nd-slider-thumb-size: 16px;
+	--nd-slider-hover-scale: 1.15;
+	--nd-slider-press-scale: 1.25;
+	--nd-slider-row-length: 160px;
+}
+
+/* ---- ui-sdk slider ---- */
+.nd-slider-mount {
+	display: contents;
+}
+
+.nd-slider {
+	display: grid;
+	align-items: center;
+	column-gap: var(--space-3);
+	min-width: 0;
+	color: var(--color-text-primary);
+}
+
+/* Hero: label and value on one line, the track below. */
+.nd-slider--hero {
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-areas:
+		'label value'
+		'control control';
+	row-gap: var(--space-1);
+	max-width: 400px;
+}
+
+.nd-slider--hero > .nd-slider__label {
+	grid-area: label;
+}
+
+.nd-slider--hero > .nd-slider__control {
+	grid-area: control;
+}
+
+.nd-slider--hero > .nd-slider__value {
+	grid-area: value;
+	justify-self: end;
+}
+
+/* Row: label · track · value. Inside a grid with three columns the row takes them over
+   (subgrid), so labels, tracks and values line up across rows. */
+.nd-slider--row {
+	grid-template-columns: max-content var(--nd-slider-row-length) max-content;
+}
+
+:where(.nd-slider-grid) .nd-slider--row {
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+}
+
+.nd-slider__label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nd-slider__control {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-width: 0;
+	height: 24px;
+	/* Room for the grown thumb and its ring at either end of the track. */
+	padding-inline: calc(var(--nd-slider-thumb-size) / 2);
+	cursor: pointer;
+	touch-action: none;
+}
+
+.nd-slider__track {
+	position: relative;
+	flex: 1 1 auto;
+	height: 4px;
+	border-radius: var(--radius-full);
+	background-color: var(--nd-slider-track);
+}
+
+.nd-slider__indicator {
+	height: 100%;
+	border-radius: var(--radius-full);
+	background-color: var(--nd-slider-fill);
+}
+
+.nd-slider__thumb {
+	box-sizing: border-box;
+	width: var(--nd-slider-thumb-size);
+	height: var(--nd-slider-thumb-size);
+	border: 1.5px solid var(--nd-slider-thumb-edge);
+	border-radius: var(--radius-full);
+	background-color: var(--nd-slider-thumb);
+	box-shadow: var(--shadow-sm);
+	transition: transform var(--state-duration) var(--state-easing);
+}
+
+/* ui-sdk places the thumb with `translate`, so `transform` is free for the grow. */
+@media (hover: hover) {
+	.nd-slider:not([data-disabled]) .nd-slider__control:hover .nd-slider__thumb {
+		transform: scale(var(--nd-slider-hover-scale));
+	}
+}
+
+.nd-slider:not([data-disabled]) .nd-slider__thumb[data-dragging],
+.nd-slider:not([data-disabled]) .nd-slider__control:active .nd-slider__thumb {
+	transform: scale(var(--nd-slider-press-scale));
+}
+
+.nd-slider__thumb:has(:focus-visible) {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+.nd-slider__value {
+	display: flex;
+}
+
+/* The value: reads as text until you point at it, then shows it is a field. */
+.nd-slider__field {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: 28px;
+	padding: 0 var(--space-2) 0 var(--space-1);
+	border: 1px solid transparent;
+	border-radius: var(--radius-md);
+	color: var(--color-text-secondary);
+	cursor: text;
+	transition: border-color var(--state-duration) var(--state-easing),
+		background-color var(--state-duration) var(--state-easing);
+}
+
+@media (hover: hover) {
+	.nd-slider__field:hover:not([data-disabled]) {
+		border-color: var(--state-field-hover-border);
+		background-color: var(--color-bg-surface);
+	}
+}
+
+.nd-slider__field:focus-within {
+	border-color: var(--color-border-accent);
+	background-color: var(--color-bg-surface);
+	color: var(--color-text-primary);
+}
+
+.nd-slider__field:has(:focus-visible) {
+	outline: var(--state-focus-ring);
+	outline-offset: 1px;
+}
+
+input.nd-slider__input,
+input.nd-slider__input:hover,
+input.nd-slider__input:focus {
+	box-sizing: content-box;
+	width: 4ch;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: none;
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.nd-slider__unit {
+	padding-left: 1px;
+	white-space: nowrap;
+}
+
+.nd-slider[data-disabled] {
+	opacity: var(--state-disabled-opacity);
+}
+
+.nd-slider[data-disabled] .nd-slider__control,
+.nd-slider[data-disabled] .nd-slider__field {
+	cursor: default;
+}
+
+/* ---- Styled native range ---- */
+input.nd-range {
+	--nd-range-fill: 50%;
+	box-sizing: border-box;
+	height: 24px;
+	margin: 0;
+	padding: 0;
+	appearance: none;
+	-webkit-appearance: none;
+	background: transparent;
+	accent-color: var(--nd-slider-fill);
+	cursor: pointer;
+}
+
+input.nd-range::-webkit-slider-runnable-track {
+	height: 4px;
+	border-radius: var(--radius-full);
+	background: linear-gradient(
+		to right,
+		var(--nd-slider-fill) var(--nd-range-fill),
+		var(--nd-slider-track) var(--nd-range-fill)
+	);
+}
+
+input.nd-range::-moz-range-track {
+	height: 4px;
+	border-radius: var(--radius-full);
+	background: var(--nd-slider-track);
+}
+
+input.nd-range::-moz-range-progress {
+	height: 4px;
+	border-radius: var(--radius-full);
+	background: var(--nd-slider-fill);
+}
+
+input.nd-range::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	box-sizing: border-box;
+	width: var(--nd-slider-thumb-size);
+	height: var(--nd-slider-thumb-size);
+	margin-top: calc((4px - var(--nd-slider-thumb-size)) / 2);
+	border: 1.5px solid var(--nd-slider-thumb-edge);
+	border-radius: 50%;
+	background: var(--nd-slider-thumb);
+	box-shadow: var(--shadow-sm);
+	transition: transform var(--state-duration) var(--state-easing);
+}
+
+input.nd-range::-moz-range-thumb {
+	box-sizing: border-box;
+	width: var(--nd-slider-thumb-size);
+	height: var(--nd-slider-thumb-size);
+	border: 1.5px solid var(--nd-slider-thumb-edge);
+	border-radius: 50%;
+	background: var(--nd-slider-thumb);
+	box-shadow: var(--shadow-sm);
+	transition: transform var(--state-duration) var(--state-easing);
+}
+
+@media (hover: hover) {
+	input.nd-range:hover:not(:disabled)::-webkit-slider-thumb {
+		transform: scale(var(--nd-slider-hover-scale));
+	}
+
+	input.nd-range:hover:not(:disabled)::-moz-range-thumb {
+		transform: scale(var(--nd-slider-hover-scale));
+	}
+}
+
+input.nd-range:active:not(:disabled)::-webkit-slider-thumb {
+	transform: scale(var(--nd-slider-press-scale));
+}
+
+input.nd-range:active:not(:disabled)::-moz-range-thumb {
+	transform: scale(var(--nd-slider-press-scale));
+}
+
+input.nd-range:focus {
+	outline: none;
+}
+
+/* The ring goes round the thumb, as on the ui-sdk slider; the input box itself stays plain. */
+input.nd-range:focus-visible::-webkit-slider-thumb {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+input.nd-range:focus-visible::-moz-range-thumb {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+input.nd-range:disabled {
+	opacity: var(--state-disabled-opacity);
+	cursor: default;
+}
