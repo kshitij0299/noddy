@@ -3,6 +3,7 @@ import { charToHex } from '../../common/character_ids.js';
 import { makeElement } from '../../common/dom.js';
 import { subscribeToItemChanged } from '../../project_editor/item_changed.js';
 import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
+import { largeStepFor, snapToStep } from '../nd-slider/steps.js';
 
 // --------------------------------------------------------------
 // Specimen card — the hero of the Workspace page
@@ -379,6 +380,7 @@ export class SpecimenCard extends HTMLElement {
 			this.size = /** @type {HTMLInputElement} */ (this.slider).value;
 			this.paintSizeFill();
 		});
+		this.slider.addEventListener('keydown', (event) => this.handleSizeKey(event));
 		this.sizeValue = makeElement({
 			tag: 'output',
 			className: 'specimen__size-value text-mono-small',
@@ -442,6 +444,29 @@ export class SpecimenCard extends HTMLElement {
 		/** @type {HTMLInputElement} */ (this.slider).value = String(this._size);
 		this.sizeValue.innerHTML = String(this._size);
 		this.paintSizeFill();
+	}
+
+	/**
+	 * Shift+arrow and Page Up/Down jump about a tenth of the range, as on the Tools tab sliders
+	 * (#137). A native range would move Shift+arrow by one step only.
+	 * @param {KeyboardEvent} event
+	 */
+	handleSizeKey(event) {
+		const up = event.key === 'ArrowUp' || event.key === 'ArrowRight';
+		const down = event.key === 'ArrowDown' || event.key === 'ArrowLeft';
+		const page = event.key === 'PageUp' || event.key === 'PageDown';
+		if (!page && !(event.shiftKey && (up || down))) return;
+		if (event.ctrlKey || event.metaKey || event.altKey) return;
+		const slider = /** @type {HTMLInputElement} */ (this.slider);
+		const direction = up || event.key === 'PageUp' ? 1 : -1;
+		const next = snapToStep(
+			Number(slider.value) + direction * largeStepFor(SPECIMEN_SIZE),
+			SPECIMEN_SIZE
+		);
+		event.preventDefault();
+		if (String(next) === slider.value) return;
+		slider.value = String(next);
+		slider.dispatchEvent(new Event('input', { bubbles: true }));
 	}
 
 	/** The filled part of the size track (webkit has no progress pseudo-element; nd-slider.css). */

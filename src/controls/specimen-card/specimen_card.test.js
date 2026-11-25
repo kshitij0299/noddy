@@ -205,6 +205,34 @@ describe('Specimen card: layout and rendering', () => {
 		expect(slider.style.getPropertyValue('--nd-range-fill')).toBe('0%');
 	});
 
+	it('Shift+arrow and Page Up/Down jump a tenth of the size range, like the Tools sliders (#137)', () => {
+		const card = mountCard();
+		const slider = /** @type {HTMLInputElement} */ (card.querySelector('input[type="range"]'));
+		const press = (key, init = {}) => {
+			const event = new KeyboardEvent('keydown', {
+				key,
+				bubbles: true,
+				cancelable: true,
+				...init,
+			});
+			slider.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		expect(card.size).toBe(72);
+		expect(press('ArrowRight', { shiftKey: true })).toBe(true);
+		expect(card.size).toBe(88);
+		press('PageUp');
+		expect(card.size).toBe(104);
+		press('ArrowDown', { shiftKey: true });
+		press('PageDown');
+		expect(card.size).toBe(72);
+		card.size = SPECIMEN_SIZE.max;
+		press('PageUp');
+		expect(card.size).toBe(SPECIMEN_SIZE.max);
+		// A plain arrow stays the browser's one step.
+		expect(press('ArrowRight')).toBe(false);
+	});
+
 	it('redraws once per burst when itemChanged is published', async () => {
 		vi.useFakeTimers();
 		const card = mountCard();
