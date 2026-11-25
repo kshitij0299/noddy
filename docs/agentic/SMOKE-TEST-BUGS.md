@@ -275,3 +275,12 @@ Draft. Found on the way:
 64. **Focus mode at phone width (390) overlaps itself**: the inspector card covers the close /
     previous / next row and the top of the canvas. Layout, not states; seen in the #128 browser
     check. Deferred.
+
+## Found in the #135 QA (glyph grid review filter, 2026-11-25)
+
+68. **Undo after a focus-mode Keep goes to the wrong glyph and skips your edit.** Repro (Oblegg):
+    make J an agent Draft, open J in focus mode, press Keep, close. Open H, drag its outline, then
+    press Cmd+Z. Focus mode jumps to J and H's drag is **not** undone (J stays kept). Without the
+    Keep step the same undo works. Also on base `fix/interaction-states`, so not caused by #135.
+    Protected area (undo / history): not fixed in PR #139; needs its own issue and an approved fix.
+    (Numbered 68 because `feat/tools-tab-sliders` already uses 66 and 67.)
