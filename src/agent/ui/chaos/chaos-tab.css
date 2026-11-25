@@ -173,55 +173,109 @@ button.chaos-tab__pick:focus-visible {
 	box-shadow: inset 0 0 0 1.5px var(--color-glyph-ghost);
 }
 
-/* ---- Knobs ---- */
-.chaos-knobs {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-3);
+/* ---- Knobs: Chaos up front, the rest in Fine-tune (#134) ---- */
+/* The sliders themselves are controls/nd-slider; these rules only place them. */
+
+/* Fine-tune: a quiet disclosure under a hairline. */
+.chaos-finetune {
+	border-top: 1px solid var(--color-border-default);
+	padding-top: var(--space-2);
 }
 
-.chaos-knob {
-	display: flex;
-	flex-direction: column;
+.chaos-finetune__summary {
+	display: inline-flex;
+	align-items: center;
 	gap: var(--space-1);
+	box-sizing: border-box;
+	height: 32px;
+	/* No negative margin: the scroller only has ring room for a ring drawn round a box that
+	   starts on its content edge (#137 QA). */
+	padding: 0 var(--space-3) 0 var(--space-1);
+	border-radius: var(--radius-full);
+	color: var(--color-text-secondary);
+	list-style: none;
+	cursor: pointer;
+	user-select: none;
+	transition: background-color var(--state-duration) var(--state-easing),
+		color var(--state-duration) var(--state-easing);
+}
+
+.chaos-finetune__summary::-webkit-details-marker {
+	display: none;
+}
+
+@media (hover: hover) {
+	.chaos-finetune__summary:hover {
+		background-color: var(--state-hover-bg);
+		color: var(--color-text-primary);
+	}
+}
+
+.chaos-finetune__summary:active {
+	background-color: var(--state-pressed-bg);
+}
+
+.chaos-finetune__summary:focus {
+	outline: none;
+}
+
+.chaos-finetune__summary:focus-visible {
+	outline: var(--state-focus-ring);
+	outline-offset: var(--state-focus-offset);
+}
+
+.chaos-finetune[open] > .chaos-finetune__summary {
+	color: var(--color-text-primary);
+}
+
+.chaos-finetune__chevron {
+	font-size: 20px;
+	transition: transform var(--state-duration) var(--state-easing);
+}
+
+.chaos-finetune[open] .chaos-finetune__chevron {
+	transform: rotate(90deg);
+}
+
+/* One grid for every row: labels in one column, then a fixed-length track, then the value.
+   Rows take the columns over with subgrid, so everything lines up whatever the label. */
+.chaos-knobs {
+	display: grid;
+	grid-template-columns: max-content minmax(96px, var(--nd-slider-row-length)) max-content;
+	justify-content: start;
+	align-items: center;
+	column-gap: var(--space-3);
+	row-gap: var(--space-2);
+	padding-top: var(--space-2);
+}
+
+.chaos-knob--row {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	min-height: 32px;
+}
+
+.chaos-knob--row > :not(.chaos-knob__label) {
+	grid-column: 2 / -1;
+	justify-self: start;
 }
 
 .chaos-knob[hidden] {
 	display: none;
 }
 
-.chaos-knob--inline {
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--space-3);
+.chaos-knob__label {
+	color: var(--color-text-primary);
 }
 
-.chaos-knob__head {
-	display: flex;
-	justify-content: space-between;
-	align-items: baseline;
-}
-
-.chaos-knob__value {
+.chaos-knobs .chaos-knob__label {
 	color: var(--color-text-secondary);
 }
 
-input.chaos-knob__slider {
-	width: 100%;
-	margin: 0;
-	accent-color: var(--color-bg-accent);
-	cursor: pointer;
-	transition: background-color var(--state-duration) var(--state-easing);
-}
-
-input.chaos-knob__slider:focus {
-	outline: none;
-}
-
-input.chaos-knob__slider:focus-visible {
-	outline: 2px solid var(--color-focus-ring);
-	outline-offset: 2px;
+.chaos-knobs .nd-slider--row {
+	min-height: 32px;
 }
 
 input.chaos-seed,
@@ -259,7 +313,7 @@ input.chaos-seed:focus-visible {
 
 /* Segmented radio group (enum params). */
 .chaos-segmented {
-	display: flex;
+	display: inline-flex;
 	gap: 2px;
 	padding: 2px;
 	border-radius: var(--radius-full);
@@ -270,7 +324,7 @@ button.chaos-segmented__option,
 button.chaos-segmented__option:hover,
 button.chaos-segmented__option:focus,
 button.chaos-segmented__option:active {
-	flex: 1 1 0;
+	flex: 0 0 auto;
 	min-width: 0;
 	height: 28px;
 	min-height: 0;
@@ -444,4 +498,18 @@ button.chaos-switch:focus-visible {
 
 .chaos-actions__spacer {
 	flex: 1 1 auto;
+}
+
+/* Re-roll: the dice does a full turn on every roll (the count comes from chaos-tab.js). */
+.chaos-reroll .agent-card__icon {
+	font-size: 20px;
+	transform: rotate(calc(var(--chaos-dice-turns, 0) * 360deg));
+	transition: transform 450ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chaos-reroll .agent-card__icon {
+		transform: none;
+		transition: none;
+	}
 }

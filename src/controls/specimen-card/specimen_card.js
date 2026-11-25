@@ -3,6 +3,7 @@ import { charToHex } from '../../common/character_ids.js';
 import { makeElement } from '../../common/dom.js';
 import { subscribeToItemChanged } from '../../project_editor/item_changed.js';
 import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
+import { largeStepFor, snapToStep } from '../nd-slider/steps.js';
 
 // --------------------------------------------------------------
 // Specimen card — the hero of the Workspace page
@@ -21,16 +22,17 @@ import { SEGMENTED_PILL } from '../segmented-pill/segmented-pill.js';
 	Modes:
 		text      — the sample text (default "Hamburg")
 		spacing   — a spacing string built from the sample ("nnannoaoo")
-		waterfall — the sample at several sizes, stacked
+		waterfall — the sample at several sizes, stacked (its button says Sizes)
 
 	Redraws: subscribes to `itemChanged { id }` through the per-frame
 	coalesced helper, so one burst of edits costs one redraw.
 */
 
+/** Mode buttons carry words, not icons (#134); the ids stay as they were. */
 export const SPECIMEN_MODES = Object.freeze([
-	{ id: 'text', label: 'Text', icon: 'text_fields' },
-	{ id: 'spacing', label: 'Spacing', icon: 'view_week' },
-	{ id: 'waterfall', label: 'Waterfall', icon: 'format_size' },
+	{ id: 'text', label: 'Text' },
+	{ id: 'spacing', label: 'Spacing' },
+	{ id: 'waterfall', label: 'Sizes' },
 ]);
 
 /** Size slider, px per em. 72 puts the pangram on two lines inside the 240px card at 1440. */
@@ -335,24 +337,22 @@ export class SpecimenCard extends HTMLElement {
 		this.classList.add('specimen-card');
 		this.innerHTML = '';
 
-		// Mode pill (radio group, icons only, accessible labels)
+		// Mode pill (radio group, one word per mode)
 		this.pill = makeElement({
 			tag: 'div',
-			className: `${SEGMENTED_PILL.trackIcons} specimen__mode-pill`,
+			className: `${SEGMENTED_PILL.track} specimen__mode-pill`,
 			attributes: { role: 'radiogroup', 'aria-label': 'Mode' },
 		});
 		SPECIMEN_MODES.forEach((m) => {
 			const button = makeElement({
 				tag: 'button',
-				className: `${SEGMENTED_PILL.segment} specimen__mode`,
+				className: `${SEGMENTED_PILL.segment} specimen__mode text-label`,
 				attributes: {
 					type: 'button',
 					role: 'radio',
-					'aria-label': m.label,
-					title: m.label,
 					'data-mode': m.id,
 				},
-				innerHTML: `<span class="material-symbols-rounded" aria-hidden="true">${m.icon}</span>`,
+				innerHTML: m.label,
 			});
 			button.addEventListener('click', () => {
 				this.mode = m.id;
@@ -366,7 +366,7 @@ export class SpecimenCard extends HTMLElement {
 		this.sizeBox = makeElement({ tag: 'label', className: 'specimen__size' });
 		this.slider = makeElement({
 			tag: 'input',
-			className: 'specimen__size-slider',
+			className: 'specimen__size-slider nd-range',
 			attributes: {
 				type: 'range',
 				min: SPECIMEN_SIZE.min,
@@ -378,7 +378,9 @@ export class SpecimenCard extends HTMLElement {
 		});
 		this.slider.addEventListener('input', () => {
 			this.size = /** @type {HTMLInputElement} */ (this.slider).value;
+			this.paintSizeFill();
 		});
+		this.slider.addEventListener('keydown', (event) => this.handleSizeKey(event));
 		this.sizeValue = makeElement({
 			tag: 'output',
 			className: 'specimen__size-value text-mono-small',
@@ -387,6 +389,7 @@ export class SpecimenCard extends HTMLElement {
 		});
 		this.sizeBox.appendChild(this.slider);
 		this.sizeBox.appendChild(this.sizeValue);
+		this.paintSizeFill();
 
 		// Glyph surface
 		this.stage = makeElement({
@@ -440,6 +443,38 @@ export class SpecimenCard extends HTMLElement {
 		if (!this.slider) return;
 		/** @type {HTMLInputElement} */ (this.slider).value = String(this._size);
 		this.sizeValue.innerHTML = String(this._size);
+		this.paintSizeFill();
+	}
+
+	/**
+	 * Shift+arrow and Page Up/Down jump about a tenth of the range, as on the Tools tab sliders
+	 * (#137). A native range would move Shift+arrow by one step only.
+	 * @param {KeyboardEvent} event
+	 */
+	handleSizeKey(event) {
+		const up = event.key === 'ArrowUp' || event.key === 'ArrowRight';
+		const down = event.key === 'ArrowDown' || event.key === 'ArrowLeft';
+		const page = event.key === 'PageUp' || event.key === 'PageDown';
+		if (!page && !(event.shiftKey && (up || down))) return;
+		if (event.ctrlKey || event.metaKey || event.altKey) return;
+		const slider = /** @type {HTMLInputElement} */ (this.slider);
+		const direction = up || event.key === 'PageUp' ? 1 : -1;
+		const next = snapToStep(
+			Number(slider.value) + direction * largeStepFor(SPECIMEN_SIZE),
+			SPECIMEN_SIZE
+		);
+		event.preventDefault();
+		if (String(next) === slider.value) return;
+		slider.value = String(next);
+		slider.dispatchEvent(new Event('input', { bubbles: true }));
+	}
+
+	/** The filled part of the size track (webkit has no progress pseudo-element; nd-slider.css). */
+	paintSizeFill() {
+		if (!this.slider) return;
+		const value = Number(/** @type {HTMLInputElement} */ (this.slider).value);
+		const fill = ((value - SPECIMEN_SIZE.min) / (SPECIMEN_SIZE.max - SPECIMEN_SIZE.min)) * 100;
+		/** @type {HTMLElement} */ (this.slider).style.setProperty('--nd-range-fill', `${fill}%`);
 	}
 
 	// ---------------------------------------------------------------
