@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getGlyphrStudioApp, setCurrentProjectEditor } from '../app/main.js';
 import { GlyphGrid, openGlyph } from '../controls/glyph-grid/glyph-grid.js';
 import { GlyphGridTile } from '../controls/glyph-grid/glyph-tile.js';
+import { isReviewFilterOn, setReviewFilter } from '../controls/glyph-grid/review-filter.js';
 import { InputNumber } from '../controls/input-number/input_number.js';
 import { SpecimenCard } from '../controls/specimen-card/specimen_card.js';
 import { EditCanvas } from '../edit_canvas/edit_canvas.js';
@@ -69,7 +70,11 @@ function makeGlyph(id, parent, { x = 40, size = 500, advance = 600 } = {}) {
 					[x + size, 0],
 					[x + size, size],
 					[x, size],
-				].map(([px, py]) => ({ p: { coord: { x: px, y: py } }, h1: { use: false }, h2: { use: false } })),
+				].map(([px, py]) => ({
+					p: { coord: { x: px, y: py } },
+					h1: { use: false },
+					h2: { use: false },
+				})),
 			},
 		],
 	});
@@ -78,7 +83,12 @@ function makeGlyph(id, parent, { x = 40, size = 500, advance = 600 } = {}) {
 let editor;
 
 function key(target, keyName, init = {}) {
-	const event = new KeyboardEvent('keydown', { key: keyName, bubbles: true, cancelable: true, ...init });
+	const event = new KeyboardEvent('keydown', {
+		key: keyName,
+		bubbles: true,
+		cancelable: true,
+		...init,
+	});
 	target.dispatchEvent(event);
 	target.dispatchEvent(new KeyboardEvent('keyup', { key: keyName, bubbles: true, ...init }));
 	return event;
@@ -87,7 +97,9 @@ function key(target, keyName, init = {}) {
 const focusCard = () => document.querySelector('.focus-mode');
 const canvas = () => document.querySelector('.focus-mode edit-canvas');
 const pillButton = (tool) =>
-	/** @type {HTMLButtonElement} */ (document.querySelector(`.focus-pill__tool[data-tool="${tool}"]`));
+	/** @type {HTMLButtonElement} */ (
+		document.querySelector(`.focus-pill__tool[data-tool="${tool}"]`)
+	);
 
 function openWorkspace() {
 	editor.nav.page = 'Workspace';
@@ -162,6 +174,32 @@ describe('Focus mode: open and close (#16)', () => {
 		expect(document.activeElement).toBe(grid().tiles.get(a));
 	});
 
+	it('review filter (#135): a draft kept in focus mode leaves the grid; focus goes to the next one', () => {
+		editor.glyphStatus.set(a, 'draft', 'agent');
+		editor.glyphStatus.set(n, 'draft', 'agent');
+		setReviewFilter(editor, true);
+		expect([...grid().tiles.keys()]).toEqual([a, n]);
+		grid().tiles.get(a).click();
+		expect(isFocusModeOpen(editor)).toBe(true);
+		editor.glyphStatus.set(a, 'kept', 'user');
+		key(document.body, 'Escape');
+		expect(isFocusModeOpen(editor)).toBe(false);
+		expect([...grid().tiles.keys()]).toEqual([n]);
+		expect(document.activeElement).toBe(grid().tiles.get(n));
+		setReviewFilter(editor, false);
+	});
+
+	it('review pill (#135): clicking it in focus mode closes the editor onto the filtered grid', () => {
+		editor.glyphStatus.set(n, 'draft', 'agent');
+		grid().tiles.get(a).click();
+		expect(isFocusModeOpen(editor)).toBe(true);
+		/** @type {HTMLButtonElement} */ (document.querySelector('#top-bar-review')).click();
+		expect(isFocusModeOpen(editor)).toBe(false);
+		expect(isReviewFilterOn(editor)).toBe(true);
+		expect([...grid().tiles.keys()]).toEqual([n]);
+		setReviewFilter(editor, false);
+	});
+
 	it('Esc on the minimized agent pill closes focus mode and leaves the pill alone', () => {
 		grid().tiles.get(a).click();
 		const pill = document.createElement('button');
@@ -189,9 +227,7 @@ describe('Focus mode: open and close (#16)', () => {
 		expect(focusCard()).toBeNull();
 		const active = document.activeElement;
 		// Either the specimen letter (when it renders) or the grid tile.
-		expect(active?.getAttribute('data-item-id') === a || active === grid().tiles.get(a)).toBe(
-			true
-		);
+		expect(active?.getAttribute('data-item-id') === a || active === grid().tiles.get(a)).toBe(true);
 	});
 
 	it('prev/next walk the grid order and disable at the ends', () => {
@@ -321,7 +357,9 @@ describe('Focus mode: inspector (#17)', () => {
 	it('a metric field edit is one history entry', () => {
 		grid().tiles.get(a).click();
 		const before = editor.history.queue.length;
-		const input = /** @type {any} */ (document.querySelector('.focus-inspector .singleInput-advanceWidth'));
+		const input = /** @type {any} */ (
+			document.querySelector('.focus-inspector .singleInput-advanceWidth')
+		);
 		input.value = 900;
 		input.dispatchEvent(new Event('change'));
 		expect(editor.project.getItem(a).advanceWidth).toBe(900);
@@ -331,7 +369,9 @@ describe('Focus mode: inspector (#17)', () => {
 
 	it('Keep / Revert show only for Draft; Keep sets Kept and hides them', () => {
 		grid().tiles.get(a).click();
-		const actions = /** @type {HTMLElement} */ (document.querySelector('.focus-inspector__actions'));
+		const actions = /** @type {HTMLElement} */ (
+			document.querySelector('.focus-inspector__actions')
+		);
 		expect(actions.hidden).toBe(true);
 
 		editor.glyphStatus.set(a, 'draft', 'agent');
@@ -710,7 +750,9 @@ describe('Focus mode: buttons beat the legacy reset (QA #57)', () => {
 		fields.forEach((field) => expect(field.hasAttribute('hide-arrows')).toBe(true));
 
 		const focus = css('./focus-mode.css');
-		const fieldRule = focus.split('}').find((rule) => rule.includes('.focus-inspector__field input-number'));
+		const fieldRule = focus
+			.split('}')
+			.find((rule) => rule.includes('.focus-inspector__field input-number'));
 		expect(fieldRule).toContain('height: 36px');
 		const actionsRule = focus.split('}').find((rule) => rule.includes('Inspector actions'));
 		expect(actionsRule).toContain('height: 36px');
@@ -725,7 +767,9 @@ describe('Focus mode: buttons beat the legacy reset (QA #57)', () => {
 	it('every button class pins geometry for base, :hover, :focus and :active', () => {
 		const source = css('./focus-mode.css');
 		classes.forEach((cls) => {
-			const block = source.split('}').find((rule) => rule.includes(`.focus-mode button.${cls}:hover,`));
+			const block = source
+				.split('}')
+				.find((rule) => rule.includes(`.focus-mode button.${cls}:hover,`));
 			expect(block, cls).toBeTruthy();
 			['', ':focus', ':active'].forEach((state) => {
 				expect(block).toContain(`.focus-mode button.${cls}${state}`);
@@ -749,8 +793,7 @@ describe('Focus mode: buttons beat the legacy reset (QA #57)', () => {
 				.split('}')
 				.find(
 					(rule) =>
-						rule.includes(`.focus-mode button.${cls}:focus,`) &&
-						rule.includes('background-color:')
+						rule.includes(`.focus-mode button.${cls}:focus,`) && rule.includes('background-color:')
 				);
 			expect(block, cls).toBeTruthy();
 			[':hover', ':focus', ':active'].forEach((state) => {
