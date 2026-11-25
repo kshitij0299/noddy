@@ -39,13 +39,21 @@ export function makeFancySlider(
 			title: label,
 			'aria-valuetext': '' + initialValue,
 		},
-		className: 'fancy-slider__bar',
+		className: 'fancy-slider__bar nd-range',
 	});
+	// The filled part of the track (#134, nd-slider.css): webkit has no progress pseudo-element.
+	const paintFill = (value) =>
+		/** @type {HTMLElement} */ (bar).style.setProperty(
+			'--nd-range-fill',
+			`${((value - min) / (max - min || 1)) * 100}%`
+		);
+	paintFill(Number(initialValue));
 	bar.addEventListener('input', (event) => {
 		// @ts-expect-error 'property does exist'
 		const value = parseInt(event.target.value);
 		sliderReadout.innerHTML = '' + value;
 		bar.setAttribute('aria-valuetext', '' + value);
+		paintFill(value);
 		if (callback) callback(value);
 	});
 
