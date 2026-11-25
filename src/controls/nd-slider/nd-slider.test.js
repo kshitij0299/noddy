@@ -3,6 +3,7 @@
 // commit), set() and setDisabled() drive it from vanilla code, and dispose() unmounts it.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mountSlider, snapToStep } from './nd-slider.jsx';
+import { isPlainNumber, largeStepFor, valueChars } from './steps.js';
 
 const mounted = [];
 function mount(options = {}) {
@@ -42,7 +43,9 @@ const setNativeValue = (input, text) =>
 function typeInto(field, text) {
 	field.focus();
 	setNativeValue(field, text);
-	field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+	field.dispatchEvent(
+		new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text })
+	);
 }
 
 afterEach(() => {
@@ -62,6 +65,35 @@ describe('snapToStep', () => {
 		expect(snapToStep(0.3, { min: 0, max: 1, step: 0.1 })).toBe(0.3);
 		expect(snapToStep(7, { min: 3, max: 12, step: 2 })).toBe(7);
 	});
+
+	it('falls back to min for a value that is not a number', () => {
+		expect(snapToStep(undefined, { min: 10, max: 100, step: 5 })).toBe(10);
+		expect(snapToStep('x', { min: 0, max: 1, step: 0.1 })).toBe(0);
+	});
+});
+
+describe('step helpers', () => {
+	it('the large step is about a tenth of the range, in whole steps', () => {
+		expect(largeStepFor({ min: 0, max: 100, step: 5 })).toBe(10);
+		expect(largeStepFor({ min: 0, max: 100, step: 1 })).toBe(10);
+		expect(largeStepFor({ min: -100, max: 100, step: 1 })).toBe(20);
+		expect(largeStepFor({ min: 48, max: 240, step: 8 })).toBe(16);
+		expect(largeStepFor({ min: 0, max: 4, step: 1 })).toBe(1);
+		expect(largeStepFor({ min: 0, max: 1, step: 0.05 })).toBe(0.1);
+	});
+
+	it('the value field is as wide as the longest value', () => {
+		expect(valueChars({ min: 0, max: 100, step: 5 })).toBe(3);
+		expect(valueChars({ min: -100, max: 100, step: 1 })).toBe(4);
+		expect(valueChars({ min: 0, max: 1, step: 0.1 })).toBe(3);
+		expect(valueChars({ min: 0, max: 9, step: 1 })).toBe(1);
+	});
+
+	it('a plain number is digits with an optional minus and point', () => {
+		for (const ok of ['5', '-20', '12.5', '.5', ' 40 ']) expect(isPlainNumber(ok)).toBe(true);
+		for (const bad of ['1e3', '-', '1-2', '5.5.5', 'abc', '+'])
+			expect(isPlainNumber(bad)).toBe(false);
+	});
 });
 
 describe('Noddy slider', () => {
@@ -79,7 +111,7 @@ describe('Noddy slider', () => {
 		expect(container.querySelector('.nd-slider__label').getAttribute('aria-hidden')).toBe('true');
 	});
 
-	it('arrows step, Shift+arrows take ten steps, Home and End go to the bounds', async () => {
+	it('arrows step, Shift+arrows take a tenth of the range, Home and End go to the bounds', async () => {
 		const { slider, thumb, field, onInput } = mount();
 		thumb.focus();
 		await key(thumb, 'ArrowRight');
@@ -89,13 +121,15 @@ describe('Noddy slider', () => {
 		await key(thumb, 'ArrowDown');
 		expect(slider.value).toBe(45);
 		await key(thumb, 'ArrowRight', { shiftKey: true });
-		expect(slider.value).toBe(95);
+		expect(slider.value).toBe(55);
+		await key(thumb, 'PageUp');
+		expect(slider.value).toBe(65);
 		await key(thumb, 'Home');
 		expect(slider.value).toBe(0);
 		await key(thumb, 'End');
 		expect(slider.value).toBe(100);
 		expect(field.value).toBe('100');
-		expect(onInput).toHaveBeenCalledTimes(6);
+		expect(onInput).toHaveBeenCalledTimes(7);
 	});
 
 	it('typing a number commits on Enter, clamped and snapped; a half-typed number waits', async () => {
@@ -124,6 +158,113 @@ describe('Noddy slider', () => {
 		expect(slider.value).toBe(50);
 		expect(field.value).toBe('50');
 		expect(onInput).not.toHaveBeenCalled();
+	});
+
+	// Review of #137: ui-sdk reports nothing when the typed text ends on the value it started
+	// from, so the draft used to stay and the field stopped following the slider.
+	it('retyping the value it already has and pressing Enter leaves the field following', async () => {
+		const { slider, thumb, field, onInput } = mount();
+		typeInto(field, '5');
+		typeInto(field, '50');
+		await key(field, 'Enter');
+		thumb.focus();
+		await key(thumb, 'ArrowRight');
+		expect(slider.value).toBe(55);
+		expect(field.value).toBe('55');
+		slider.set(80);
+		await settle();
+		expect(field.value).toBe('80');
+		field.focus();
+		await key(field, 'ArrowUp');
+		expect(slider.value).toBe(85);
+		expect(onInput).toHaveBeenLastCalledWith(85);
+	});
+
+	it('the same after a blur', async () => {
+		const { slider, field } = mount();
+		typeInto(field, '5');
+		typeInto(field, '50');
+		field.blur();
+		await settle();
+		slider.set(20);
+		await settle();
+		expect(field.value).toBe('20');
+	});
+
+	it('a minus sign below a 0 minimum clamps to 0; junk goes back to the value', async () => {
+		const { slider, field, onInput } = mount();
+		const insert = (text) => {
+			const event = new InputEvent('beforeinput', {
+				bubbles: true,
+				cancelable: true,
+				inputType: 'insertText',
+				data: text,
+			});
+			field.dispatchEvent(event);
+			return !event.defaultPrevented;
+		};
+		field.focus();
+		expect(insert('-')).toBe(true);
+		expect(insert('e')).toBe(true);
+		expect(insert('x')).toBe(false); // letters are still refused
+		typeInto(field, '-20');
+		await key(field, 'Enter');
+		expect(slider.value).toBe(0);
+		expect(field.value).toBe('0');
+		for (const junk of ['1e3', '-', '5.5.5']) {
+			slider.set(50);
+			onInput.mockClear();
+			typeInto(field, junk);
+			await key(field, 'Enter');
+			expect(slider.value).toBe(50);
+			expect(field.value).toBe('50');
+			expect(onInput).not.toHaveBeenCalled();
+		}
+		typeInto(field, '1e3');
+		field.blur();
+		await settle();
+		expect(slider.value).toBe(50);
+		expect(field.value).toBe('50');
+	});
+
+	it('Esc throws the typed text away and does not reach the panel; a second Esc does', async () => {
+		const { slider, field, onInput } = mount();
+		// The agent panel listens on an ancestor (agent-panel.js), like this one.
+		const panel = vi.fn();
+		const onPanelKey = (event) => event.key === 'Escape' && panel();
+		document.body.addEventListener('keydown', onPanelKey);
+		for (const typed of ['60', '400', '-2']) {
+			typeInto(field, typed);
+			await key(field, 'Escape');
+			expect(field.value).toBe('50');
+		}
+		expect(panel).not.toHaveBeenCalled();
+		field.blur();
+		await settle();
+		expect(slider.value).toBe(50);
+		expect(onInput).not.toHaveBeenCalled();
+		field.focus();
+		await key(field, 'Escape');
+		expect(panel).toHaveBeenCalled();
+		document.body.removeEventListener('keydown', onPanelKey);
+	});
+
+	it('Alt+arrow in the field moves one step; Shift+arrow a tenth of the range', async () => {
+		const { slider, field } = mount();
+		field.focus();
+		await key(field, 'ArrowUp', { altKey: true });
+		expect(slider.value).toBe(55);
+		await key(field, 'ArrowUp', { shiftKey: true });
+		expect(slider.value).toBe(65);
+	});
+
+	it('sizes the field from the longest value; a missing value starts at min', () => {
+		const { field } = mount({ min: -100, max: 100, step: 1, value: -100 });
+		expect(field.style.getPropertyValue('--nd-slider-value-chars')).toBe('4');
+		expect(field.value).toBe('-100');
+		const other = mount({ value: undefined, min: 10 });
+		expect(other.slider.value).toBe(10);
+		expect(other.field.style.getPropertyValue('--nd-slider-value-chars')).toBe('3');
 	});
 
 	it('set() moves it without calling onInput; setDisabled() disables both parts', () => {

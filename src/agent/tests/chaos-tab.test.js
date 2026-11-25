@@ -217,7 +217,9 @@ describe('Chaos tab', () => {
 			const op = tools[index];
 			const heroes = [...tab.querySelectorAll('.nd-slider--hero')];
 			expect(heroes.length).toBe(1);
-			expect(heroes[0].querySelector('input[type="range"]').getAttribute('aria-label')).toBe('Chaos');
+			expect(heroes[0].querySelector('input[type="range"]').getAttribute('aria-label')).toBe(
+				'Chaos'
+			);
 			expect(heroes[0].closest('.chaos-finetune')).toBeNull();
 			const fineTune = tab.querySelector('.chaos-finetune');
 			expect(fineTune.tagName).toBe('DETAILS');
@@ -273,8 +275,9 @@ describe('Chaos tab', () => {
 		chaosThumb().focus();
 		await press(chaosThumb(), 'ArrowRight');
 		expect(chaosThumb().value).toBe('55');
+		// Shift+arrow jumps a tenth of the range (#137 QA), not ten steps of 5.
 		await press(chaosThumb(), 'ArrowLeft', { shiftKey: true });
-		expect(chaosThumb().value).toBe('5');
+		expect(chaosThumb().value).toBe('45');
 		await press(chaosThumb(), 'End');
 		expect(chaosThumb().value).toBe('100');
 		const radios = [...tab.querySelectorAll('.chaos-tab__pick')];
